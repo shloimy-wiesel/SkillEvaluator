@@ -51,3 +51,10 @@ The mode-0600 JSON file needs `root`, `remote`, `username`, `git_token`,
 unique branch, creates an MR, and queries pipelines at that commit. It does
 not require a runner or verify runner execution. Delete the disposable project
 and revoke its credentials afterwards.
+
+Verified 2026-11-25 with `gitlab/gitlab-ce:18.11.3-ce.0`: the browser
+connected to `https://localhost:24873/forge/engineering/platform/handbook.git`
+using a project-specific private trust bundle and separate Git/API tokens,
+created a branch and pushed an edit. The project API created MR `!1` at
+the pushed SHA; the pipeline query returned an empty list. This smoke used
+a real self-managed GitLab container and did not exercise a CI runner.
