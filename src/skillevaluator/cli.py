@@ -1072,13 +1072,16 @@ def _run_agent_eval_or_skip(
                 source_kind=source_kind,
             )
 
+    from skillevaluator.embedded import sandbox_preflight
     from skillevaluator.evaluation import EvaluationOptions, EvaluationService
     from skillevaluator.evaluation.tier3_report import (
         advisory_skip_result,
         agent_eval_result_from_run,
     )
 
+    preflight = sandbox_preflight.get()
     options = EvaluationOptions(
+        skill_workspace_mode="isolated" if preflight else None,
         skill_path=target_path,
         agents=agents,
         env_mode=env_mode,
@@ -1109,6 +1112,8 @@ def _run_agent_eval_or_skip(
         repo_context_exclude_paths=repo_context_exclude_paths,
     )
     try:
+        if preflight:
+            preflight()
         service = EvaluationService()
         if progress_reporter is not None:
             engine_result = service.evaluate(options, progress_reporter=progress_reporter)
@@ -1257,6 +1262,10 @@ def _ensure_autopilot_dataset(
         else:
             no_llm = False
             if evaluation_params is not None:
+                # Match the direct Tier 3 workflow before spending a generation
+                # request. Keep keyless deterministic starters available, and
+                # leave existing authored sources untouched above.
+                from skillevaluator.embedded import sandbox_preflight
                 from skillevaluator.tier3.workflow import (
                     _preflight_environment,
                     _preflight_nemo_gym,
@@ -1264,10 +1273,10 @@ def _ensure_autopilot_dataset(
                     _source_snapshot,
                 )
 
-                # Match the direct Tier 3 workflow before spending a generation
-                # request. Keep keyless deterministic starters available, and
-                # leave existing authored sources untouched above.
                 params = {**evaluation_params, "skill_path": skill_path}
+                if params.get("backend") != "nemo-gym" and (preflight := sandbox_preflight.get()):
+                    preflight()
+                    params["skill_workspace_mode"] = "isolated"
                 with _source_snapshot(skill_path) as source_path:
                     if params.get("backend") == "nemo-gym":
                         _preflight_nemo_gym(source_path, params)

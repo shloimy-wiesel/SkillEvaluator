@@ -24,7 +24,7 @@ if __name__ == "__main__":
         if not skill.is_relative_to(root) or any(path.is_symlink() for path in skill.rglob("*")):
             sys.exit("Linked skill")
     # Engine logs may contain repository text. Return only allowlisted diagnostics.
-    with open(os.devnull, "w") as discard, redirect_stdout(discard):
+    with Path(os.devnull).open("w") as discard, redirect_stdout(discard):
         setup_logging(verbose=data["verbose"])
         result = run_precommit(
             data["check"],

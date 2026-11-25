@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Results dashboard{% endblock %}
+{% block content %}<h1>Results dashboard</h1>
+<form method="get"><label>Retained runs<select name="run" multiple>{% for r in history %}<option value="{{r.id}}" {% if r.id in chosen %}selected{% endif %}>{{r.created}} · {{r.id}}</option>{% endfor %}</select></label>
+{% for key, values in choices.items() %}<label for="filter-{{key}}">{{key|capitalize}}</label><select multiple name="{{key}}" id="filter-{{key}}">{% for v in values %}<option {% if v in filters[key] %}selected{% endif %}>{{v}}</option>{% endfor %}</select>{% endfor %}
+<label for="evidence">Evidence source</label><select id="evidence" name="evidence"><option value="report">Saved report</option><option value="native" {% if evidence=='native' %}selected{% endif %}>Native retained measurements</option></select>
+<label>Display<select name="display">{% for v in ['performance','comparison'] %}<option value="{{v}}" {% if display == v %}selected{% endif %}>{{v|capitalize}}</option>{% endfor %}</select></label>
+<label>Metrics<select name="metrics">{% for v in metric_sets %}<option value="{{v}}" {% if metrics == v %}selected{% endif %}>{{v|capitalize}}</option>{% endfor %}</select></label><button>Apply filters</button></form>
+<p>Empty filters include all values. Comparisons retain both conditions. A dash means unavailable.</p>
+{% for warning in warnings %}<p>{{warning}}</p>{% endfor %}
+{% if rows %}<table><thead><tr>{% for k in columns %}<th>{{k|replace('_',' ')}}</th>{% endfor %}</tr></thead><tbody>
+{% for r in rows %}<tr>{% for k in columns %}<td>{% if k == 'source' %}<a href="{{url_for('run_detail', project_id=project.id, run_id=r.source)}}">{{r.source}}</a>{% else %}{{r[k] if r[k] is not none else '—'}}{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+{% else %}<p>No matching agent measurements.</p>{% endif %}{% endblock %}
