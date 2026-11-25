@@ -80,3 +80,35 @@ route roles separately rather than choosing one key for both.
 Treat resolved objects, environment maps, and raw provider responses as
 secrets. Do not print them or pass keys in argv. Configure inference clients
 to reject redirects as the catalog probe does.
+
+## Private HTTPS inference in a Harbor trial
+
+Set `SSL_CERT_FILE` in the **Studio worker** environment, e.g.
+`SSL_CERT_FILE=/etc/studio/pki/model-roots.pem`. Relative paths resolve from
+Studio's launch directory. Supply a regular PEM file of public X.509
+certificates only (up to 2 MiB); private keys, mixed PEM objects and malformed
+bundles are rejected. The public certificates become part of each trial image
+and may be retained with Harbor jobs. No host trust directory is mounted into
+trials. The image combines these anchors with its system roots for Python and
+sets `NODE_EXTRA_CA_CERTS` for OpenCode. Requeue trials after CA rotation.
+
+Use an HTTPS API root whose **hostname and port are reachable from both the
+worker and the Docker network**, with that name in the server certificate.
+`localhost` in a trial points to the trial itself. Save chat and embedding
+settings independently. In **Live Tier 3 → Trial settings and budgets** the
+saved chat model is the standard judge; the shared agent override and the more
+specific per-agent overrides select the trial models. For example, select
+OpenCode and enter `openai/private-agent` while saving `private-judge` for
+chat. The endpoint must serve both model IDs. Embedding credentials are not
+needed by the trial.
+
+Run the browser-to-verifier check in an installed Studio + Harbor environment
+with Chromium, Docker Compose and access to the local Docker bridge:
+
+```sh
+STUDIO_TEST_LIVE_RUNTIME=1 python -m pytest -q tests/studio/test_private_trial.py
+```
+
+It queues one standard-graded case from the Live Tier 3 form and checks the
+retained trajectory evidence and judge model. The fixture serves inference
+locally; normal container and agent installation may download dependencies.

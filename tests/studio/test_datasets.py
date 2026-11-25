@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 
 import pytest
@@ -480,7 +481,7 @@ def test_model_preview_uses_only_saved_chat_credentials(page, tmp_path, private_
             )
 
     tls, ca = loopback_tls
-    monkeypatch.setenv("SSL_CERT_FILE", str(ca))
+    monkeypatch.setenv("SSL_CERT_FILE", os.path.relpath(ca))
     monkeypatch.setenv("OPENAI_API_KEY", "ambient")
     with ThreadingHTTPServer(("127.0.0.1", 0), Gateway) as server, running(tmp_path / "volume") as base:
         server.socket = tls.wrap_socket(server.socket, server_side=True)

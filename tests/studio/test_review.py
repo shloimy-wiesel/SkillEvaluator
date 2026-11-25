@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -218,7 +219,7 @@ def test_contextual_feedback_survives_reopen(page, retained, loopback_tls, monke
     base, project, volume = retained
     run_url = page.url
     tls, ca = loopback_tls
-    monkeypatch.setenv("SSL_CERT_FILE", str(ca))
+    monkeypatch.setenv("SSL_CERT_FILE", os.path.relpath(ca))
     with ThreadingHTTPServer(("127.0.0.1", 0), Provider) as server:
         server.socket = tls.wrap_socket(server.socket, server_side=True)
         Thread(target=server.serve_forever, daemon=True).start()

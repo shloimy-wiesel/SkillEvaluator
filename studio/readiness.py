@@ -15,6 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from skillevaluator.tier1.commands import RECOGNIZED_CHECKS
 from skillevaluator.tier3_environments import all_env_modes
 
+from .operator_env import operator_env
+
 AGENTS = ("claude-code", "claude", "codex", "opencode", "hermes")
 ModelName = Annotated[str, Field(pattern=r"^[a-zA-Z0-9_./:@+-]{1,256}$")]
 
@@ -109,7 +111,7 @@ def inspect(probe, chat, embeddings):
     if any(secret in arg for secret in secrets for arg in args):
         raise ValueError("Keep provider credentials out of readiness controls.")
     with tempfile.TemporaryDirectory(prefix="studio-readiness-") as home:
-        env = {k: os.environ[k] for k in ("PATH", "SSL_CERT_FILE", "DOCKER_HOST") if k in os.environ}
+        env = operator_env("PATH", "SSL_CERT_FILE", "DOCKER_HOST")
         process = subprocess.Popen(
             [sys.executable, "-I", str(Path(__file__).with_name("readiness_worker.py")), *args],
             cwd=home,

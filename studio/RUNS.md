@@ -199,7 +199,8 @@ and comparison arms. Blank numeric fields preserve engine/config defaults;
 zero is an explicit budget. A USD limit also needs a committed model price
 JSON path. The chat profile selects the judge; the agent model override is
 independent. Use a key-backed provider whose saved credential can serve every
-selected agent; Studio does not borrow unrelated ambient keys.
+selected agent; Studio does not borrow unrelated ambient keys. For private
+HTTPS gateways, see [worker and trial trust](PROVIDERS.md#private-https-inference-in-a-harbor-trial).
 
 **Evaluate** requires cases unless you explicitly enable autopilot. **Direct
 Tier 3** runs the native workflow: preflight options and environment, then use

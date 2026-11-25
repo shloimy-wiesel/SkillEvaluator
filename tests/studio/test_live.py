@@ -277,6 +277,7 @@ def test_evaluate_selected_project_dataset_and_container_grader(
         page.get_by_label("opencode", exact=True).check()
         page.get_by_text("Trial settings and budgets").click()
         page.get_by_label("Codex model override", exact=True).fill("gpt-trial")
+        playwright.expect(page.get_by_text("Saved chat / standard judge: test", exact=True)).to_be_visible()
         page.get_by_label("OpenCode model override", exact=True).fill("openai/trial", timeout=2000)
         for label, value in {
             "Attempts per case": "3",
@@ -306,6 +307,9 @@ def test_evaluate_selected_project_dataset_and_container_grader(
         page.get_by_role("button", name="Queue live evaluation").click()
         playwright.expect(page.get_by_role("status")).to_contain_text("incomplete")
         playwright.expect(page.get_by_text("agent unavailable", exact=True)).to_be_visible()
+        playwright.expect(
+            page.get_by_text("opencode: openai/trial · differs from saved chat", exact=True)
+        ).to_be_visible()
         assert "private-key" not in page.content()
         assert "private-key" not in next((tmp_path / "volume/artifacts").rglob("result.json")).read_text()
 

@@ -9,6 +9,8 @@ from pathlib import Path
 from uuid import uuid4
 from zipfile import ZIP_DEFLATED, ZipFile
 
+from skillevaluator.public_certificates import public_certificates
+
 from .workspace import WorkspaceError
 
 
@@ -52,7 +54,7 @@ def isolated(ctx, options, args, *, manifest, policy, chat, redact):
         "files": files,
         "policy": policy.read_text() if policy else None,
         "repeats": options.repeats,
-        "ca": Path(ca).read_text() if ca else None,
+        "ca": public_certificates(ca).decode("ascii") if ca else None,
         "chat": chat or {"OPENAI_API_KEY": "offline-placeholder", "SKILL_EVAL_LLM_BASE_URL": "http://127.0.0.1:1/v1"},
     }
     name = "studio-grader-" + uuid4().hex

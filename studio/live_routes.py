@@ -4,7 +4,10 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
+from skillevaluator.provider_config import resolve_llm_provider
+
 from .live_job import COMPLETED, LIVE, Controls, snapshot
+from .providers import worker_environment
 from .runs import project_for
 from .sandbox_profiles import LABELS, availability
 from .workspace import WorkspaceError
@@ -13,6 +16,10 @@ router = APIRouter(prefix="/projects/{project_id}/live")
 
 
 def render(request, project, error=None, selected="generated"):
+    try:
+        judge = resolve_llm_provider(worker_environment(request.app.state.workspace, project.id, "chat")).model
+    except ValueError:
+        judge = None
     return request.app.state.templates.TemplateResponse(
         request=request,
         name="live/index.html",
@@ -20,6 +27,7 @@ def render(request, project, error=None, selected="generated"):
             "project": project,
             "error": error,
             "selected": selected,
+            "judge": judge,
             "profiles": [
                 (key, label, availability(project.id, project.folder, project.revision, key))
                 for key, label in LABELS.items()

@@ -13,6 +13,7 @@ from fastapi import HTTPException
 
 from skillevaluator.evaluation.tier3_feedback_chat import compact_run_context, load_agent_eval_payload
 
+from .operator_env import operator_env
 from .providers import worker_environment
 from .retained import input_projection, mask_strings, scrubber
 
@@ -56,8 +57,7 @@ def ask(workspace, run, question):
         ):
             if key in os.environ:
                 env[key] = os.environ[key]
-    if "SSL_CERT_FILE" in os.environ:
-        env["SSL_CERT_FILE"] = os.environ["SSL_CERT_FILE"]
+    env.update(operator_env("SSL_CERT_FILE"))
     scrub = scrubber(
         workspace,
         project,

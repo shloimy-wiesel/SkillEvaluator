@@ -123,7 +123,7 @@ def test_select_decoys_retains_ranked_manifest_from_project_catalog(page, privat
         from unittest.mock import patch
 
         try:
-            with patch.dict(os.environ, SSL_CERT_FILE=str(ca)), running(tmp_path / "volume") as base:
+            with patch.dict(os.environ, SSL_CERT_FILE=os.path.relpath(ca)), running(tmp_path / "volume") as base:
                 settings = open_settings(page, base, private_remote)
                 save_profile(
                     page.get_by_role("region", name="Embeddings", exact=True),

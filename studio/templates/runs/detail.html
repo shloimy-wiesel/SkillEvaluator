@@ -7,6 +7,7 @@
 {% if run.kind == "changed-files-v1" and report.diagnostics %}<dt>Evaluator detail</dt><dd>{{ report.diagnostics.level }} · {{ report.diagnostics.paths }} selected paths · {{ report.diagnostics.skills }} affected skills</dd>{% endif %}</dl></details>
 <p role="status">{{ run.status }} · {{ run.progress }}</p>
 <dl><dt>Commit</dt><dd><code>{{ run.sha }}</code></dd><dt>Skill folder</dt><dd>{{ run.folder }}</dd>
+{% if models %}<dt>Saved chat / standard judge</dt><dd>{{ models.judge }}</dd><dt>Live agent models</dt>{% for row in models.agents %}<dd>{{ row }}</dd>{% endfor %}{% endif %}
 <dt>Configuration</dt><dd><code>{{ run.options }}</code></dd>
 {% if run.exit_code is not none %}<dt>{% if run.kind in ('external-metrics-v1', 'skill-interaction-v1', 'select-decoys-v1') %}Command exit code{% else %}Gate exit code{% endif %}</dt><dd>{{ run.exit_code }}</dd>{% endif %}</dl>
 {% if run.kind == 'tier3-live-v1' and run.status not in ('queued', 'running') %}<p><a href="{{url_for('review_run', project_id=project.id, run_id=run.id)}}">Review artifacts and feedback</a> · <a href="{{url_for('review_run', project_id=project.id, run_id=run.id)}}?agents=true">Compare agents</a></p>{% endif %}

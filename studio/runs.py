@@ -6,8 +6,8 @@ from typing import Literal
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 
-from .static_job import STATIC, StaticOptions
 from .expert_options import ACTIONS
+from .static_job import STATIC, StaticOptions
 from .workspace import WorkspaceError
 
 router = APIRouter(prefix="/projects/{project_id}/runs")
@@ -68,13 +68,20 @@ def queue(
 @router.get("/{run_id}", name="run_detail")
 def detail(request: Request, project_id: str, run_id: str):
     run = record_for(request, project_id, run_id)
+    report = json.loads(run["report"] or "{}")
+    models = None
+    if run["kind"] == "tier3-live-v1":
+        from .live_job import LiveOptions, display_models
+
+        models = display_models(LiveOptions.model_validate_json(run["options"]), report)
     response = request.app.state.templates.TemplateResponse(
         request=request,
         name="runs/detail.html",
         context={
             "project": project_for(request, project_id),
             "run": run,
-            "report": json.loads(run["report"] or "{}"),
+            "report": report,
+            "models": models,
         },
     )
     if run["status"] in {"queued", "running"}:

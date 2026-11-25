@@ -1,7 +1,6 @@
 """Project-scoped Tier 3 experiments. Outputs are retained separately from live evaluations."""
 
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -20,6 +19,7 @@ from skillevaluator.tier3.evals_config import encode_environment_kwarg
 from . import live_job
 from .jobs import JobDefinition, Outcome
 from .live_job import Agent, Controls, Model, Positive
+from .operator_env import operator_env
 from .provider_snapshots import exposes_credential, seal, unseal
 from .providers import worker_environment
 from .workspace import WorkspaceError
@@ -121,7 +121,7 @@ def environment(ctx, options, base):
     home.mkdir()
     return {
         **creds,
-        **{k: os.environ[k] for k in ("SSL_CERT_FILE",) if k in os.environ},
+        **operator_env("SSL_CERT_FILE"),
         "HOME": str(home),
         "PATH": f"{Path(sys.executable).parent}:/usr/local/bin:/usr/bin:/bin",
         "TMPDIR": str(base),
@@ -266,9 +266,7 @@ def interact(ctx, options):
         if options.agents:
             args += ["--agents", ",".join(options.agents)]
         env = environment(ctx, options, base)
-        env.update(
-            {k: os.environ[k] for k in ("DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH") if k in os.environ}
-        )
+        env.update(operator_env("DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"))
         env["SKILLEVALUATOR_OUTPUT_PROVENANCE_KEY_FILE"] = str(ctx.workspace.data_dir / "tier3-output.key")
         secrets = {
             s.encode()

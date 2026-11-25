@@ -23,6 +23,7 @@ from skillevaluator.tier3.dataset_utils import DATASET_EXTENSIONS, find_eval_fil
 
 from .jobs import JobContext, JobDefinition, Outcome
 from .native_location import bounded_directory, native_directory
+from .operator_env import operator_env
 from .provider_snapshots import exposes_credential, seal, unseal
 from .providers import worker_environment
 from .sandbox_profiles import Profile, authorize, stage_native
@@ -114,6 +115,23 @@ class LiveOptions(Controls):
     endpoint: str
     source_repository: str | None = None
     evaluator_revision: str | None = None
+
+
+def display_models(options, report):
+    """Prefer engine-resolved models; show requested overrides even if setup failed."""
+    agents = report.get("tier3", {}).get("agents", {})
+    requested = dict(options.model_overrides())
+    namespace = {"openai-compatible": "openai", "nv_build": "nvidia"}.get(options.provider, options.provider)
+    rows = []
+    for agent in dict.fromkeys([*options.agents, *agents] or ["Provider default agent"]):
+        model = agents.get(agent, {}).get("model") or requested.get(agent) or options.model
+        if not model:
+            rows.append(f"{agent}: pinned policy or engine default")
+            continue
+        catalog_id = model.removeprefix(namespace + "/") if agent == "opencode" else model
+        comparison = "same as saved chat" if catalog_id == options.judge_model else "differs from saved chat"
+        rows.append(f"{agent}: {model} · {comparison}")
+    return {"judge": options.judge_model, "agents": rows}
 
 
 def operator_revision():
@@ -487,11 +505,7 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
             args.append("--autopilot")
         if options.harbor_keep_jobs:
             args.append("--harbor-keep-jobs")
-        env = {
-            k: os.environ[k]
-            for k in ("DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "SSL_CERT_FILE")
-            if k in os.environ
-        }
+        env = operator_env("DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "SSL_CERT_FILE")
         env.update(
             chat,
             PATH=f"{Path(sys.executable).parent}:/usr/local/bin:/usr/bin:/bin",

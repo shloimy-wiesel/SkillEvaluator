@@ -393,7 +393,7 @@
     "key": "tier3 evaluate:agent_model",
     "status": "implemented",
     "equivalent": "One typed override per selected agent, emitted as repeated AGENT=MODEL options.",
-    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+    "evidence": "tests/studio/test_private_trial.py::test_private_standard_trial"
   },
   {
     "key": "tier3 evaluate:custom_dockerfile_mode",

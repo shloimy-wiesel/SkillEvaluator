@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from . import expert_catalog, expert_profiles, live_job
 from .expert_options import ACTIONS, ALIASES, CHECKS, FIELDS, FILES, HARNESSES, MULTI, REPORTS, ExpertOptions
 from .jobs import JobDefinition, Outcome
+from .operator_env import operator_env
 from .runs import project_for, record_for
 from .worker_deadline import WorkerTimeout, bounded_worker, run_evaluator
 from .workspace import WorkspaceError
@@ -110,7 +111,7 @@ def invoke(ctx, args, work, output, *, chat, embeddings, runtime, reason, member
                 "GIT_CONFIG_NOSYSTEM": "1",
                 **runtime,
                 **chat,
-                **{k: os.environ[k] for k in ("SSL_CERT_FILE",) if k in os.environ},
+                **operator_env("SSL_CERT_FILE"),
             },
             stdout=console,
             stderr=subprocess.DEVNULL,

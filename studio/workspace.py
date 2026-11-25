@@ -15,6 +15,7 @@ from uuid import uuid4
 from cryptography.fernet import Fernet
 
 from .git_limits import GitLimit, bounded
+from .operator_env import operator_env
 
 
 class WorkspaceError(ValueError):
@@ -188,7 +189,7 @@ class Workspace:
     def _git(
         self, cwd, args, credential=None, remote=None, *, stdin=None, raw=False, index=None, ca=None, discard=False
     ):
-        env = {k: os.environ[k] for k in ("PATH", "GIT_SSL_CAINFO", "LANG") if k in os.environ}
+        env = operator_env("PATH", "GIT_SSL_CAINFO", "LANG")
         env.update(
             GIT_CONFIG_GLOBAL=os.devnull,
             GIT_CONFIG_NOSYSTEM="1",
