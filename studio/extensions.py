@@ -1,6 +1,7 @@
 """Install production feature routers and their named project entry routes here."""
 
 from .assets import router as assets_router
+from .changed_files import CHANGED
 from .ci_advanced import router as advanced_ci_router
 from .ci_routes import router as ci_router
 from .comparison import router as comparison_router
@@ -11,6 +12,8 @@ from .experiment_routes import router as experiment_router
 from .expert import EXPERT
 from .expert import router as expert_router
 from .grader_job import GRADER
+from .history import router as history_router
+from .installation import router as installation_router
 from .live_job import LIVE
 from .live_routes import router as live_router
 from .overlap import OVERLAP
@@ -21,6 +24,7 @@ from .runs import router as runs_router
 from .static_job import STATIC
 
 ROUTERS = (
+    installation_router,
     editor_router,
     provider_router,
     runs_router,
@@ -28,8 +32,9 @@ ROUTERS = (
     assets_router,
     dataset_router,
     live_router,
-    review_router,
     comparison_router,
+    history_router,
+    review_router,
     overlap_router,
     expert_router,
     advanced_ci_router,
@@ -37,6 +42,8 @@ ROUTERS = (
 )
 PROJECT_LINKS = (
     ("Compare revisions", "compare_revisions"),
+    ("Skill lift history", "skill_history"),
+    ("Installation and changed files", "installation"),
     ("Edit skill", "skill_editor"),
     ("Datasets", "datasets"),
     ("Provider settings", "provider_settings"),
@@ -48,4 +55,4 @@ PROJECT_LINKS = (
     ("Repository CI", "repository_ci"),
     ("Results dashboard", "results_dashboard"),
 )
-JOB_DEFINITIONS = (STATIC, GRADER, LIVE, OVERLAP, EXPERT, METRICS, DECOYS, INTERACTION)
+JOB_DEFINITIONS = (CHANGED, STATIC, GRADER, LIVE, OVERLAP, EXPERT, METRICS, DECOYS, INTERACTION)

@@ -45,3 +45,13 @@ def validate_agent_names(result, config):
             or any(not re.fullmatch(r"[\w-][\w.-]{0,127}", name) for name in agents)
         ):
             raise ValueError("Invalid retained agent names")
+
+
+def scoped_run_directory(root, skill):
+    """Resolve one flat or skill-nested reservation, including unfinished history."""
+    if root.resolve(strict=True) != root:
+        raise ValueError("Linked artifact directory")
+    candidate = _single_directory(root)
+    if candidate.name == skill and not (candidate / "run_config.json").exists():
+        return _single_directory(candidate)
+    return candidate

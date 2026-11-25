@@ -12,6 +12,43 @@ generation or embedding trial. A listed model confirms catalog access, not
 inference permission or billing capacity. Bedrock uses the worker’s AWS identity
 instead of a saved API key and has no Studio catalog probe.
 
+## Project readiness
+
+Use **Project readiness** on the same page to run the installed evaluator in a
+private temporary directory. Blank fields leave CLI defaults intact. Results
+show native check details, pass/warn/fail and the evaluator exit code. Select
+**Show redacted JSON** for the native report structure. Checks do not change the
+project or start a trial.
+
+| Action | What it checks |
+| --- | --- |
+| Check tier readiness (`doctor`) | Tier 1 probes the installed scanners for the selected checks. Tier 2 resolves each saved provider independently. Tier 3 checks runtime prerequisites. **All** returns the tiers in order. The default is Tier 3. |
+| Quick health check (`health-check`) | Same tier scopes, scanner and agent/environment controls, without inference or agent-model overrides. |
+| Inspect the live runtime (`tier3 doctor`) | Native Tier 3 only; leave tier scope unset. Select agents, backend and installed environment. An empty agent selection follows the provider. Select **Allow provider probes** to check the resolved agent models against their catalogs. |
+| Discover chat models (`models`) | Authenticated, filtered native catalog with the configured model first; limit 1–100 (default 10). No inference. For embedding catalog access use the separate Embeddings profile button. |
+
+**Allow provider probes** is off on every new form. With Tier 2 selected it
+authorizes one live embedding and one chat probe, potentially billable. A
+catalog listing alone does not verify inference permission. Missing extras,
+credentials, scanner executables and backend prerequisites produce native
+failures; a missing NeMo Gym CLI is not a successful check.
+
+The worker needs the installed evaluator, Tier 2 SDKs for inference, and
+Tier 3 extras and runtime tools for full runtime checks. Provide a trusted
+CA for private HTTPS endpoints. Docker needs a reachable daemon; Kata also
+needs a registered Kata runtime. Environment choices come from the installed
+engine; Studio supplies typed constructor controls for `kata_runtime` and one
+`kata_dns` address only. No raw constructor JSON, host paths or
+operator cloud credentials can be entered in this form. Cloud backends,
+Bedrock identity and a compatible NeMo Gym installation have not been
+qualified here.
+
+The per-probe timeout accepts positive values up to 60 seconds for scanners
+and explicit Tier 2 inference. The entire worker has a separate 90-second
+deadline. Studio passes saved role-specific configuration instead of ambient
+provider keys. The [30 bindings](bindings/readiness.json) cite Chromium and
+native engine evidence using local HTTPS fixtures, not a hosted provider.
+
 ## Python boundary
 
 ```python

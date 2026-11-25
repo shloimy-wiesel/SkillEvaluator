@@ -2,12 +2,16 @@
 {% block ancestors %}{{ super() }}<span aria-hidden="true">/</span><a href="{{ url_for('runs_index', project_id=project.id) }}">Evaluation runs</a>{% endblock %}
 {% block content %}
 <h1>{{ run.kind }}</h1>
+<details><summary>Diagnostic detail</summary><dl><dt>Run ID</dt><dd>{{ run.id }}</dd><dt>Queued (UTC)</dt><dd>{{ run.created }}</dd>
+<dt>Evaluator adapter</dt><dd>{{ run.kind }}</dd><dt>Frozen commit</dt><dd>{{ run.sha }}</dd><dt>Worker status</dt><dd>{{ run.status }}</dd>
+{% if run.kind == "changed-files-v1" and report.diagnostics %}<dt>Evaluator detail</dt><dd>{{ report.diagnostics.level }} · {{ report.diagnostics.paths }} selected paths · {{ report.diagnostics.skills }} affected skills</dd>{% endif %}</dl></details>
 <p role="status">{{ run.status }} · {{ run.progress }}</p>
 <dl><dt>Commit</dt><dd><code>{{ run.sha }}</code></dd><dt>Skill folder</dt><dd>{{ run.folder }}</dd>
 <dt>Configuration</dt><dd><code>{{ run.options }}</code></dd>
 {% if run.exit_code is not none %}<dt>{% if run.kind in ('external-metrics-v1', 'skill-interaction-v1', 'select-decoys-v1') %}Command exit code{% else %}Gate exit code{% endif %}</dt><dd>{{ run.exit_code }}</dd>{% endif %}</dl>
 {% if run.kind == 'tier3-live-v1' and run.status not in ('queued', 'running') %}<p><a href="{{url_for('review_run', project_id=project.id, run_id=run.id)}}">Review artifacts and feedback</a> · <a href="{{url_for('review_run', project_id=project.id, run_id=run.id)}}?agents=true">Compare agents</a></p>{% endif %}
 {% if report %}<h2>Results</h2>
+{% if run.kind == "changed-files-v1" %}<h3>Changed-file results</h3><pre aria-label="Check output">{{ report.output }}</pre>{% endif %}
 {% if run.kind == "external-metrics-v1" %}<p>External observations · SkillEvaluator did not execute these tests or verify their source claims.</p><pre>{{ run.markdown }}</pre>{% endif %}
 {% if run.kind in ("select-decoys-v1", "skill-interaction-v1") %}<pre>{{ run.markdown }}</pre>{% endif %}
 {% if report.tier3 %}<p>Tier 3 verdict: {{ report.tier3.verdict|default("unavailable", true) }} · Execution: {{ report.tier3.execution_status }}</p>

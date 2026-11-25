@@ -1,0 +1,182 @@
+[
+  {
+    "key": "doctor",
+    "status": "implemented",
+    "equivalent": "Run this native readiness action from Provider settings; show pass/warn/fail rows and actual evaluator exit status.",
+    "evidence": "tests/studio/test_providers.py::test_runtime_options_and_native_failures"
+  },
+  {
+    "key": "doctor:tier",
+    "status": "implemented",
+    "equivalent": "Tier scope selects 1, 2, 3 or all; all preserves ordered native statuses, even when a prerequisite fails.",
+    "evidence": "tests/studio/test_providers.py::test_runtime_options_and_native_failures"
+  },
+  {
+    "key": "doctor:checks",
+    "status": "implemented",
+    "equivalent": "Select multiple canonical scanner checks. A selection with no external scanner has a distinct native pass result; omission uses the native lineup.",
+    "evidence": "tests/studio/test_providers.py::test_scanner_readiness_scope_and_json"
+  },
+  {
+    "key": "doctor:timeout",
+    "status": "partial",
+    "equivalent": "Positive per-probe seconds capped at 60 (CLI permits 3600); tested with a stalled scanner. Whole operation has a 90-second ceiling.",
+    "evidence": "tests/studio/test_providers.py::test_native_scanner_timeout"
+  },
+  {
+    "key": "doctor:agents",
+    "status": "implemented",
+    "equivalent": "Multi-select runtime agents; -a and --agents match, including claude → claude-code. Omit for native automatic selection.",
+    "evidence": "tests/studio/test_providers.py::test_adapter_matches_native_aliases"
+  },
+  {
+    "key": "doctor:env_mode",
+    "status": "partial",
+    "equivalent": "Select an installed environment, or omit for Docker. Docker/Kata paths tested; other worker runtimes not qualified.",
+    "evidence": "tests/studio/test_providers.py::test_runtime_options_and_native_failures"
+  },
+  {
+    "key": "doctor:environment_kwarg",
+    "status": "partial",
+    "equivalent": "Typed Kata runtime handler and DNS address emit repeatable --environment-kwarg/--ek. Other constructor parameters are not offered.",
+    "evidence": "tests/studio/test_providers.py::test_adapter_matches_native_aliases"
+  },
+  {
+    "key": "doctor:agent_model",
+    "status": "implemented",
+    "equivalent": "Named override per agent; repeated overrides reach native catalog verification with distinct available/missing model results.",
+    "evidence": "tests/studio/test_providers.py::test_per_agent_catalog_results_from_installed_engine"
+  },
+  {
+    "key": "doctor:backend",
+    "status": "implemented",
+    "equivalent": "Select Harbor or NeMo Gym. The native NeMo Gym compatibility/prerequisite failure remains visible.",
+    "evidence": "tests/studio/test_providers.py::test_runtime_options_and_native_failures"
+  },
+  {
+    "key": "doctor:verify_models",
+    "status": "implemented",
+    "equivalent": "Explicitly allow the native credential-bearing probes. Tier 2 uses isolated embedding/chat profiles; Tier 3 consults the selected agent catalogs.",
+    "evidence": "tests/studio/test_providers.py::test_native_inference_requires_consent_and_isolates_roles"
+  },
+  {
+    "key": "doctor:as_json",
+    "status": "implemented",
+    "equivalent": "Show redacted JSON exposes native tier, check, status and detail records alongside the accessible table.",
+    "evidence": "tests/studio/test_providers.py::test_scanner_readiness_scope_and_json"
+  },
+  {
+    "key": "health-check",
+    "status": "implemented",
+    "equivalent": "Run this native readiness action from Provider settings; show pass/warn/fail rows and actual evaluator exit status.",
+    "evidence": "tests/studio/test_providers.py::test_runtime_options_and_native_failures"
+  },
+  {
+    "key": "health-check:tier",
+    "status": "implemented",
+    "equivalent": "Tier scope selects 1, 2, 3 or all; all preserves ordered native statuses, even when a prerequisite fails.",
+    "evidence": "tests/studio/test_providers.py::test_runtime_options_and_native_failures"
+  },
+  {
+    "key": "health-check:checks",
+    "status": "implemented",
+    "equivalent": "Select multiple canonical scanner checks. A selection with no external scanner has a distinct native pass result; omission uses the native lineup.",
+    "evidence": "tests/studio/test_providers.py::test_scanner_readiness_scope_and_json"
+  },
+  {
+    "key": "health-check:timeout",
+    "status": "partial",
+    "equivalent": "Positive per-probe seconds capped at 60 (CLI permits 3600); tested with a stalled scanner. Whole operation has a 90-second ceiling.",
+    "evidence": "tests/studio/test_providers.py::test_native_scanner_timeout"
+  },
+  {
+    "key": "health-check:agents",
+    "status": "implemented",
+    "equivalent": "Multi-select runtime agents; -a and --agents match, including claude → claude-code. Omit for native automatic selection.",
+    "evidence": "tests/studio/test_providers.py::test_adapter_matches_native_aliases"
+  },
+  {
+    "key": "health-check:env_mode",
+    "status": "partial",
+    "equivalent": "Select an installed environment, or omit for Docker. Docker/Kata paths tested; other worker runtimes not qualified.",
+    "evidence": "tests/studio/test_providers.py::test_runtime_options_and_native_failures"
+  },
+  {
+    "key": "health-check:environment_kwarg",
+    "status": "partial",
+    "equivalent": "Typed Kata runtime handler and DNS address emit repeatable --environment-kwarg/--ek. Other constructor parameters are not offered.",
+    "evidence": "tests/studio/test_providers.py::test_adapter_matches_native_aliases"
+  },
+  {
+    "key": "health-check:as_json",
+    "status": "implemented",
+    "equivalent": "Show redacted JSON exposes native tier, check, status and detail records alongside the accessible table.",
+    "evidence": "tests/studio/test_providers.py::test_scanner_readiness_scope_and_json"
+  },
+  {
+    "key": "models",
+    "status": "implemented",
+    "equivalent": "Discover chat models from the native authenticated catalog; the selected model is ranked first.",
+    "evidence": "tests/studio/test_providers.py::test_models_native_limit_and_redacted_catalog"
+  },
+  {
+    "key": "models:limit",
+    "status": "implemented",
+    "equivalent": "Catalog limit selects 1–100 filtered records; blank uses native 10.",
+    "evidence": "tests/studio/test_providers.py::test_models_native_limit_and_redacted_catalog"
+  },
+  {
+    "key": "models:as_json",
+    "status": "implemented",
+    "equivalent": "Show redacted JSON displays native model metadata and the configured marker.",
+    "evidence": "tests/studio/test_providers.py::test_models_native_limit_and_redacted_catalog"
+  },
+  {
+    "key": "tier3 doctor",
+    "status": "implemented",
+    "equivalent": "Run this native readiness action from Provider settings; show pass/warn/fail rows and actual evaluator exit status.",
+    "evidence": "tests/studio/test_providers.py::test_runtime_options_and_native_failures"
+  },
+  {
+    "key": "tier3 doctor:agents",
+    "status": "implemented",
+    "equivalent": "Multi-select runtime agents; -a and --agents match, including claude → claude-code. Omit for native automatic selection.",
+    "evidence": "tests/studio/test_providers.py::test_adapter_matches_native_aliases"
+  },
+  {
+    "key": "tier3 doctor:env_mode",
+    "status": "partial",
+    "equivalent": "Select an installed environment, or omit for Docker. Docker/Kata paths tested; other worker runtimes not qualified.",
+    "evidence": "tests/studio/test_providers.py::test_runtime_options_and_native_failures"
+  },
+  {
+    "key": "tier3 doctor:environment_kwarg",
+    "status": "partial",
+    "equivalent": "Typed Kata runtime handler and DNS address emit repeatable --environment-kwarg/--ek. Other constructor parameters are not offered.",
+    "evidence": "tests/studio/test_providers.py::test_adapter_matches_native_aliases"
+  },
+  {
+    "key": "tier3 doctor:agent_model",
+    "status": "implemented",
+    "equivalent": "Named override per agent; repeated overrides reach native catalog verification with distinct available/missing model results.",
+    "evidence": "tests/studio/test_providers.py::test_per_agent_catalog_results_from_installed_engine"
+  },
+  {
+    "key": "tier3 doctor:backend",
+    "status": "implemented",
+    "equivalent": "Select Harbor or NeMo Gym. The native NeMo Gym compatibility/prerequisite failure remains visible.",
+    "evidence": "tests/studio/test_providers.py::test_runtime_options_and_native_failures"
+  },
+  {
+    "key": "tier3 doctor:verify_models",
+    "status": "implemented",
+    "equivalent": "Explicitly allow the native credential-bearing probes. Tier 2 uses isolated embedding/chat profiles; Tier 3 consults the selected agent catalogs.",
+    "evidence": "tests/studio/test_providers.py::test_per_agent_catalog_results_from_installed_engine"
+  },
+  {
+    "key": "tier3 doctor:as_json",
+    "status": "implemented",
+    "equivalent": "Show redacted JSON exposes native tier, check, status and detail records alongside the accessible table.",
+    "evidence": "tests/studio/test_providers.py::test_runtime_options_and_native_failures"
+  }
+]

@@ -6,6 +6,7 @@
 {% block content %}
 <p class="eyebrow">Results / Revision review</p><h1>Compare revisions</h1>
 <p class="lede">Inspect the source change, then check what the retained evidence supports.</p>
+<p><a href="{{ url_for('skill_history', project_id=project.id) }}">Skill lift history and version exports</a></p>
 <form class="panel compare-form">
 <datalist id="saved-revisions">{% for choice in choices %}<option value="{{ choice }}">{% endfor %}</datalist>
 <div class="compare-pair">{% for key, value in [('Prior',prior),('Current',current)] %}<div>

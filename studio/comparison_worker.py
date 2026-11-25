@@ -7,16 +7,17 @@ import resource
 import sys
 from pathlib import Path
 
-from skillevaluator.tier3.history import collect_history, history_directories
-from skillevaluator.tier3.version_comparison import compare_versions
+from skillevaluator.tier3.history import history_directories, history_from_directories, history_sort_key
+from skillevaluator.tier3.results_location import run_directory_sort_key
+from skillevaluator.tier3.version_comparison import compare_versions, select_prior_candidates
 
 # Isolated Python omits the script directory; import only trusted Studio code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from native_location import native_directory, validate_agent_names
+from native_location import scoped_run_directory, validate_agent_names
 
 
-def bounded_directory(root):
-    directory = native_directory(root)
+def bounded_directory(root, skill):
+    directory = scoped_run_directory(root, skill)
     entries = 0
     pending = [directory]
     total = 0
@@ -44,17 +45,24 @@ def safe_reason(reason):
     return re.sub(r"(?<!\w)/[^\s'\",;)\]]+", "[path]", str(reason))[:320]
 
 
-def inspect(root, sha):
-    directory = bounded_directory(root)
-    root = directory.parent
-    result = json.loads((directory / "result.json").read_bytes())
-    config_path = directory / "run_config.json"
-    config = json.loads(config_path.read_bytes()) if config_path.exists() else {}
+def scoped_directory(root, sha, skill):
+    directory = bounded_directory(root, skill)
+    if directory not in history_directories(directory.parent):
+        raise ValueError("Unrecognized native directory")
+    config = json.loads((directory / "run_config.json").read_bytes())
+    try:
+        result = json.loads((directory / "result.json").read_bytes())
+    except (FileNotFoundError, ValueError):
+        result = {}  # Native history explains incomplete/corrupt runs; completion selection excludes them.
     validate_agent_names(result, config)
-    if directory not in history_directories(root):
-        raise ValueError("Unrecognized run directory")
-    # The primary root is populated above; do not allow native fallback discovery.
-    rows = collect_history(root, results_dir=root.parent)["rows"]
+    if config.get("evaluated_source", {}).get("commit") != sha:
+        raise ValueError("Different source revision")
+    return directory
+
+
+def inspect(root, sha, skill):
+    directory = scoped_directory(root, sha, skill)
+    rows = history_from_directories([directory], skill)["rows"]
     if len(rows) > 32:
         raise ValueError("Too many native history rows")
     summary = [
@@ -66,21 +74,68 @@ def inspect(root, sha):
         for row in rows
         if row["run_id"] == directory.name
     ]
-    if config.get("evaluated_source", {}).get("commit") != sha:
-        return None, [], "Native source revision is missing or disagrees with the selected commit."
+    if not run_directory_sort_key(directory, require_completed_result=True):
+        return None, summary, "No completed native comparison evidence."
     return directory, summary, None
+
+
+def catalog(volume, project, query):
+    directories = {}
+    for run, sha in query["runs"]:
+        root = Path(volume) / "artifacts" / project / run / "tier3"
+        try:
+            directories[run] = scoped_directory(root, sha, query["skill"])
+        except (OSError, ValueError, AttributeError, TypeError, RuntimeError):
+            continue
+    if query["action"] == "compare":
+        completed = {
+            path: key
+            for path in directories.values()
+            if (key := run_directory_sort_key(path, require_completed_result=True))
+        }
+        ordered = sorted(completed, key=completed.get, reverse=True)
+        current = next(iter(ordered), None) if query["current"] == "latest" else directories.get(query["current"])
+        if current not in completed:
+            return {"status": "unavailable", "reasons": ["No completed current run in this results scope."]}
+        if query["prior"] == "latest":
+            identity = json.loads((current / "result.json").read_bytes()).get("comparison_identity", {})
+            selected = select_prior_candidates(ordered, "latest", identity, current_run_dir=current)
+            if selected["status"] != "available":
+                for rejected in selected.get("rejected_candidates", []):
+                    rejected["reasons"] = [safe_reason(r) for r in rejected["reasons"]]
+                return selected
+            prior = Path(selected["source_run_dir"])
+        else:
+            prior = directories.get(query["prior"])
+        if prior not in completed:
+            return {"status": "unavailable", "reasons": ["No completed prior run in this results scope."]}
+        report = compare_versions(current, prior)
+        report["source_studio_run"] = next(run for run, path in directories.items() if path == prior)
+        report.pop("source_run_dir", None)
+        report["reasons"] = [safe_reason(r) for r in report["reasons"]]
+        return report
+    trend = history_from_directories(sorted(directories.values(), key=history_sort_key), project, query.get("agent"))
+    for row in trend["rows"]:
+        row["lift_reasons"] = [safe_reason(r) for r in row["lift_reasons"]]
+    return trend
 
 
 def main():
     resource.setrlimit(resource.RLIMIT_AS, (1024**3, 1024**3))
     resource.setrlimit(resource.RLIMIT_CPU, (20, 20))
     volume, project = sys.argv[1:]
+    query = json.load(sys.stdin)
+    if query["action"] != "pair":
+        json.dump(catalog(volume, project, query), sys.stdout, allow_nan=False)
+        return
     dirs, history, reasons = [], [], []
-    for label, run in zip(("Prior", "Current"), json.load(sys.stdin), strict=True):
+    for label, run in zip(("Prior", "Current"), query["runs"], strict=True):
         directory, rows, reason = None, [], None
         if run:
             try:
-                directory, rows, reason = inspect(Path(volume) / "artifacts" / project / run[0] / "tier3", run[1])
+                directory, rows, reason = inspect(
+                    Path(volume) / "artifacts" / project / run[0] / "tier3", run[1], query["skill"]
+                )
             except (OSError, ValueError, KeyError, AttributeError, TypeError, RuntimeError, OverflowError):
                 reason = "Native evidence is missing, malformed, linked or exceeds inspection limits."
         else:

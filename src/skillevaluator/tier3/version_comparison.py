@@ -101,6 +101,13 @@ def select_prior_version(
     candidates = (
         ordered_run_directories(root, completed_only=True) if requested == "latest" else [retained_run(root, requested)]
     )
+    return select_prior_candidates(candidates, requested, identity, current_run_dir=current_run_dir)
+
+
+def select_prior_candidates(
+    candidates: list[Path], requested: str, identity: dict[str, Any], *, current_run_dir: Path
+) -> dict[str, Any]:
+    """Select from scoped native directories in descending completion order."""
     if requested == "latest" and (
         current_key := run_directory_sort_key(current_run_dir, require_completed_result=True)
     ):
