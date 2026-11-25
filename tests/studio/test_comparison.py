@@ -15,7 +15,11 @@ def test_compare_branch_to_commit_without_switching(page, tmp_path, private_remo
     with running(tmp_path / "volume") as base:
         page.goto(base)
         connect(page, *private_remote, skill="skills/triage")
-        page.get_by_role("link", name="Compare revisions").click(timeout=1500)
+        with page.expect_response(
+            lambda r: "/api/v1/projects/" in r.url and r.url.endswith("/compare"), timeout=5000
+        ) as view:
+            page.get_by_role("link", name="Compare revisions").click(timeout=1500)
+        assert view.value.json()["current"] == "main"
         page.get_by_label("Prior revision").fill(main)
         page.get_by_label("Current revision").fill("candidate")
         page.get_by_role("button", name="Compare revisions").click()
@@ -26,6 +30,13 @@ def test_compare_branch_to_commit_without_switching(page, tmp_path, private_remo
         checkout = next((tmp_path / "volume/projects").iterdir())
         assert subprocess.check_output(["git", "branch", "--show-current"], cwd=checkout).strip() == b"main"
         assert subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=checkout).decode().strip() == main
+        page.get_by_label("Current revision").fill("missing-branch")
+        page.get_by_role("button", name="Compare revisions").click()
+        playwright.expect(page.get_by_role("main").get_by_role("alert")).to_contain_text("Choose a saved branch")
+        playwright.expect(page.get_by_label("Prior revision")).to_have_value(main)
+        page.get_by_label("Current revision").fill("candidate")
+        page.get_by_role("button", name="Compare revisions").click()
+        playwright.expect(page.get_by_label("Current source")).to_have_text("# Candidate\n")
 
 
 def test_large_source_comparison_reports_budget_only_for_changed_files(page, tmp_path, private_remote):
@@ -91,7 +102,9 @@ def test_author_compares_paired_evidence_then_inspects_policy_mismatch(
         page.get_by_role("button", name="Compare selected runs").click()
         playwright.expect(page.get_by_label("Version comparison")).to_contain_text("\N{MINUS SIGN}0.60")
         playwright.expect(page.get_by_label("Current arm scores")).to_contain_text("\N{MINUS SIGN}0.30")
-        forged = page.request.get(page.url.replace("current_run=" + "b" * 32, "current_run=" + "a" * 32))
+        wrong = page.url.replace("current_run=" + "b" * 32, "current_run=" + "a" * 32)
+        assert page.request.get(wrong).status == 422
+        forged = page.request.get(wrong.replace("/projects/", "/api/v1/projects/"))
         assert forged.status == 422 and "Choose a run retained for the selected revision" in forged.text()
 
 
@@ -138,3 +151,12 @@ def test_download_scoped_native_trends_and_version_report(page, tmp_path, privat
         assert json.loads(download("History JSON"))["rows"] == []
         assert json.loads(download("Comparison JSON"))["agents"]["opencode"]["delta"] == -0.6
         assert page.request.get(page.url + "&scope=" + "f" * 32).status == 422
+
+        result = next((volume / "artifacts" / project / ("b" * 32)).rglob("result.json"))
+        evidence = json.loads(result.read_text())
+        evidence["agents"]["opencode"]["model"] = "=model-" + private_remote[1]
+        result.write_text(json.dumps(evidence))
+        response = page.request.get(f"{base}/api/v1/projects/{project}/results/history?download=csv")
+        models = [r["model"] for r in csv.DictReader(response.text().splitlines())]
+        assert "'=model-<redacted>" in models
+        assert private_remote[1] not in response.text()
