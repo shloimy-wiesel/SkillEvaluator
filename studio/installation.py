@@ -15,6 +15,7 @@ from .frontend_routes import document
 from .project_api import failure
 from .run_routes import feature, queued, redirect, register
 from .runs import project_for
+from .workspace import WorkspaceError
 
 browser, api = feature("installation")
 
@@ -56,15 +57,28 @@ def installation(request: Request, project_id: str, topic: str = "root"):
     project = project_for(request, project_id)
     if topic not in TOPICS:
         raise failure(422, "invalid_topic", "Choose a listed help topic.")
+    diagnostics = []
+
+    def inspect(section, operation, fallback):
+        try:
+            return operation()
+        except subprocess.TimeoutExpired:
+            message = "Inspection timed out."
+        except (subprocess.CalledProcessError, OSError, WorkspaceError):
+            message = "Inspection failed."
+        diagnostics.append({"section": section, "message": message})
+        return fallback
+
     return {
         "project": project,
-        "version": installed_output(("--version",)),
+        "version": inspect("version", lambda: installed_output(("--version",)), "Unavailable"),
         "python": sys.version.split()[0],
-        "changed": changed_paths(request.app.state.workspace, project),
-        "configs": quality_configs(request, project),
+        "changed": inspect("changed", lambda: changed_paths(request.app.state.workspace, project), []),
+        "configs": inspect("configs", lambda: quality_configs(request, project), []),
         "topic": topic,
         "topics": list(TOPICS),
-        "help": installed_output((*TOPICS[topic], "--help")),
+        "help": inspect("help", lambda: installed_output((*TOPICS[topic], "--help")), "Help unavailable."),
+        "diagnostics": diagnostics,
     }
 
 
