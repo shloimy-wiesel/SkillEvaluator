@@ -46,6 +46,9 @@ class Workspace:
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, remote TEXT NOT NULL,
                 folder TEXT NOT NULL, branch TEXT NOT NULL, revision TEXT NOT NULL,
                 credential BLOB)""")
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS gitlab (project_id TEXT PRIMARY KEY, root TEXT NOT NULL, token BLOB)"
+            )
 
     def projects(self):
         with closing(sqlite3.connect(self.db_path)) as db:
@@ -70,9 +73,22 @@ class Workspace:
         if authenticated:
             with closing(sqlite3.connect(self.db_path)) as db:
                 (credential,) = db.execute("SELECT credential FROM projects WHERE id=?", (project.id,)).fetchone()
-        return self._git(self.checkout(project), args, credential, project.remote, stdin=stdin, raw=raw, index=index)
+        from .gitlab import ca_file
 
-    def connect(self, remote, folder, username="", token=""):
+        return self._git(
+            self.checkout(project),
+            args,
+            credential,
+            project.remote,
+            stdin=stdin,
+            raw=raw,
+            index=index,
+            ca=ca_file(self, project.id),
+        )
+
+    def connect(self, remote, folder, username="", token="", *, gitlab_root="", ca_pem=""):
+        from .gitlab import ca_file, location, save_ca
+
         remote = remote.strip()
         try:
             parts = urlsplit(remote)
@@ -103,8 +119,14 @@ class Workspace:
         credential = self.cipher.encrypt(f"{username}:{token}".encode()) if token else None
         project_id = uuid4().hex
         repo = self.repos / project_id
+        loc = location(remote, gitlab_root)
+        ca = ca_file(self, project_id)
         try:
-            self._git(self.repos, ["clone", "--", remote, project_id], credential, remote)
+            if ca_pem:
+                if not loc:
+                    raise WorkspaceError("Provide the GitLab installation URL for this CA.")
+                save_ca(self, project_id, ca_pem)
+            self._git(self.repos, ["clone", "--", remote, project_id], credential, remote, ca=ca)
             skill = repo / folder / "SKILL.md"
             if any(path.is_symlink() for path in (skill, *skill.parents) if path.is_relative_to(repo)):
                 raise WorkspaceError("Choose the actual skill folder, not a symbolic link.")
@@ -117,12 +139,15 @@ class Workspace:
                     "INSERT INTO projects VALUES (?,?,?,?,?,?,?)",
                     (project_id, name, remote, folder, branch, revision, credential),
                 )
+                if loc:
+                    db.execute("INSERT INTO gitlab(project_id,root) VALUES (?,?)", (project_id, loc[0]))
         except BaseException:
+            ca.unlink(missing_ok=True)
             shutil.rmtree(repo, ignore_errors=True)
             raise
         return project_id
 
-    def _git(self, cwd, args, credential=None, remote=None, *, stdin=None, raw=False, index=None):
+    def _git(self, cwd, args, credential=None, remote=None, *, stdin=None, raw=False, index=None, ca=None):
         env = {k: os.environ[k] for k in ("PATH", "GIT_SSL_CAINFO", "LANG") if k in os.environ}
         env.update(
             GIT_CONFIG_GLOBAL=os.devnull,
@@ -134,6 +159,8 @@ class Workspace:
         )
         if index is not None:
             env["GIT_INDEX_FILE"] = str(index)
+        if ca and ca.is_file():
+            env["GIT_SSL_CAINFO"] = str(ca)
         if credential:
             auth = base64.b64encode(self.cipher.decrypt(credential)).decode("ascii")
             env.update(
