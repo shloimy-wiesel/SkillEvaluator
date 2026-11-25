@@ -27,7 +27,9 @@ Stale revisions return `409`; invalid input returns `422`. Both use `detail: {co
 
 Both qualification actions support split (default `assessment`), repeated case IDs, repeats (3), concurrency (1), attempt timeout (300 seconds), optional maximum false-pass, false-fail and unjudgeable rates, and a committed qualification-policy JSON. Studio caps repeats at 20, concurrency at 4, timeout at 600 seconds and job duration at one hour. The engine enforces gate/policy compatibility. A policy preflight can return a `not_run` receipt without a provider. A successful suite check alone does not establish grader reliability.
 
-Live rate gates compare measured rates to their limits (strictly greater fails). The JSON receipt names `threshold_failures`. With split `all`, the engine gates assessment metrics; rates without a denominator do not fail a maximum. An operator’s `SSL_CERT_FILE` can supply a private CA for an HTTPS judge.
+The run page shows the policy decision and its reasons. If coverage is insufficient before execution, the qualification run shows `not_run` and records zero attempts. For live rate gates the page names any exceeded gates; the JSON download contains the measurements and `threshold_failures`.
+
+Live rate gates compare measured rates to their limits (strictly greater fails). With split `all`, the engine gates assessment metrics; rates without a denominator do not fail a maximum. An operator’s `SSL_CERT_FILE` can supply a private CA for an HTTPS judge.
 
 Mount the judge CA bundle read-only and set `SSL_CERT_FILE` in Studio’s environment to its path (relative paths resolve from Studio’s working directory). The qualifier uses this bundle to verify TLS. Configure the final provider endpoint: authenticated verifier HTTP calls reject redirects.
 

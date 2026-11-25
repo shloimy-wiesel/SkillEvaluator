@@ -137,10 +137,18 @@ def test_qualification_insufficient_coverage_never_spends(page, tmp_path, privat
             page.get_by_role("button", name="Check suite").click()
             playwright.expect(page.get_by_role("main")).to_contain_text("cannot combine", timeout=8000)
             page.goto(assets)
-        page.get_by_label("Case IDs").fill("arithmetic")
-        page.get_by_label("Qualification policy").select_option("policy.json")
-        page.get_by_role("button", name="Run qualification").click(timeout=2000)
-        playwright.expect(page.get_by_role("status")).to_contain_text("not_run", timeout=10000)
+        for action, status in (("Check suite", "failed"), ("Run qualification", "not_run")):
+            page.goto(assets)
+            page.get_by_label("Case IDs").fill("arithmetic")
+            page.get_by_label("Qualification policy").select_option("policy.json")
+            page.get_by_role("button", name=action).click(timeout=2000)
+            playwright.expect(page.get_by_role("status")).to_contain_text(status, timeout=10000)
+            playwright.expect(
+                page.get_by_role("heading", name="Policy coverage: insufficient_evidence")
+            ).to_be_visible()
+            for label, count in (("pass", 1), ("fail", 0)):
+                reason = f"overall: expected {label} case coverage {count} below 2"
+                playwright.expect(page.get_by_role("listitem").filter(has_text=reason)).to_be_visible()
         url = page.get_by_role("link", name="Download JSON").get_attribute("href")
         report = page.request.get(url).json()
         assert report["attempts"] == [] and report["execution_status"] == "not_run"
@@ -297,6 +305,7 @@ def test_valid_preflight_does_not_pass_a_live_rate_gate(page, tmp_path, private_
             if check:
                 assert report["status"] == "valid" and "attempts" not in report
             else:
+                playwright.expect(page.get_by_text("Gates exceeded: unjudgeable rate")).to_be_visible()
                 assert report["metrics"]["overall"]["unjudgeable_rate"]["rate"] == 1
                 assert report["threshold_failures"] == ["unjudgeable_rate"]
 
