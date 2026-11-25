@@ -376,6 +376,9 @@ def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, l
             run = page.url
             page.goto(project + "/providers")
             save_profile(chat, endpoint, "new-model", "new-secret")
+            config = page.request.get(run.replace(base, base + "/api/v1")).json()["run"]["options"]
+            assert "snapshot_id" not in config
+            assert set(config["chat"]) == {"provider", "model"} and config["chat"]["model"] == "frozen-model"
             page.goto(run)
             rerun_saved_inputs(page)
             playwright.expect(page.get_by_role("status")).to_contain_text("failed", timeout=30000)

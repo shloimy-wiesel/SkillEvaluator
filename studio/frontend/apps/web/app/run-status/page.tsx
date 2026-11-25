@@ -18,7 +18,10 @@ interface Status {
     status: string;
     progress: string;
     folder: string;
-    options: string;
+    options: Record<
+      string,
+      string | number | boolean | string[] | { provider: string; model: string }
+    >;
     created: string;
     exit_code: number | null;
     markdown: string;
@@ -87,7 +90,7 @@ const RunStatus = ({ initial, path }: { initial: Status; path: string }) => {
         )}
         <dt>Configuration</dt>
         <dd>
-          <code>{run.options}</code>
+          <code>{JSON.stringify(run.options)}</code>
         </dd>
         {run.exit_code !== null && (
           <>

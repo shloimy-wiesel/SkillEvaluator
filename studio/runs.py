@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict
 from .expert_options import ACTIONS
 from .frontend_routes import document
 from .project_api import failure, get_project
+from .run_display import RunDisplay, RunStatus, configuration
 from .run_routes import feature, queued, redirect, register
 from .static_job import STATIC, StaticOptions
 from .workspace import WorkspaceError
@@ -71,17 +72,22 @@ def detail(request: Request, project_id: str, run_id: str):
     return document(request, "run-status.html")
 
 
-@api.get("/{run_id}")
+@api.get("/{run_id}", response_model=RunStatus)
 def status(request: Request, project_id: str, run_id: str):
     project = project_for(request, project_id)
-    run = dict(record_for(request, project_id, run_id))
-    report = json.loads(run.pop("report") or "null")
+    run = record_for(request, project_id, run_id)
+    report = json.loads(run["report"] or "null")
+    options = json.loads(run["options"])
     models = None
     if run["kind"] == "tier3-live-v1":
         from .live_job import LiveOptions, display_models
 
-        models = display_models(LiveOptions.model_validate_json(run["options"]), report or {})
-    return {"project": project, "run": run, "report": report, "models": models}
+        models = display_models(LiveOptions.model_validate(options), report or {})
+    display = RunDisplay(
+        **{key: run[key] for key in RunDisplay.model_fields if key != "options"},
+        options=configuration(run["kind"], options),
+    )
+    return {"project": project, "run": display, "report": report, "models": models}
 
 
 @browser.get("/{run_id}/exports/{kind}", name="run_export")
