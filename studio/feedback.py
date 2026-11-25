@@ -11,10 +11,10 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from skillevaluator.evaluation.tier3_feedback_chat import compact_run_context, saved_feedback_for_run
+from skillevaluator.evaluation.tier3_feedback_chat import compact_run_context, load_agent_eval_payload
 
 from .providers import worker_environment
-from .retained import inventory, mask_strings, native_results, preview, scrubber
+from .retained import input_projection, mask_strings, scrubber
 
 
 def database(workspace):
@@ -42,12 +42,11 @@ def ask(workspace, run, question):
     history = conversation(workspace, run)
     question = scrub(question.strip())
     root = workspace.data_dir / "artifacts" / project / run["id"] / "tier3"
-    results = native_results(root, inventory(root).values())
-    if len(results) != 1:
-        raise HTTPException(422, "No unambiguous native run for feedback.")
-    native = results[0]
-    saved = saved_feedback_for_run(json.loads(preview(native, scrub)), native.parent)
-    context = compact_run_context({**payload, **(saved or {})}, run_dir=native.parent)
+    try:
+        with input_projection(root, run) as (native, skill):
+            context = compact_run_context(load_agent_eval_payload(skill, native), run_dir=native, skill_dir=skill)
+    except (ValueError, OSError, TypeError, AttributeError, RecursionError) as exc:
+        raise HTTPException(422, "Cannot prepare feedback from this run's retained evidence.") from exc
     try:
         env = worker_environment(workspace, project, "chat")
     except ValueError as exc:

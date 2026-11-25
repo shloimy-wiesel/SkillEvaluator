@@ -121,6 +121,18 @@ def test_compare_agents_from_selected_native_summaries(page, retained):
     playwright.expect(matrix).to_contain_text("opencode")
 
 
+def test_view_rebuilds_missing_native_html_without_mutating_run(page, retained):
+    _, _, volume = retained
+    report = next((volume / "artifacts").rglob("report.html"))
+    report.unlink()
+    page.get_by_role("link", name="Review artifacts and feedback").click()
+    page.get_by_role("link", name="View report", exact=True).click(timeout=2000)
+    preview = page.get_by_label("Artifact preview")
+    playwright.expect(preview).to_contain_text("triage")
+    playwright.expect(preview).to_contain_text("codex")
+    assert not report.exists()
+
+
 def test_inspect_scoped_report_and_harbor_trajectory(page, retained):
     from urllib.parse import urlsplit
 

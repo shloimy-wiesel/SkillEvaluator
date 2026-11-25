@@ -11,7 +11,7 @@ from skillevaluator.reporting.dashboard_data import comparison_rows, parse_dashb
 from skillevaluator.utils.redaction import redact_sensitive_data
 
 from .feedback import ask, conversation
-from .retained import compare, inventory, native_dashboard, preview, scrubber
+from .retained import compare, inventory, native_dashboard, preview, report_preview, scrubber
 from .runs import project_for, record_for
 
 router = APIRouter(prefix="/projects/{project_id}/results")
@@ -97,7 +97,14 @@ def reviewed_run(request, project_id, run_id):
 
 @router.get("/{run_id}", name="review_run")
 def review(
-    request: Request, project_id: str, run_id: str, q: str = "", file: str = "", agents: bool = False, source: str = ""
+    request: Request,
+    project_id: str,
+    run_id: str,
+    q: str = "",
+    file: str = "",
+    agents: bool = False,
+    source: str = "",
+    report: bool = False,
 ):
     run = reviewed_run(request, project_id, run_id)
     workspace = request.app.state.workspace
@@ -108,6 +115,8 @@ def review(
         raise HTTPException(404, "Unknown artifact")
     labels = {key: scrub(path.relative_to(root).as_posix()) for key, path in files.items()}
     text = preview(files[file], scrub) if file else None
+    if report and not file:
+        text = report_preview(root, run, files.values(), scrub)
     steps, sources = None, []
     if file and files[file].name == "trajectory.json":
         document = json.loads(text)

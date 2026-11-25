@@ -20,8 +20,8 @@
   {
     "key": "view",
     "status": "partial",
-    "equivalent": "Inert preview of the retained report; absent HTML is not regenerated.",
-    "evidence": "tests/studio/test_review.py::test_inspect_scoped_report_and_harbor_trajectory"
+    "equivalent": "Inert text from the native HTML report. Missing HTML is rendered from a private copy without a new judge call; embedded interactions are not executed.",
+    "evidence": "tests/studio/test_review.py::test_view_rebuilds_missing_native_html_without_mutating_run"
   },
   {
     "key": "view:skill_path",
@@ -68,8 +68,8 @@
   {
     "key": "tier3 view",
     "status": "partial",
-    "equivalent": "Inert preview of the retained report; absent HTML is not regenerated.",
-    "evidence": "tests/studio/test_review.py::test_inspect_scoped_report_and_harbor_trajectory"
+    "equivalent": "Inert text from the native HTML report. Missing HTML is rendered from a private copy without a new judge call; embedded interactions are not executed.",
+    "evidence": "tests/studio/test_review.py::test_view_rebuilds_missing_native_html_without_mutating_run"
   },
   {
     "key": "tier3 view:skill_path",

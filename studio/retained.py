@@ -3,7 +3,7 @@
 import hashlib
 import json
 import os
-from contextlib import closing
+from contextlib import closing, contextmanager
 from html.parser import HTMLParser
 from io import StringIO
 from pathlib import Path
@@ -27,6 +27,11 @@ NAMES = {
     "lift.json",
     "findings.json",
     "attempt_policy.json",
+    "dataset_snapshot.json",
+    "what_to_fix.json",
+    "pass_at_k_lift.json",
+    "custom_lift.json",
+    "security_attribution.json",
 }
 
 
@@ -124,13 +129,13 @@ def native_results(root, paths):
     ]
 
 
-def native_dashboard(root, run):
-    from skillevaluator.reporting.dashboard_data import DashboardData, load_retained_dashboard
-
+@contextmanager
+def input_projection(root, run):
+    """Give native readers a bounded, link-free copy; keep writes away from retained evidence."""
     files = inventory(root).values()
     results = native_results(root, files)
-    if len(results) != 1 or results[0].with_name("run_config.json") not in files:
-        return DashboardData(warnings=[f"{run['id']}: native run or configuration unavailable."])
+    if len(results) != 1:
+        raise ValueError("No unambiguous native run.")
     native = results[0].parent
     with TemporaryDirectory() as temp:
         selected = Path(temp) / "results" / native.name
@@ -144,21 +149,50 @@ def native_dashboard(root, run):
             size = path.stat().st_size
             total += size
             if size > 16 * 1024**2 or total > 64 * 1024**2:
-                return DashboardData(
-                    warnings=[f"{run['id']}: native input exceeds the dashboard limit. Use saved report."]
-                )
+                raise ValueError("Native input exceeds the review limit.")
             target = selected / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(path.read_bytes())
         skill = Path(temp) / "inputs" / (Path(run["folder"]).name or "skill")
-        try:
+        yield selected, skill
+
+
+def native_dashboard(root, run):
+    from skillevaluator.reporting.dashboard_data import DashboardData, load_retained_dashboard
+
+    try:
+        with input_projection(root, run) as (selected, skill):
             data = load_retained_dashboard(selected, skill_path=skill)
-        except (ValueError, TypeError, AttributeError, OSError, RecursionError):
-            return DashboardData(warnings=[f"{run['id']}: unreadable native evidence."])
         for row in data.rows:
             row["source"] = run["id"]
         data.warnings = [w.replace(str(selected), run["id"]) for w in data.warnings]
         return data
+    except (ValueError, TypeError, AttributeError, OSError, RecursionError):
+        return DashboardData(
+            warnings=[f"{run['id']}: native evidence missing, unreadable or too large. Use saved report."]
+        )
+
+
+def report_preview(root, run, files, scrub):
+    from skillevaluator.evaluation.tier3_feedback_chat import saved_feedback_for_run
+    from skillevaluator.evaluation.tier3_report import render_agent_eval_html_report
+
+    results = native_results(root, files)
+    if len(results) == 1 and (report := results[0].with_name("report.html")) in files:
+        return preview(report, scrub)
+    try:
+        with input_projection(root, run) as (selected, skill):
+            result = json.loads((selected / "result.json").read_text())
+            report = render_agent_eval_html_report(
+                skill,
+                selected,
+                engine_result=result,
+                use_llm_judge=False,
+                saved_feedback=saved_feedback_for_run(result, selected),
+            )
+            return preview(report, scrub)
+    except (ValueError, TypeError, AttributeError, OSError, RecursionError) as exc:
+        raise HTTPException(422, "Cannot rebuild this run's report.") from exc
 
 
 def compare(root, skill, scrub):

@@ -203,6 +203,8 @@ agents** for the CLI's score matrix over that run's retained summaries.
 
 Choose **Review artifacts and feedback** to search the file list, preview
 native HTML reports as text, or inspect JSON evidence (8 MiB per file).
+**View report** rebuilds missing HTML from a temporary copy of the native
+evidence, using the saved feedback without another judge call.
 Turn on **Retain Harbor jobs** before launching a run to keep the raw job
 trajectories as well as collected trials. Select a trajectory and filter its
 steps by source. Only supported files from the selected run are indexed.
