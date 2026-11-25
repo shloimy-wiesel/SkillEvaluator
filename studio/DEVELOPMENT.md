@@ -65,6 +65,10 @@ Return only displayable fields; credentials are write-only. See the
   cipher uses the volume's `credential.key`. Do not log secrets or raw Git
   stderr. Do not store host paths or accept executable config through forms.
 
+Extension job definitions may declare `public_options=("trials",)` to show
+specific saved control values on a run. Include only author-facing values;
+unknown job kinds and undeclared extension fields are private by default.
+
 ## Run the browser journey
 
 See [RUNS.md](RUNS.md) for the queue, evaluator adapter, rerun and artifact contracts.

@@ -36,7 +36,7 @@ class RunStatus(BaseModel):
     models: DisplayModels | None
 
 
-def configuration(kind, saved):
+def configuration(kind, saved, public_options=()):
     from .overlap import Inputs
 
     controls = {
@@ -54,7 +54,7 @@ def configuration(kind, saved):
     elif kind in controls:
         fields = set(controls[kind].model_fields)
     else:
-        return {}
+        fields = set(public_options)
     if kind == "tier3-live-v1":
         fields.update(("provider", "judge_model", "source_repository", "evaluator_revision"))
     if kind in ("select-decoys-v1", "skill-interaction-v1"):

@@ -207,6 +207,7 @@ def slow_app(volume, port):
 
     class Trial(BaseModel):
         trials: int
+        worker_reference: str = "worker-only-fixture"
 
     def evaluate(ctx, options):
         ctx.progress(f"Evaluating {options.trials} trials")
@@ -217,7 +218,7 @@ def slow_app(volume, port):
         (ctx.artifacts / "notes.md").write_text(notes)
         return Outcome("passed", 0, '{"results":[]}', notes)
 
-    definition = JobDefinition("trial-fixture", Trial, evaluate)
+    definition = JobDefinition("trial-fixture", Trial, evaluate, public_options=("trials",))
     router = APIRouter()
 
     @router.post("/projects/{project_id}/trial")
@@ -294,6 +295,7 @@ def test_interrupted_job_requires_explicit_rerun_with_saved_inputs(page, private
         playwright.expect(page.get_by_role("status")).to_contain_text("passed")
         assert page.url != base + path
         playwright.expect(page.get_by_text('{"trials":7}', exact=True)).to_be_visible()
+        assert "worker-only-fixture" not in page.content()
         assert (
             page.request.get(page.get_by_role("link", name="Download Markdown").get_attribute("href")).text()
             == "# Triage\n"

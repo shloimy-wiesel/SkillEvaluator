@@ -83,9 +83,10 @@ def status(request: Request, project_id: str, run_id: str):
         from .live_job import LiveOptions, display_models
 
         models = display_models(LiveOptions.model_validate(options), report or {})
+    definition = request.app.state.jobs.definitions.get(run["kind"])
     display = RunDisplay(
         **{key: run[key] for key in RunDisplay.model_fields if key != "options"},
-        options=configuration(run["kind"], options),
+        options=configuration(run["kind"], options, definition.public_options if definition else ()),
     )
     return {"project": project, "run": display, "report": report, "models": models}
 
