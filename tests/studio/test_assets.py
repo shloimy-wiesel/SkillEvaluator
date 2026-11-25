@@ -201,3 +201,106 @@ def test_authored_suite_is_checked_as_evidence_only(page, tmp_path, private_remo
         page.get_by_label("Case IDs").fill("arithmetic")
         page.get_by_role("button", name="Check suite").click()
         playwright.expect(page.get_by_role("main")).to_contain_text("Suite valid: 1 assessment cases.", timeout=8000)
+
+
+def test_valid_preflight_does_not_pass_a_live_rate_gate(page, tmp_path, private_remote):
+    import pytest
+    from test_providers import open_settings, save_profile
+
+    pytest.importorskip("harbor")
+    with running(tmp_path / "volume") as base:
+        settings = open_settings(page, base, private_remote)
+        save_profile(page.get_by_role("region", name="Chat", exact=True), "https://127.0.0.1:1/v1", "fixture", "key")
+        assets = base + settings.removesuffix("/providers") + "/assets"
+        for action in ("Check suite", "Run qualification"):
+            page.goto(assets)
+            page.get_by_label("Case IDs").fill("arithmetic")
+            page.get_by_label("Maximum unjudgeable rate").fill("0")
+            page.get_by_label("Repeats").fill("1")
+            page.get_by_label("Attempt timeout").fill("0.001")
+            page.get_by_role("button", name=action).click()
+            check = action == "Check suite"
+            playwright.expect(page.get_by_role("status")).to_contain_text(
+                "passed" if check else "failed", timeout=12000
+            )
+            report = page.request.get(page.get_by_role("link", name="Download JSON").get_attribute("href")).json()
+            if check:
+                assert report["status"] == "valid" and "attempts" not in report
+            else:
+                assert report["metrics"]["overall"]["unjudgeable_rate"]["rate"] == 1
+                assert report["threshold_failures"] == ["unjudgeable_rate"]
+
+
+def test_authenticated_judge_thresholds_use_measured_rates(page, tmp_path, private_remote, loopback_tls, monkeypatch):
+    import json
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from threading import Thread
+
+    import pytest
+    from test_providers import open_settings, save_profile
+
+    pytest.importorskip("harbor")
+    accepted = True
+    auth = []
+
+    class Judge(BaseHTTPRequestHandler):
+        def do_POST(self):
+            prompt = json.dumps(json.loads(self.rfile.read(int(self.headers["content-length"])))["messages"])
+            auth.append(self.headers.get("Authorization"))
+            if "ACTION_CORRECT" in prompt:
+                reply = {
+                    "criteria": dict.fromkeys(
+                        ["ACTION_CORRECT", "FACTUALLY_ACCURATE", "TASK_ADDRESSED", "ACTIONABLE", "FORMAT_FOLLOWED"],
+                        accepted,
+                    ),
+                    "reason": "fixture",
+                }
+            elif "achieved" in prompt:
+                reply = {"user_goal": "compute", "end_state": "14", "achieved": accepted, "reason": "fixture"}
+            else:
+                reply = {
+                    "results": [{"step": i, "passed": accepted, "reason": "fixture"} for i in (1, 2)],
+                    "summary": "fixture",
+                }
+            body = json.dumps({"choices": [{"message": {"content": json.dumps(reply)}}]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    tls, ca = loopback_tls
+    monkeypatch.setenv("SSL_CERT_FILE", str(ca))
+    with ThreadingHTTPServer(("127.0.0.1", 0), Judge) as judge, running(tmp_path / "volume") as base:
+        judge.socket = tls.wrap_socket(judge.socket, server_side=True)
+        thread = Thread(target=judge.serve_forever)
+        thread.start()
+        try:
+            settings = open_settings(page, base, private_remote)
+            save_profile(
+                page.get_by_role("region", name="Chat", exact=True),
+                f"https://127.0.0.1:{judge.server_port}/v1",
+                "judge",
+                "threshold-secret",
+            )
+            for gate, answer, split, case in (
+                ("false pass", True, "tuning", "tuning-wrong"),
+                ("false fail", False, "all", "arithmetic"),
+            ):
+                accepted = answer
+                page.goto(base + settings.removesuffix("/providers") + "/assets")
+                page.get_by_label("Split", exact=True).select_option(split)
+                page.get_by_label("Case IDs").fill(case)
+                page.get_by_label("Repeats").fill("1")
+                page.get_by_label("Attempt timeout").fill("8")
+                page.get_by_label(f"Maximum {gate} rate").fill("0")
+                page.get_by_role("button", name="Run qualification").click()
+                playwright.expect(page.get_by_role("status")).to_contain_text("failed", timeout=25000)
+                report = page.request.get(page.get_by_role("link", name="Download JSON").get_attribute("href")).json()
+                name = gate.replace(" ", "_") + "_rate"
+                metrics = report["metrics"] or report["by_split"]["assessment"]
+                assert any(metric[name]["rate"] == 1 for metric in metrics.values())
+                assert report["threshold_failures"] == [name]
+            assert set(auth) == {"Bearer threshold-secret"}
+        finally:
+            judge.shutdown()
+            thread.join()

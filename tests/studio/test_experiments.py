@@ -164,6 +164,8 @@ def test_interaction_pins_suite_and_retains_incomplete_evidence(page, private_re
     (folder / "evals").mkdir()
     dataset = folder / "evals/evals.json"
     dataset.write_text('{"skill_name":"suite","evals":[]}')
+    (folder / "evals/config.yml").write_text("schema_version: 1\ngrading:\n  mode: default_plus_custom\n")
+    (folder / "evals/grader.py").write_text("raise RuntimeError('sandbox only')\n")
     (seed / "skills/logs/evals").mkdir()
     (seed / "skills/logs/evals/config.yml").write_text("must not be loaded")
     publish(tmp_path)
@@ -193,6 +195,7 @@ def test_interaction_pins_suite_and_retains_incomplete_evidence(page, private_re
             "kata_dns": ["192.0.2.1", "2001:db8::1"],
         }
         assert (Path(value("eval-source")) / "evals/evals.json").read_bytes() == dataset.read_bytes()
+        assert (Path(value("eval-source")) / "evals/grader.py").is_file()
         assert [value(k) for k in ("metric", "n-attempts", "n-concurrent", "env-mode", "model", "agents")] == [
             "accuracy",
             "2",
@@ -231,6 +234,13 @@ def test_interaction_pins_suite_and_retains_incomplete_evidence(page, private_re
         page.goto(url)
         page.get_by_label("Selected skill folders").fill("skills/triage\nskills/logs", timeout=2000)
         page.get_by_label("Fixed evaluation source").fill("skills/suite")
+        page.get_by_role("button", name="Run interaction").click()
+        playwright.expect(page.get_by_role("status")).to_contain_text("consent", timeout=8000)
+        assert not calls
+        page.goto(url)
+        page.get_by_label("Selected skill folders").fill("skills/triage\nskills/logs")
+        page.get_by_label("Fixed evaluation source").fill("skills/suite")
+        page.get_by_label("Allow the repository grader in the sandbox").check()
         page.get_by_label("Outcome metric").select_option("accuracy")
         page.get_by_label("Environment").select_option("kata")
         page.get_by_label("Kata runtime").select_option("kata-qemu", timeout=2000)

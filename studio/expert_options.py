@@ -37,6 +37,7 @@ FILES = {
 COMMON = {"checks", "skip", "profile", "min_score", "previous_version", "llm", *FILES}
 FILES["price_file"] = "Model price file"
 ROOT_LIVE = {
+    "sandbox_grader_consent",
     *AGENT_MODELS,
     "price_file",
     "n_attempts",
@@ -138,6 +139,7 @@ class ExpertOptions(BaseModel):
     stop_on_pass: bool | None = None
     tolerate_baseline_timeouts: bool | None = None
     grading_mode: Literal["default", "default_plus_custom", "custom_only"] | None = None
+    sandbox_grader_consent: bool = False
     include_revision: bool = False
     llm: bool | None = None
     llm_verify: bool = False
@@ -208,7 +210,7 @@ class ExpertOptions(BaseModel):
             cmd.extend(["--output-dir", str(ctx.artifacts)])
         for key, value in self.model_dump(exclude_defaults=True).items():
             flag = "--" + key.replace("_", "-")
-            if key in {"action", "chat", "embeddings", "snapshot_id"}:
+            if key in {"action", "chat", "embeddings", "snapshot_id", "sandbox_grader_consent"}:
                 continue
             if key == "reports":
                 for fmt in value:

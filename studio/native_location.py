@@ -55,3 +55,28 @@ def scoped_run_directory(root, skill):
     if candidate.name == skill and not (candidate / "run_config.json").exists():
         return _single_directory(candidate)
     return candidate
+
+
+def bounded_directory(root, skill=None):
+    """Bound the artifact tree; skill-scoped history may include unfinished runs."""
+    directory = native_directory(root) if skill is None else scoped_run_directory(root, skill)
+    entries = 0
+    pending = [directory]
+    total = 0
+    while pending:
+        with os.scandir(pending.pop()) as scan:
+            for entry in scan:
+                entries += 1
+                if entries > 16000 or entry.is_symlink():
+                    raise ValueError("Linked or oversized artifact tree")
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(entry.path)
+                    continue
+                meta = entry.stat(follow_symlinks=False)
+                if not entry.is_file(follow_symlinks=False) or meta.st_nlink != 1:
+                    raise ValueError("Unsupported artifact type")
+                if entry.name.endswith(".json") or entry.name.startswith("."):
+                    total += meta.st_size
+                    if meta.st_size > 8 * 1024**2 or total > 64 * 1024**2:
+                        raise ValueError("Oversized retained evidence")
+    return directory

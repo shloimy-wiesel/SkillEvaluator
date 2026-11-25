@@ -40,7 +40,7 @@ def evaluate(ctx, options):
             # Root validation scans the whole skill, including authored eval files.
             skill = live_job.stage_skill(ctx.skill, work, set())
             try:
-                live_job.check_stage_policy(skill)
+                live_job.check_stage_policy(skill, options)
                 if (skill / "evals/results").exists():
                     raise WorkspaceError("Remove archived evals/results from the skill before live validation.")
             except WorkspaceError as exc:

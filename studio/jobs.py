@@ -85,7 +85,8 @@ class Jobs:
     def history(self, project_id: str):
         with self.connection() as db:
             return db.execute(
-                "SELECT id,sha,kind,status,created FROM runs WHERE project_id=? ORDER BY rowid DESC", (project_id,)
+                "SELECT id,sha,folder,kind,status,created FROM runs WHERE project_id=? ORDER BY rowid DESC",
+                (project_id,),
             ).fetchall()
 
     def get(self, project_id: str, run_id: str):

@@ -223,20 +223,20 @@
   },
   {
     "key": "tier3 validate-grader:max_false_pass_rate",
-    "status": "partial",
-    "equivalent": "Optional numeric gate; policy incompatibility verified, inference-based gate crossing not exercised.",
-    "evidence": "tests/studio/test_assets.py::test_qualification_insufficient_coverage_never_spends"
+    "status": "implemented",
+    "equivalent": "A measured false pass rate above the selected limit fails live qualification and is named in the retained receipt.",
+    "evidence": "tests/studio/test_assets.py::test_authenticated_judge_thresholds_use_measured_rates"
   },
   {
     "key": "tier3 validate-grader:max_false_fail_rate",
-    "status": "partial",
-    "equivalent": "Optional numeric gate; policy incompatibility verified, inference-based gate crossing not exercised.",
-    "evidence": "tests/studio/test_assets.py::test_qualification_insufficient_coverage_never_spends"
+    "status": "implemented",
+    "equivalent": "A measured false fail rate above the selected limit fails live qualification and is named in the retained receipt.",
+    "evidence": "tests/studio/test_assets.py::test_authenticated_judge_thresholds_use_measured_rates"
   },
   {
     "key": "tier3 validate-grader:max_unjudgeable_rate",
-    "status": "partial",
-    "equivalent": "Optional numeric gate; policy incompatibility verified, inference-based gate crossing not exercised.",
-    "evidence": "tests/studio/test_assets.py::test_qualification_insufficient_coverage_never_spends"
+    "status": "implemented",
+    "equivalent": "A measured unjudgeable rate above the selected limit fails live qualification and is named in the retained receipt.",
+    "evidence": "tests/studio/test_assets.py::test_valid_preflight_does_not_pass_a_live_rate_gate"
   }
 ]

@@ -358,6 +358,36 @@ def test_root_blocks_on_missing_cases_without_autopilot(page, private_remote, tm
         playwright.expect(page.get_by_role("status")).to_contain_text("failed")
 
 
+def test_root_inherited_custom_grader_cannot_bypass_sandbox_consent(page, private_remote, tmp_path, monkeypatch):
+    from test_datasets import open_draft, seed_skill
+
+    monkeypatch.delenv("STUDIO_LIVE_ENABLED", raising=False)
+    seed_skill(
+        tmp_path,
+        {
+            "evals/config.yml": "schema_version: 1\ngrading:\n  mode: custom_only\n",
+            "evals/grader.py": "raise RuntimeError('must not execute here')",
+            "evals/evals.json": '{"skill_name":"triage","evals":[{"id":"one","prompt":"Task","expected_output":"Answer"}]}',
+        },
+    )
+    with running(tmp_path / "volume") as base:
+        open_draft(page, base, private_remote)
+        root = page.url.split("/datasets")[0] + "/expert/validate"
+        for consent in (False, True):
+            page.goto(root)
+            page.get_by_label("Tiers", exact=False).select_option("1,3")
+            page.get_by_label("Checks to run").select_option("unicode")
+            page.get_by_text("Tier 3 settings", exact=True).click()
+            if consent:
+                page.get_by_label("Allow the repository grader in the sandbox").check()
+            page.get_by_label("Reports").select_option("json")
+            page.get_by_role("button", name="Queue check").click()
+            link = page.get_by_role("link", name="Download native JSON")
+            playwright.expect(link).to_be_visible(timeout=15000)
+            report = page.request.get(link.get_attribute("href")).json()
+            assert ("runtime is disabled" if consent else "sandbox consent") in str(report)
+
+
 @pytest.mark.parametrize("partial", [True, False])
 def test_root_folds_harbor_arm_evidence_with_pinned_options(tmp_path, monkeypatch, partial):
     import json
