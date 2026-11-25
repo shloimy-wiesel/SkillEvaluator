@@ -441,7 +441,7 @@ class EmbeddingRegistry:
         matches.sort(key=lambda m: m.score, reverse=True)
         return matches
 
-    def catalog_self_entry(self, target: ContentEntry) -> RegistryEntry | None:
+    def catalog_self_entry(self, target: ContentEntry, *, repository_root: Path | None = None) -> RegistryEntry | None:
         """Return the catalog entry that records *target* itself, if any.
 
         Catalog paths are relative to a scan root the catalog does not record,
@@ -464,6 +464,8 @@ class EmbeddingRegistry:
         if target.content_type != CONTENT_TYPE_SKILL:
             return None
         target_dir = Path(target.path).resolve()
+        # Hosted scans may only inspect sibling manifests inside this checkout.
+        max_depth = len(target_dir.relative_to(repository_root.resolve()).parts) if repository_root else None
         fingerprint = self._entry_fingerprint(target)
         skills = sorted(
             (entry for entry in self._entries.values() if entry.content_type == CONTENT_TYPE_SKILL),
@@ -474,6 +476,8 @@ class EmbeddingRegistry:
         scan_root: Path | None = None
         for catalog_entry in skills:
             parts = PurePosixPath(catalog_entry.path).parts
+            if max_depth is not None and len(parts) > max_depth:
+                continue
             if catalog_entry.content_fingerprint != fingerprint or len(parts) <= candidate_depth:
                 continue
             inferred_root = _inferred_scan_root(target_dir, parts)

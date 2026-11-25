@@ -37,7 +37,7 @@ class SimilarityValidator(ValidatorBase):
     Produces structured Finding objects classified into four severity tiers.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0917 -- preserve the public positional constructor
         self,
         threshold: float = SIMILARITY_DEFAULT_THRESHOLD,
         model: str | None = None,
@@ -49,7 +49,12 @@ class SimilarityValidator(ValidatorBase):
         full_body: bool = False,
         max_entries: int = SIMILARITY_DEFAULT_MAX_ENTRIES,
         max_scalar_comparisons: int = SIMILARITY_DEFAULT_MAX_SCALAR_COMPARISONS,
+        *,
+        embedding_client: EmbeddingClient | None = None,
+        repository_root: Path | None = None,
     ) -> None:
+        self._embedding_client = embedding_client
+        self._repository_root = repository_root
         validate_max_entries(max_entries)
         validate_max_scalar_comparisons(max_scalar_comparisons)
         if not math.isfinite(threshold) or not 0.0 <= threshold <= 1.0:
@@ -109,7 +114,7 @@ class SimilarityValidator(ValidatorBase):
             result.add_error("Local catalog workflows support skill content only")
             return result
 
-        client = EmbeddingClient(model=self._model)
+        client = self._embedding_client or EmbeddingClient(model=self._model)
         registry = EmbeddingRegistry(
             client,
             full_body=self._full_body,
@@ -137,7 +142,7 @@ class SimilarityValidator(ValidatorBase):
                 # A catalog built from the tree that holds the target records the
                 # target itself; never report it as its own duplicate. Copies
                 # outside that tree keep their catalog matches.
-                self_entry = registry.catalog_self_entry(target)
+                self_entry = registry.catalog_self_entry(target, repository_root=self._repository_root)
                 matches = registry.query_entry(
                     target,
                     self._threshold,
