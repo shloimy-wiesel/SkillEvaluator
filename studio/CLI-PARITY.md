@@ -30,6 +30,10 @@ and report equivalents. Option-level evidence: `bindings/overlap.json`.
 
 The [evaluation assets workflow](ASSETS.md) maps the two starter generators and `tier3 validate-grader`, including the execution boundary for repository suites.
 
+[Project readiness](PROVIDERS.md#project-readiness) maps `doctor`,
+`health-check`, `tier3 doctor` and `models`, including the consent boundary,
+worker prerequisites and tested limits. See `bindings/readiness.json`.
+
 ## Running and extending the option audit
 
 Run `python -m studio.option_audit` from the checkout for a JSON report keyed by
