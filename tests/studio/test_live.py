@@ -239,7 +239,13 @@ def test_evaluate_selected_project_dataset_and_container_grader(
         native.mkdir(parents=True)
         (native / "result.json").write_text(
             json.dumps(
-                {"execution_status": "failed", "execution_errors": ["agent unavailable", env["SKILL_EVAL_LLM_API_KEY"]]}
+                {
+                    "execution_status": "failed",
+                    "execution_errors": [
+                        {"message": "agent unavailable", "code": "worker_transport_failure"},
+                        env["SKILL_EVAL_LLM_API_KEY"],
+                    ],
+                }
             )
         )
         return 1
@@ -317,6 +323,7 @@ def test_evaluate_selected_project_dataset_and_container_grader(
         page.get_by_role("button", name="Queue live evaluation").click()
         playwright.expect(page.get_by_role("status")).to_contain_text("incomplete")
         playwright.expect(page.get_by_text("agent unavailable", exact=True)).to_be_visible()
+        assert "worker_transport_failure" not in page.content()
         playwright.expect(
             page.get_by_text("opencode: openai/trial · differs from saved chat", exact=True)
         ).to_be_visible()

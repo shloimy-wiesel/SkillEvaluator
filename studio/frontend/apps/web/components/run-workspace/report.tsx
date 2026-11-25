@@ -15,18 +15,34 @@ interface Result {
   findings?: Finding[];
 }
 
+type ReportMessage = string | { message: string };
+
+const messages = (entries: ReportMessage[]) => [
+  ...new Set(
+    entries.map((entry) =>
+      // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Retained reports support both text and evaluator message records.
+      typeof entry === "string" ? entry : entry.message
+    )
+  ),
+];
+
 /** Public evaluator report fields used in retained run views. */
 export interface Report {
   output?: string;
   diagnostics?: { level: string; paths: number; skills: number };
   tier3?: { verdict?: string; execution_status: string; summary?: object };
-  execution_errors?: string[];
+  execution_errors?: ReportMessage[] | null;
   diagnostic?: string;
   status?: string;
   cases?: number;
   split?: string;
   coverage?: { cases: number; attempts: number };
-  qualification?: { policy_id: string; status: string; reasons: string[] };
+  qualification?: {
+    policy_id: string;
+    status: string;
+    reasons: ReportMessage[];
+  };
+  threshold_failures?: string[];
   workflow?: { stages: Record<string, { status: string; reason?: string }> };
   results?: Result[];
   studio_dataset?: string;
@@ -64,16 +80,20 @@ const Grader = ({ report, evidence }: { report: Report; evidence: string }) => (
           Policy {report.qualification.policy_id}: {report.qualification.status}
         </h3>
         <ul>
-          {report.qualification.reasons.map((reason) => (
+          {messages(report.qualification.reasons).map((reason) => (
             <li key={reason}>{reason}</li>
           ))}
         </ul>
       </>
     )}
-    <details>
-      <summary>Qualification evidence</summary>
-      <pre>{JSON.stringify(report, null, 2)}</pre>
-    </details>
+    {Boolean(report.threshold_failures?.length) && (
+      <p>
+        Gates exceeded:{" "}
+        {report.threshold_failures
+          ?.map((gate) => gate.replaceAll("_", " "))
+          .join(", ")}
+      </p>
+    )}
   </>
 );
 
@@ -189,7 +209,7 @@ export const Findings = ({
         )}
       </>
     )}
-    {report.execution_errors?.map((reason) => (
+    {messages(report.execution_errors ?? []).map((reason) => (
       <p key={reason}>{reason}</p>
     ))}
     {kind === "validate-grader" && (
