@@ -1,4 +1,8 @@
 """Install production feature routers and their named project entry routes here."""
 
-ROUTERS = ()
-PROJECT_LINKS = ()  # (label, route_name) pairs; each named route takes project_id.
+from .runs import router as runs_router
+from .static_job import STATIC
+
+ROUTERS = (runs_router,)
+PROJECT_LINKS = (("Evaluation runs", "runs_index"),)
+JOB_DEFINITIONS = (STATIC,)
