@@ -28,6 +28,28 @@ def test_compare_branch_to_commit_without_switching(page, tmp_path, private_remo
         assert subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=checkout).decode().strip() == main
 
 
+def test_large_source_comparison_reports_budget_only_for_changed_files(page, tmp_path, private_remote):
+    prior = "line\n" * 1250 + "before\n" + "line\n" * 1250
+    publish_from_seed(tmp_path, "prior", prior)
+    publish_from_seed(tmp_path, "candidate", prior.replace("before", "after"))
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        page.get_by_role("link", name="Compare revisions").click()
+        page.get_by_label("Prior revision").fill("prior")
+        page.get_by_label("Current revision").fill("candidate")
+        page.get_by_role("button", name="Compare revisions").click()
+        playwright.expect(page.get_by_text("Modified · skills/triage/SKILL.md")).to_be_visible()
+        notice = page.get_by_text("Line diff omitted", exact=False)
+        playwright.expect(notice).to_contain_text("2,000 combined lines")
+        playwright.expect(page.get_by_label("Current source")).to_have_count(0)
+
+        page.get_by_label("Current revision").fill("prior")
+        page.get_by_role("button", name="Compare revisions").click()
+        playwright.expect(page.get_by_text("No source changes in skills/triage.")).to_be_visible()
+        playwright.expect(notice).to_have_count(0)
+
+
 def test_author_compares_paired_evidence_then_inspects_policy_mismatch(
     page, tmp_path, private_remote, evaluation, monkeypatch
 ):

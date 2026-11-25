@@ -15,7 +15,9 @@
 {% if error %}<p role="alert">{{ error }}</p>{% else %}
 <section><p class="eyebrow">01 / Source</p><h2>Changed files · {{ count }}</h2>
 {% for file in files %}<details class="panel" {% if loop.first %}open{% endif %}><summary>{{ {'A':'Added','D':'Deleted','M':'Modified','T':'Type changed'}.get(file.change,file.change) }} · {{ file.path }}</summary>
-<div class="compare-pair">{% for side in sides %}<div><h3>{{ side.label }} <code>{{ side.sha[:8] }}</code></h3><pre aria-label="{{ side.label }} source">{% for op,text in file[side.label|lower] %}{% if op == 'equal' %}{{ text }}{% elif side.label == 'Prior' %}<del>{{ text }}</del>{% else %}<ins>{{ text }}</ins>{% endif %}{% endfor %}</pre></div>{% endfor %}</div></details>
+{% if file.notice %}<p>{{ file.notice }}</p>{% else %}
+<div class="compare-pair">{% for side in sides %}<div><h3>{{ side.label }} <code>{{ side.sha[:8] }}</code></h3><pre aria-label="{{ side.label }} source">{% for op,text in file[side.label|lower] %}{% if op == 'equal' %}{{ text }}{% elif side.label == 'Prior' %}<del>{{ text }}</del>{% else %}<ins>{{ text }}</ins>{% endif %}{% endfor %}</pre></div>{% endfor %}</div>
+{% endif %}</details>
 {% else %}<p class="empty">No source changes in {{ project.folder }}.</p>{% endfor %}
 {% if count > files|length %}<p>Showing the first {{ files|length }} changed files.</p>{% endif %}</section>
 <section><p class="eyebrow">02 / Evidence</p><h2>Retained results</h2>
