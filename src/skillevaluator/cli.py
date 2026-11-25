@@ -1113,7 +1113,7 @@ def _run_agent_eval_or_skip(
     )
     try:
         if preflight:
-            preflight()
+            preflight(target_path)
         service = EvaluationService()
         if progress_reporter is not None:
             engine_result = service.evaluate(options, progress_reporter=progress_reporter)
@@ -1275,7 +1275,7 @@ def _ensure_autopilot_dataset(
 
                 params = {**evaluation_params, "skill_path": skill_path}
                 if params.get("backend") != "nemo-gym" and (preflight := sandbox_preflight.get()):
-                    preflight()
+                    preflight(skill_path)
                     params["skill_workspace_mode"] = "isolated"
                 with _source_snapshot(skill_path) as source_path:
                     if params.get("backend") == "nemo-gym":
@@ -1661,6 +1661,10 @@ def _catalog_skill_entry(
         if key in payload:
             entry[key] = payload[key]
     entry["report_verdict"] = {key: payload[key] for key in ("overall_passed", "overall_status") if key in payload}
+    tier3 = payload.get("publication", {}).get("tier3")
+    gate = payload.get("gating", {}).get("tiers", {}).get("3")
+    if isinstance(tier3, dict) and isinstance(gate, dict):
+        entry["tier3"] = {**tier3, "blocking": gate["blocking"]}
     return entry
 
 
@@ -2114,7 +2118,14 @@ def _validate_catalog_parallel(
     execution_failures: set[str] = set()
     worker_reports: dict[str, str | None] = {}
     worker_annotations: dict[str, list[dict]] = {}
-    with ProcessPoolExecutor(max_workers=workers) as executor:
+    from multiprocessing import get_context
+
+    from skillevaluator.embedded import catalog_initializer
+
+    initialize = catalog_initializer.get()
+    with ProcessPoolExecutor(
+        max_workers=workers, initializer=initialize, mp_context=get_context("spawn") if initialize else None
+    ) as executor:
         futures = [executor.submit(_run_catalog_skill_worker, job) for job in jobs]
         for future in as_completed(futures):
             skill_name, reason, execution_failed, json_report_name, annotations = future.result()

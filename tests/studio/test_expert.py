@@ -68,6 +68,58 @@ def test_parallel_catalog_reports_each_child_at_selected_commit(page, private_re
         assert "2 workers" in page.locator("body").text_content()
 
 
+def test_live_catalog_retains_scoped_starters_and_leaf_gates(page, private_remote, tmp_path, monkeypatch):
+    import subprocess
+
+    monkeypatch.delenv("STUDIO_LIVE_ENABLED", raising=False)
+    marker = tmp_path / "grader-ran-on-host"
+    publish(
+        tmp_path,
+        {
+            "skills/nested/triage/SKILL.md": "---\nname: triage\ndescription: Sort animal sightings by habitat.\n---\n# Second triage\n",
+            "skills/nested/triage/evals/config.yml": "schema_version: 1\ngrading:\n  mode: custom_only\n",
+            "skills/nested/triage/evals/grader.py": f"from pathlib import Path\nPath({str(marker)!r}).touch()\n",
+        },
+    )
+    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tmp_path / "seed", text=True).strip()
+    publish(tmp_path, {"skills/later/SKILL.md": "# Later\n"})
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        page.get_by_role("heading", name="handbook").wait_for()
+        page.goto(page.url + "/expert/validate")
+        page.get_by_label("Commit SHA").fill(sha)
+        page.get_by_role("button", name="Load commit files").click()
+        page.get_by_label("Target directory").select_option("skills")
+        page.get_by_label("Catalog workers").fill("2")
+        page.get_by_label("Checks to run").select_option("unicode")
+        page.get_by_label("Reports").select_option("json")
+        page.get_by_role("button", name="Queue check").click()
+        identities = {}
+        for replay in (False, True):
+            summary = page.get_by_role("link", name="Download native Catalog summary")
+            playwright.expect(summary).to_be_visible(timeout=20000)
+            members = page.request.get(summary.get_attribute("href")).json()["skills"]
+            assert {s["name"] for s in members} == {"triage", "nested/triage"}
+            for member in members:
+                link = page.get_by_role("link", name=f"Download native JSON · {member['name']}", exact=True)
+                report = page.request.get(link.get_attribute("href")).json()
+                assert report["evaluated_source"]["commit"] == sha
+                reason = "sandbox consent" if "/" in member["name"] else "runtime is disabled"
+                assert reason in str(report) and "embedding setup is required" in str(report).lower()
+                assert member["tier3"]["execution_status"] == "skipped"
+                identity = report["results"][0]["publication_target"]["skill_digest"]
+                if replay:
+                    assert identity == identities[member["name"]]
+                identities[member["name"]] = identity
+                assert report["gating"]["tiers"]["3"]["blocking"] is False
+                note = "Reused saved starter" if replay else "Generated and saved starter"
+                playwright.expect(page.get_by_text(f"{member['name']}: {note}", exact=True)).to_be_visible()
+            if not replay:
+                page.get_by_role("button", name="Rerun saved inputs").click()
+        assert not marker.exists()
+
+
 def test_harness_collection_uses_the_loaded_commit(page, private_remote, tmp_path):
     import subprocess
 
@@ -339,26 +391,50 @@ def test_cross_tier_validation_routes_embeddings_separately(
     subprocess.run(["git", "push", repo, "main"], cwd=seed, check=True)
     subprocess.run(["git", "update-server-info"], cwd=repo, check=True)
     seen = []
+    catalog = tiers == "1,2,3"
+    if catalog:
+        manifest = (seed / "skills/triage/SKILL.md").read_text()
+        publish(
+            tmp_path,
+            {
+                "skills/triage/contact.md": "boss@company.com\n",
+                "skills/other/contact.md": "boss@company.com\n",
+                "skills/other/SKILL.md": manifest.replace("name: triage", "name: other"),
+            },
+        )
 
     class Gateway(BaseHTTPRequestHandler):
         def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            n = len(body["input"])
             seen.append((self.path, body["model"], self.headers.get("Authorization")))
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(
-                json.dumps(
-                    {
-                        "object": "list",
-                        "data": [
-                            {"index": i, "object": "embedding", "embedding": [float(i == j) for j in range(n)]}
-                            for i in range(n)
-                        ],
-                    }
-                ).encode()
-            )
+            if "input" in body:
+                n = len(body["input"])
+                reply = {
+                    "object": "list",
+                    "data": [
+                        {"index": i, "object": "embedding", "embedding": [float(i == j) for j in range(n)]}
+                        for i in range(n)
+                    ],
+                }
+            else:
+                verdict = {"index": 0, "verdict": "false_positive", "confidence": "high", "rationale": "Example."}
+                reply = {
+                    "id": "fixture",
+                    "object": "chat.completion",
+                    "created": 1,
+                    "model": body["model"],
+                    "choices": [
+                        {
+                            "index": 0,
+                            "finish_reason": "stop",
+                            "message": {"role": "assistant", "content": json.dumps({"verdicts": [verdict]})},
+                        }
+                    ],
+                }
+            self.wfile.write(json.dumps(reply).encode())
 
     tls, ca = loopback_tls
     monkeypatch.setenv("SSL_CERT_FILE", str(ca))
@@ -380,17 +456,39 @@ def test_cross_tier_validation_routes_embeddings_separately(
                 )
             page.goto(project + "/expert/validate")
             page.get_by_label("Tiers", exact=False).select_option(tiers, timeout=2000)
-            if tiers == "1,2,3":
+            if catalog:
+                page.get_by_label("Target directory").select_option("skills")
+                page.get_by_label("Catalog workers").fill("2")
+                page.get_by_label("Verify findings with chat provider").check()
                 page.get_by_text("Tier 3 settings", exact=True).click()
                 page.get_by_label("Prepare missing dataset").select_option("false")
-            page.get_by_label("Checks to run").select_option("unicode")
+            page.get_by_label("Checks to run").select_option("pii" if catalog else "unicode")
             page.get_by_label("Tier 2 gate").select_option("false")
             page.get_by_role("button", name="Queue check").click()
-            report_link = page.get_by_role("link", name="Download native JSON")
+            report_link = page.get_by_role(
+                "link", name="Download native JSON · triage" if catalog else "Download native JSON", exact=True
+            )
             playwright.expect(report_link).to_be_visible(timeout=30000)
             report = page.request.get(report_link.get_attribute("href")).json()
             assert any(r["validator"] == "Context Deduplication" for r in report["results"])
-            assert seen and set(seen) == {("/Embeddings/embeddings", "Embeddings-model", "Bearer Embeddings-key")}
+            expected = {("/Embeddings/embeddings", "Embeddings-model", "Bearer Embeddings-key")}
+            if catalog:
+                expected.add(("/Chat/chat/completions", "Chat-model", "Bearer Chat-key"))
+                assert set(seen) == expected
+                run = page.url
+                page.goto(project + "/providers")
+                for role in ("Chat", "Embeddings"):
+                    save_profile(
+                        page.get_by_role("region", name=role, exact=True),
+                        f"https://127.0.0.1:{gateway.server_port}/rotated",
+                        "new-model",
+                        "new-key",
+                    )
+                seen.clear()
+                page.goto(run)
+                page.get_by_role("button", name="Rerun saved inputs").click()
+                playwright.expect(report_link).to_be_visible(timeout=30000)
+            assert set(seen) == expected
         finally:
             gateway.shutdown()
 
@@ -567,13 +665,15 @@ def test_root_folds_harbor_arm_evidence_with_pinned_options(tmp_path, monkeypatc
     from skillevaluator.embedded import sandbox_preflight
     from skillevaluator.evaluation import EvaluationService
 
-    skill = tmp_path / "lookup-code"
+    skill = tmp_path / "catalog/first/lookup-code"
     shutil.copytree(Path(__file__).resolve().parents[1] / "fixtures/skills/lookup-code", skill)
+    shutil.copytree(skill, tmp_path / "catalog/second/lookup-code")
     out = tmp_path / "reports"
     ctx = JobContext(tmp_path, skill, "a" * 40, None, None, "project", "run", out)
     (tmp_path / "prices.json").write_text('{"fixture-model":{"input_per_mtok":1,"output_per_mtok":2}}')
     options = ExpertOptions(
         action="validate",
+        target="catalog",
         tiers="1,3",
         checks=("unicode",),
         agents=("codex",),
@@ -654,25 +754,34 @@ def test_root_folds_harbor_arm_evidence_with_pinned_options(tmp_path, monkeypatc
             )
         )
         (run / "run_config.json").write_text("{}")
+        interrupted = partial and request.skill_path.parent.name == "second"
         payload = {
             "run_id": run.name,
             "run_dir": str(run),
             "agents": {"codex": {}},
-            "execution_status": "failed" if partial else "succeeded",
-            "execution_errors": ["second trial interrupted"] if partial else [],
+            "execution_status": "failed" if interrupted else "succeeded",
+            "execution_errors": ["second trial interrupted"] if interrupted else [],
         }
         (run / "result.json").write_text(json.dumps(payload))
         return payload
 
     monkeypatch.setattr(EvaluationService, "evaluate", harbor)
-    token = sandbox_preflight.set(lambda: None)
+    token = sandbox_preflight.set(lambda _path: None)
     try:
         result = CliRunner().invoke(cli, [*options.arguments(ctx), "--results-dir", str(tmp_path / "runs")])
     finally:
         sandbox_preflight.reset(token)
-    assert observed == [("isolated", "kata", ("codex=fixture-model",), 2, 4, {"commit": ctx.revision})]
+    assert observed == [("isolated", "kata", ("codex=fixture-model",), 2, 4, {"commit": ctx.revision})] * 2
     assert result.exit_code == int(partial), result.output
-    report = json.loads(next(out.glob("*.json")).read_text())
-    assert report["evaluated_source"]["commit"] == ctx.revision
-    assert report["tier3"]["agents"]["codex"]["conditions"]["with_skill"]["scored_attempts"] == 1
-    assert ("second trial interrupted" in str(report["results"])) == partial
+    summary = json.loads((out / "catalog-summary.json").read_text())
+    # Neither fixture supplies sufficient provenance for a blocking pass.
+    assert summary["failed"] == (2 if partial else 0)
+    for member in summary["skills"]:
+        report = json.loads((out / member["name"] / member["json_report"]).read_text())
+        assert report["evaluated_source"]["commit"] == ctx.revision
+        assert report["tier3"]["agents"]["codex"]["conditions"]["with_skill"]["scored_attempts"] == 1
+        assert (tmp_path / "runs" / member["name"] / "20260101_120000/result.json").is_file()
+        assert ("second trial interrupted" in str(report["results"])) == (
+            partial and member["name"].startswith("second")
+        )
+        assert member["tier3"] == {**report["publication"]["tier3"], "blocking": partial}

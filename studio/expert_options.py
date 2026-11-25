@@ -214,11 +214,9 @@ class ExpertOptions(BaseModel):
             raise ValueError("Select harnesses from the managed agent CLI set")
         if not self.live and self.model_dump(exclude_defaults=True).keys() & (ROOT_LIVE - {"autopilot"}):
             raise ValueError("Select Tier 3 to set live controls")
-        if self.live and (
-            self.target or self.catalog_root or self.workers or self.content_type not in {None, "skill", "auto"}
-        ):
-            raise ValueError("Alternate targets and catalog evaluation require static tiers")
-        if (self.workers or 1) > 1 and (self.tiers != "1" or self.llm or self.llm_verify):
+        if self.live and self.content_type not in {None, "skill", "auto"}:
+            raise ValueError("Select a skill or catalog for live evaluation")
+        if not self.live and (self.workers or 1) > 1 and (self.tiers != "1" or self.llm or self.llm_verify):
             raise ValueError("Parallel catalog validation requires keyless Tier 1")
         for directory in (self.target, self.catalog_root):
             if (

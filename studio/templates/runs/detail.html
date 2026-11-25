@@ -36,6 +36,11 @@
 {% if finding.suggestion %}<br>{{ finding.suggestion }}{% endif %}</p>{% endfor %}</section>{% endfor %}
 {% if run.kind == 'expert-check-v1' %}
 {% if report.studio_dataset %}<p>{{ report.studio_dataset }}</p>{% endif %}
+{% for member,note in (report.studio_member_datasets or {}).items() %}<p>{{ member }}: {{ note }}</p>{% endfor %}
+{% if report.summary_path == 'catalog-summary.json' %}<ul>{% for member in report.skills %}
+<li>{{ member.name }}: gate {{ 'passed' if member.passed else 'failed' }}{% if member.tier3 %}
+ · Tier 3 {{ member.tier3.status }} ({{ 'blocking' if member.tier3.blocking else 'advisory' }}){% endif %}</li>
+{% endfor %}</ul>{% endif %}
 {% if report.terminal %}<details><summary>Evaluator output</summary><pre>{{ report.terminal }}</pre></details>{% endif %}
 {% for name,label in report.native.items() %}
 <a href="{{ url_for('expert_artifact', project_id=project.id, run_id=run.id, name=name) }}">Download native {{ label }}</a>

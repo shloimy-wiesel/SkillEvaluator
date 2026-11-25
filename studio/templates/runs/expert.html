@@ -15,7 +15,7 @@ Key-backed providers require the chat SDK.</p>{% endif %}
 <p>Loaded revision: <code>{{ sha }}</code></p>
 {% if 'target' in fields %}<label>Target directory<select name="target"><option value="">Connected skill</option>{% for dir in dirs %}<option>{{ dir }}</option>{% endfor %}</select></label>{% endif %}
 {% if 'workers' in fields %}
-<p>Alternate targets require static tiers. Use keyless Tier 1 for parallel catalog workers.</p>
+<p>Select a skill catalog to validate each member at this commit. Up to four members can run concurrently. Tier 3 trial budgets apply per member.</p>
 <label>Catalog workers<input type="number" min="1" max="4" name="workers"></label>
 <label>Catalog root<select name="catalog_root"><option value="">Evaluator default</option>{% for dir in dirs %}<option>{{ dir }}</option>{% endfor %}</select></label>
 <label>Content type<select name="content_type"><option value="">Auto-detect</option>{% for t in ('skill','rules','workflows','plugin') %}<option>{{ t }}</option>{% endfor %}</select></label>{% endif %}

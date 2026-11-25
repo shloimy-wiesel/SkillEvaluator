@@ -13,7 +13,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
-from . import expert_profiles, live_job
+from . import expert_catalog, expert_profiles, live_job
 from .expert_options import ACTIONS, ALIASES, CHECKS, FIELDS, FILES, HARNESSES, MULTI, REPORTS, ExpertOptions
 from .jobs import JobDefinition, Outcome
 from .operator_env import operator_env
@@ -37,29 +37,10 @@ def evaluate(ctx, options):
         target = replace(ctx, artifacts=output)
         runtime = {}
         reason = None
-        saved = None
-        reused = False
+        members = {}
+        starters = []
         if options.live:
-            # Root validation scans the whole skill, including authored eval files.
-            skill = live_job.stage_skill(ctx.skill, work, set())
-            try:
-                live_job.check_stage_policy(skill, options)
-                if (skill / "evals/results").exists():
-                    raise WorkspaceError("Remove archived evals/results from the skill before live validation.")
-            except WorkspaceError as exc:
-                reason = str(exc)
-            except ValueError:
-                reason = "Invalid pinned Harbor run policy."
-            if options.snapshot_id and live_job.find_eval_file(skill) is None:
-                private = ctx.workspace.data_dir / "root-datasets" / ctx.project_id
-                private.mkdir(parents=True, mode=0o700, exist_ok=True)
-                saved = private / options.snapshot_id
-                if saved.exists():
-                    reused = True
-                    dataset = skill / "evals/evals.json"
-                    dataset.parent.mkdir(exist_ok=True)
-                    dataset.write_bytes(ctx.workspace.cipher.decrypt(saved.read_bytes()))
-            target = replace(target, skill=skill)
+            target, members, starters = expert_catalog.prepare(target, work, options)
             home = work / "home"
             home.mkdir()
             runtime = {
@@ -80,14 +61,24 @@ def evaluate(ctx, options):
             if not options.include_revision:
                 args += ["--evaluated-source-revision", ctx.revision]
             try:
-                if reason is None:
+                if any(error is None for error in members.values()):
                     live_job.sandbox_preflight(work, runtime)
             except WorkerTimeout:
                 raise
             except WorkspaceError as exc:
                 reason = str(exc)
         try:
-            outcome = invoke(ctx, args, work, output, chat=chat, embeddings=embeddings, runtime=runtime, reason=reason)
+            outcome = invoke(
+                ctx,
+                args,
+                work,
+                output,
+                chat=chat,
+                embeddings=embeddings,
+                runtime=runtime,
+                reason=reason,
+                members=members,
+            )
         finally:
             if options.live:
                 secrets = {
@@ -99,18 +90,10 @@ def evaluate(ctx, options):
                 for path in (ctx.artifacts / "tier3").rglob("*"):
                     if not path.is_symlink() and path.is_file():
                         live_job.redact_file(path, secrets)
-        if saved and (dataset := live_job.find_eval_file(target.skill)):
-            if not reused:
-                temporary = saved.with_suffix(".part")
-                temporary.write_bytes(ctx.workspace.cipher.encrypt(dataset.read_bytes()))
-                temporary.replace(saved)
-            report = json.loads(outcome.report)
-            report["studio_dataset"] = "Reused saved starter" if reused else "Generated and saved starter"
-            outcome = replace(outcome, report=json.dumps(report))
-        return outcome
+        return expert_catalog.retain(ctx.workspace, starters, outcome) if starters else outcome
 
 
-def invoke(ctx, args, work, output, *, chat, embeddings, runtime, reason):
+def invoke(ctx, args, work, output, *, chat, embeddings, runtime, reason, members=None):
     log = work / "console.txt"
     with log.open("wb") as console:
         done = run_evaluator(
@@ -134,7 +117,9 @@ def invoke(ctx, args, work, output, *, chat, embeddings, runtime, reason):
             stderr=subprocess.DEVNULL,
             sandbox=bool(runtime),
             limit=None if runtime else 180,
-            input=json.dumps({"embeddings": embeddings, "live": bool(runtime), "preflight_error": reason}).encode(),
+            input=json.dumps(
+                {"embeddings": embeddings, "live": bool(runtime), "preflight_error": reason, "members": members or {}}
+            ).encode(),
         )
     if done.returncode not in (0, 1):
         raise WorkspaceError("Evaluator rejected the selected settings or could not finish.")
