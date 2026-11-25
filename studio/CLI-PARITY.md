@@ -96,3 +96,27 @@ fixture tests.
 and external metrics to pinned jobs with native JSON exports. Interaction
 backend kwargs and raw Harbor jobs remain unbound. The browser interaction
 proof uses a fixture at the sandbox invocation boundary, not a paid live trial.
+
+## Installation and changed-file checks
+
+From **Project tools → Installation and changed files**, inspect the installed
+CLI version and choose contextual help for a command or tier group. Help and
+version come from the same Python environment that executes checks. Expand
+**Diagnostic detail** for the runtime, folder and revision; each retained run
+also has a detail panel. **Include redacted evaluator detail** enables the
+engine's verbose logging level for a changed-file run. Only its effective level
+and path/skill counts are retained there, never the process environment or raw
+debug log.
+
+Select one or more paths from the connected commit's diff against its first
+parent (all paths for the initial commit). The hidden `precommit-run` equivalent
+checks each affected skill once across the repository. Unrelated paths produce
+no results and a successful exit. Quality uses the evaluator defaults unless
+you change the threshold or select a tracked configuration (YAML/JSON, up to
+1 MiB). Paths and config stay pinned on replay; linked inputs are unsupported.
+
+Requires Git, the installed evaluator and Studio dependencies, and a connected
+project; these three checks need no provider, credentials or external service.
+The Chromium integration test uses only a local private HTTPS Git fixture and
+compares the rendered report and exit code with the installed CLI on the same
+files. Evidence for the 11 command/option rows: `bindings/installation.json`.

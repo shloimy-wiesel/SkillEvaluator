@@ -1,6 +1,7 @@
 """Install production feature routers and their named project entry routes here."""
 
 from .assets import router as assets_router
+from .changed_files import CHANGED
 from .ci_advanced import router as advanced_ci_router
 from .ci_routes import router as ci_router
 from .dataset_routes import router as dataset_router
@@ -10,6 +11,7 @@ from .experiment_routes import router as experiment_router
 from .expert import EXPERT
 from .expert import router as expert_router
 from .grader_job import GRADER
+from .installation import router as installation_router
 from .live_job import LIVE
 from .live_routes import router as live_router
 from .overlap import OVERLAP
@@ -19,6 +21,7 @@ from .runs import router as runs_router
 from .static_job import STATIC
 
 ROUTERS = (
+    installation_router,
     editor_router,
     provider_router,
     runs_router,
@@ -32,6 +35,7 @@ ROUTERS = (
     experiment_router,
 )
 PROJECT_LINKS = (
+    ("Installation and changed files", "installation"),
     ("Edit skill", "skill_editor"),
     ("Datasets", "datasets"),
     ("Provider settings", "provider_settings"),
@@ -42,4 +46,4 @@ PROJECT_LINKS = (
     ("Evaluation assets", "assets"),
     ("Repository CI", "repository_ci"),
 )
-JOB_DEFINITIONS = (STATIC, GRADER, LIVE, OVERLAP, EXPERT, METRICS, DECOYS, INTERACTION)
+JOB_DEFINITIONS = (CHANGED, STATIC, GRADER, LIVE, OVERLAP, EXPERT, METRICS, DECOYS, INTERACTION)
