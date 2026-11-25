@@ -77,9 +77,32 @@ def test_editor_mutations_are_versioned_and_return_structured_errors(tmp_path):
             invalid = client.post(endpoint)
             assert invalid.status_code == 422
             assert invalid.json()["detail"]["code"] == "invalid_request"
-            missing = client.post(endpoint, data={"branch": "main", "revision": "abc", "action": "save", "source": "x"})
+            missing = client.post(
+                endpoint, data={"branch": "main", "revision": "abc", "action": "save", "source": "x", "text": ""}
+            )
             assert missing.status_code == 404
             assert missing.json()["detail"]["code"] == "unknown_project"
+
+
+def test_save_requires_draft_but_accepts_explicit_empty_text(tmp_path, private_remote):
+    remote, token = private_remote
+    with running(tmp_path / "volume") as base, httpx.Client(base_url=base, trust_env=False) as client:
+        project = (
+            client.post(
+                "/api/v1/projects",
+                json={"remote": remote, "folder": "skills/triage", "username": "author", "token": token},
+            )
+            .raise_for_status()
+            .json()
+        )
+        path = f"/api/v1/projects/{project['id']}/edit"
+        fields = {"branch": project["branch"], "revision": project["revision"], "action": "save"}
+        assert client.post(path + "/changes", data=fields).status_code == 422
+        view = client.get(path).raise_for_status().json()
+        assert view["project"]["revision"] == project["revision"]
+        assert view["text"] == "# Triage\n"
+        client.post(path + "/changes", data={**fields, "text": ""}).raise_for_status()
+        assert client.get(path).json()["text"] == ""
 
 
 def test_api_preview_limits_preserve_saved_file(tmp_path, private_remote):

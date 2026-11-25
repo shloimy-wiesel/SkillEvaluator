@@ -1,9 +1,55 @@
 import subprocess
 import sys
 
+import httpx
+import pytest
 from test_workspace import connect, running
 
 pytest_plugins = ("test_workspace",)
+
+
+@pytest.mark.parametrize("cli_error", [subprocess.TimeoutExpired("cli", 20), subprocess.CalledProcessError(1, "cli")])
+def test_partial_inspection_failure_keeps_help_navigation_available(
+    page, tmp_path, private_remote, monkeypatch, cli_error
+):
+    from studio.installation import installed_output
+    from studio.workspace import Workspace, WorkspaceError
+
+    remote, token = private_remote
+    with running(tmp_path / "volume") as base, httpx.Client(base_url=base, trust_env=False) as client:
+        project = (
+            client.post(
+                "/api/v1/projects",
+                json={"remote": remote, "folder": "skills/triage", "username": "author", "token": token},
+            )
+            .raise_for_status()
+            .json()
+        )
+        check_output, git = subprocess.check_output, Workspace.git
+
+        def cli_command(args, **kwargs):
+            if "--version" in args:
+                raise cli_error
+            return check_output(args, **kwargs)
+
+        def inspect_git(self, project, args, **kwargs):
+            if args[0] == "rev-list":
+                raise WorkspaceError("private git diagnostic")
+            return git(self, project, args, **kwargs)
+
+        monkeypatch.setattr(subprocess, "check_output", cli_command)
+        monkeypatch.setattr(Workspace, "git", inspect_git)
+        installed_output.cache_clear()
+        view = client.get(f"/api/v1/projects/{project['id']}/installation?topic=tier1").raise_for_status().json()
+        assert "quality-check" in view["help"] and "tier3" in view["topics"]
+        assert view["changed"] == []
+        assert {item["section"] for item in view["diagnostics"]} == {"version", "changed"}
+        assert "private git diagnostic" not in str(view)
+        page.goto(f"{base}/projects/{project['id']}/installation")
+        page.get_by_role("alert").filter(has_text="changed: Inspection failed.").wait_for()
+        page.get_by_label("Help topic").select_option("tier1")
+        page.get_by_role("button", name="Show help").click()
+        assert "quality-check" in page.get_by_label("Installed command help").inner_text()
 
 
 def test_installed_version_context_help_and_safe_detail(page, private_remote, tmp_path):

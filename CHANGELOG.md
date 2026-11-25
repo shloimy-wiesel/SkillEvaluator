@@ -8,6 +8,10 @@ All notable changes to SkillEvaluator are documented in this file.
 
 - Add a self-hosted Studio workspace for opening Git-backed skill projects
   in a browser, with saved project settings and private repository access.
+- Move Studio's authoring, evaluation, evidence, and CI workflows to React
+  documents backed by project-scoped APIs. Run status shows frozen author
+  settings, and installation diagnostics keep available sections usable when
+  the CLI or Git cannot be inspected.
 
 ## 1.2.1 - 2026-11-24
 

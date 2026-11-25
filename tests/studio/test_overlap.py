@@ -27,6 +27,11 @@ def test_author_runs_direct_tier2_and_inspects_skipped_catalog(page, private_rem
         playwright.expect(page.get_by_text("catalog_comparison: skipped", exact=False)).to_be_visible(timeout=15000)
         report = page.request.get(page.get_by_role("link", name="Download JSON").get_attribute("href")).json()
         assert report["workflow"]["stages"]["catalog_comparison"]["status"] == "skipped"
+        options = page.request.get(page.url.replace(base, base + "/api/v1")).json()["run"]["options"]
+        assert "snapshot" not in options
+        for role in ("Chat", "Embeddings"):
+            frozen = options[role.lower()]
+            assert set(frozen) == {"model", "provider"} and frozen["model"] == role + "-model"
         playwright.expect(page.get_by_role("link", name="overlap.html", exact=True)).to_be_visible()
         assert "Chat-secret" not in page.content()
 

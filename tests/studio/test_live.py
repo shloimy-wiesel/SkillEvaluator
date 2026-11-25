@@ -122,6 +122,12 @@ def test_direct_workflow_retains_evidence_and_reruns_original_profile(page, priv
         original = page.url
         page.goto(base + settings)
         save_profile(panel, "https://chat.example/v1", "model-two", "replacement")
+        status = page.request.get(original.replace(base, base + "/api/v1")).json()
+        config = status["run"]["options"]
+        assert isinstance(config, dict)
+        assert config["judge_model"] == "model-one" and config["n_attempts"] == 3
+        for private in ("profile_id", "chat.example", "chat-secret", "ambient-secret"):
+            assert private not in str(status)
         page.goto(original)
         rerun_saved_inputs(page)
         playwright.expect(page.get_by_role("status")).to_contain_text("neutral")

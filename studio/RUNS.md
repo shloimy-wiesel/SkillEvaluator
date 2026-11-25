@@ -15,9 +15,16 @@ queue work; `201 {id, href}` links to the canonical status document. Repeated
 inputs (`agents`, `formats`, `paths`) are arrays. Omit blank budget and policy
 overrides; explicit `false` and `0` remain distinct from inherited values.
 `GET /api/v1/projects/{id}/runs/{run_id}` returns progress, frozen run metadata,
-display models and the retained report (null until saved). The status document
+display models and the retained report (null until saved). `run.options` is a
+JSON object with the author-facing settings saved for this run, including
+provider/model identities where applicable. Snapshot references and private
+provider connection details stay on the server. The status document
 polls while active. POST its `/rerun` subresource to enqueue a new run using
 the saved inputs. Downloads keep their existing, project-scoped attachment URLs.
+
+Installation inspection returns independent `version`, `help`, `changed`, and
+`configs` sections. If the CLI or Git is unavailable, `diagnostics` identifies
+the affected sections; successful sections remain available.
 
 ### Verifying the browser and API
 

@@ -1,21 +1,11 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import type { SubmitEvent, ReactNode } from "react";
 
 import { api, messageOf, useResource } from "@/lib/studio-api";
 import type { Project } from "@/lib/studio-api";
-
-const subscribe = (listener: () => void) => {
-  window.addEventListener("popstate", listener);
-
-  return () => {
-    window.removeEventListener("popstate", listener);
-  };
-};
-
-const currentPath = () => window.location.pathname + window.location.search;
-const serverPath = () => "";
+import { useRoute } from "@/lib/use-route";
 
 /** @returns The hydrated feature at its canonical FastAPI URL. */
 // oxlint-disable-next-line sonarjs/function-name, typescript/no-unnecessary-type-parameters -- Generic React component tying the endpoint type to its renderer.
@@ -24,7 +14,7 @@ export const RunDocument = <T extends { project: Project }>({
 }: {
   render: (data: T, path: string) => ReactNode;
 }) => {
-  const path = useSyncExternalStore(subscribe, currentPath, serverPath);
+  const path = useRoute();
 
   return path ? (
     <Loaded path={path} render={render} />

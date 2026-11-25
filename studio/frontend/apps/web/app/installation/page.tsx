@@ -13,6 +13,7 @@ interface Installation {
   help: string;
   changed: string[];
   configs: string[];
+  diagnostics: { section: string; message: string }[];
 }
 
 const settings = (
@@ -25,11 +26,17 @@ const settings = (
     help,
     changed,
     configs,
+    diagnostics,
   }: Installation,
   path: string
 ) => (
   <>
     <h1>Installation and changed files</h1>
+    {diagnostics.map(({ section, message }) => (
+      <p role="alert" key={section}>
+        {section}: {message} Reload to retry.
+      </p>
+    ))}
     <p>
       Installed evaluator: <strong>{version}</strong>
     </p>

@@ -1,13 +1,8 @@
 "use client";
 
-import {
-  Choice,
-  Flag,
-  Input,
-  QueueForm,
-  useRoute,
-} from "@/components/expert/controls";
+import { Choice, Flag, Input, QueueForm } from "@/components/expert/controls";
 import { useResource } from "@/lib/studio-api";
+import { useRoute } from "@/lib/use-route";
 
 interface ExperimentView {
   revision: string;
