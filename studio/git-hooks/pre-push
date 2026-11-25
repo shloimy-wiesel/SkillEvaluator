@@ -1,0 +1,9 @@
+#!/bin/sh
+# Git supplies the remote oid advertised for THIS push; the receiving server
+# atomically checks that same oid when it installs the new ref.
+set -eu
+expected=$(git config --get studio.expectedRemoteTip)
+read -r local_ref local_oid remote_ref remote_oid || exit 1
+[ "$remote_oid" = "$expected" ] || exit 1
+# Studio publishes exactly one ref.
+! read -r extra

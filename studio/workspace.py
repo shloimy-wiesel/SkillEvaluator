@@ -64,13 +64,13 @@ class Workspace:
     def checkout(self, project: Project):
         return self.repos / project.id
 
-    def git(self, project: Project, args: list[str], *, authenticated=False):
+    def git(self, project: Project, args: list[str], *, authenticated=False, stdin=None, raw=False, index=None):
         """Run a server-constructed argv; credentials are scoped to the saved URL."""
         credential = None
         if authenticated:
             with closing(sqlite3.connect(self.db_path)) as db:
                 (credential,) = db.execute("SELECT credential FROM projects WHERE id=?", (project.id,)).fetchone()
-        return self._git(self.checkout(project), args, credential, project.remote)
+        return self._git(self.checkout(project), args, credential, project.remote, stdin=stdin, raw=raw, index=index)
 
     def connect(self, remote, folder, username="", token=""):
         remote = remote.strip()
@@ -122,7 +122,7 @@ class Workspace:
             raise
         return project_id
 
-    def _git(self, cwd, args, credential=None, remote=None):
+    def _git(self, cwd, args, credential=None, remote=None, *, stdin=None, raw=False, index=None):
         env = {k: os.environ[k] for k in ("PATH", "GIT_SSL_CAINFO", "LANG") if k in os.environ}
         env.update(
             GIT_CONFIG_GLOBAL=os.devnull,
@@ -132,6 +132,8 @@ class Workspace:
             GIT_ATTR_NOSYSTEM="1",
             HOME=str(self.data_dir),
         )
+        if index is not None:
+            env["GIT_INDEX_FILE"] = str(index)
         if credential:
             auth = base64.b64encode(self.cipher.decrypt(credential)).decode("ascii")
             env.update(
@@ -156,6 +158,7 @@ class Workspace:
                 cwd=cwd,
                 env=env,
                 capture_output=True,
+                input=stdin,
                 timeout=120,
                 check=True,
             )
@@ -163,4 +166,4 @@ class Workspace:
             raise WorkspaceError(
                 "Git could not open this repository. Check the URL, access and default branch."
             ) from exc
-        return result.stdout.decode("utf-8", errors="replace").strip()
+        return result.stdout if raw else result.stdout.decode("utf-8", errors="replace").strip()

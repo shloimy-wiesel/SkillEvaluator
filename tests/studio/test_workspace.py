@@ -2,6 +2,7 @@
 
 import base64
 import functools
+import io
 import os
 import shutil
 import socket
@@ -47,7 +48,13 @@ def page():
 
 
 @pytest.fixture
-def private_remote(tmp_path, loopback_tls, monkeypatch):
+def before_push():
+    """One-shot collaborator actions between the author's check and Git's ref advertisement."""
+    return []
+
+
+@pytest.fixture
+def private_remote(tmp_path, loopback_tls, monkeypatch, before_push):
     origin = tmp_path / "server"
     origin.mkdir()
     seed = tmp_path / "seed"
@@ -66,14 +73,45 @@ def private_remote(tmp_path, loopback_tls, monkeypatch):
     token = "private-fixture-key"
     expected = base64.b64encode(f"author:{token}".encode()).decode()
 
+    subprocess.run(["git", "config", "http.receivepack", "true"], cwd=repo, check=True)
+
     class Handler(SimpleHTTPRequestHandler):
         def do_GET(self):
             if self.headers.get("Authorization") == f"Basic {expected}":
-                return super().do_GET()
+                path, _, query = self.path.partition("?")
+                if query == "service=git-receive-pack" and before_push:
+                    before_push.pop()()
+                size = self.headers.get("Content-Length", "0")
+                reply = subprocess.check_output(
+                    ["git", "http-backend"],
+                    input=self.rfile.read(int(size)),
+                    env={
+                        **os.environ,
+                        "GIT_PROJECT_ROOT": str(origin),
+                        "GIT_HTTP_EXPORT_ALL": "1",
+                        "REQUEST_METHOD": self.command,
+                        "PATH_INFO": path,
+                        "QUERY_STRING": query,
+                        "CONTENT_TYPE": self.headers.get("Content-Type", ""),
+                        "CONTENT_LENGTH": size,
+                        "REMOTE_USER": "author",
+                    },
+                )
+                headers, body = reply.split(b"\r\n\r\n", 1)
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                for header in io.BytesIO(headers):
+                    key, value = header.decode().strip().split(": ", 1)
+                    self.send_header(key, value)
+                self.end_headers()
+                self.wfile.write(body)
+                return
             self.send_response(401)
             self.send_header("WWW-Authenticate", 'Basic realm="git"')
             self.end_headers()
-            return None
+            return
+
+        do_POST = do_GET  # noqa: N815 -- HTTP handler protocol
 
     tls, cert = loopback_tls
     monkeypatch.setenv("GIT_SSL_CAINFO", str(cert))
