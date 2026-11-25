@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import sys
 import webbrowser
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -1046,7 +1046,7 @@ def compare_results(skill_path: Path, *, results_dir: Path | None = None) -> int
     )
 
 
-def render_agent_comparison(skill_path: Path, directory_groups, console: Console) -> int:
+def render_agent_comparison(skill_path: Path, directory_groups: Iterable[Iterable[Path]], console: Console) -> int:
     """Render the CLI score matrix for already selected, ordered result directories."""
     agent_with: dict[str, dict[str, float]] = {}
     agent_without: dict[str, dict[str, float]] = {}

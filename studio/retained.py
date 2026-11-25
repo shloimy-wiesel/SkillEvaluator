@@ -13,6 +13,7 @@ from fastapi import HTTPException
 
 from skillevaluator.utils.redaction import redact_sensitive_data, redact_sensitive_text
 
+from .native_location import native_directory
 from .providers import database, load
 
 NAMES = {
@@ -120,13 +121,11 @@ def preview(path, scrub):
 
 
 def native_results(root, paths):
-    return [
-        p
-        for p in paths
-        if p.name == "result.json"
-        and len(p.relative_to(root).parts) in (2, 3)
-        and not any(part.startswith("_") for part in p.relative_to(root).parts)
-    ]
+    try:
+        result = native_directory(root) / "result.json"
+    except (ValueError, OSError, RuntimeError):
+        return []
+    return [result] if result in paths else []
 
 
 @contextmanager

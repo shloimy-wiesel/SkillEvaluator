@@ -39,6 +39,15 @@ def retained(page, private_remote, tmp_path, monkeypatch, request):
             (trial / "trajectory.json").write_text(
                 '{"steps":[{"message":"Inspect failed check","api_key":"private-value"}]}'
             )
+        # A measured matched pair for codex, but no baseline evidence for opencode.
+        baseline = root / "codex/without-skill"
+        (baseline / "trials/triage-1").mkdir(parents=True)
+        summary = json.loads((root / "codex/with-skill/summary.json").read_text())
+        summary["scores"]["security"] = 0.25
+        (baseline / "summary.json").write_text(json.dumps(summary))
+        (baseline / "trials/triage-1/reward.json").write_text(
+            json.dumps({"case_id": "triage", "trial_id": "triage-1", "attempt_index": 0, "scores": {"security": 0.25}})
+        )
         (root / "result.json").write_text(
             json.dumps(
                 {
@@ -117,6 +126,7 @@ def test_compare_agents_from_selected_native_summaries(page, retained):
     matrix = page.get_by_label("Agent score comparison")
     playwright.expect(matrix).to_contain_text("security", ignore_case=True, timeout=2000)
     playwright.expect(matrix).to_contain_text("0.75")
+    playwright.expect(matrix).to_contain_text("+0.50")
     playwright.expect(matrix).to_contain_text("codex")
     playwright.expect(matrix).to_contain_text("opencode")
 
@@ -131,6 +141,27 @@ def test_view_rebuilds_missing_native_html_without_mutating_run(page, retained):
     playwright.expect(preview).to_contain_text("triage")
     playwright.expect(preview).to_contain_text("codex")
     assert not report.exists()
+
+
+def test_select_report_sources_without_pairing_across_runs(page, retained):
+    base, project, _ = retained
+    first = page.url.rsplit("/", 1)[-1]
+    page.get_by_role("button", name="Rerun saved inputs").click()
+    playwright.expect(page.get_by_role("status")).to_contain_text("neutral")
+    second = page.url.rsplit("/", 1)[-1]
+    page.goto(base + project + "/results")
+    runs = page.get_by_label("Retained runs")
+    runs.select_option([first, second])
+    page.get_by_label("Display").select_option("comparison")
+    page.get_by_role("button", name="Apply filters").click()
+    table = page.get_by_role("table")
+    playwright.expect(table).to_contain_text(first)
+    playwright.expect(table).to_contain_text(second)
+    playwright.expect(table).not_to_contain_text("ambiguous duplicate conditions")
+    runs.select_option([first])
+    page.get_by_role("button", name="Apply filters").click()
+    playwright.expect(table).to_contain_text(first)
+    playwright.expect(table).not_to_contain_text(second)
 
 
 def test_inspect_scoped_report_and_harbor_trajectory(page, retained):

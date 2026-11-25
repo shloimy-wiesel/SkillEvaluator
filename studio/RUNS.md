@@ -169,7 +169,9 @@ measured failure. A neutral skill verdict can have CLI exit code zero.
    incomplete outputs can have no canonical evaluation payload.
 3. Under the private `artifacts/<project_id>/<run_id>/tier3/` root there is
    one real `<skill-name>/<native-run-id>/` directory (older adapters use
-   `<native-run-id>/` directly). Ignore the `latest` alias. Use its
+   `<native-run-id>/`). Use `studio.native_location.native_directory(root)`
+   to resolve the native run in place; its generated marker binds it to its
+   original path. Ignore the `latest` alias. Use its
    `result.json`, `run_config.json`, `<agent>/<arm>/summary.json`, engine
    feedback, report and dataset snapshot with the existing native readers.
    The selected/generated source dataset is also retained as `dataset.<ext>`

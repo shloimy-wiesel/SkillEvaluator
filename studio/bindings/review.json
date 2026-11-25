@@ -98,14 +98,14 @@
   {
     "key": "dashboard",
     "status": "partial",
-    "equivalent": "Canonical performance and paired-arm comparisons from saved reports; standalone uploads and Streamlit charts are not exposed.",
+    "equivalent": "Canonical performance and paired-arm comparisons from saved reports or native retained measurements; standalone uploads and Streamlit charts are not exposed.",
     "evidence": "tests/studio/test_review.py::test_dashboard_queries_retained_agents"
   },
   {
     "key": "dashboard:paths",
     "status": "partial",
     "equivalent": "Select saved runs instead of submitting host paths; uploaded JSON is not supported.",
-    "evidence": "tests/studio/test_review.py::test_dashboard_queries_retained_agents"
+    "evidence": "tests/studio/test_review.py::test_select_report_sources_without_pairing_across_runs"
   },
   {
     "key": "dashboard:port",
