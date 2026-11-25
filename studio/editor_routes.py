@@ -1,4 +1,5 @@
 from difflib import unified_diff
+from typing import Annotated
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from pydantic import BaseModel
@@ -70,25 +71,24 @@ def _preview(original, draft):
     return "".join(line if line.endswith("\n") else line + "\n\\ No newline at end of file\n" for line in lines)
 
 
+class SkillChange(BaseModel):
+    branch: str
+    revision: str
+    text: str
+    action: str
+
+
 @router.post(api + "/changes", name="api_skill_changes", response_model=dict[str, str])
-def skill_changes(
-    request: Request,
-    project_id: str,
-    *,
-    branch: str = Form(),
-    revision: str = Form(),
-    text: str = Form(""),
-    action: str = Form(),
-):
+def skill_changes(request: Request, project_id: str, form: Annotated[SkillChange, Form()]):
     ws = request.app.state.workspace
     p = get_project(ws, project_id)
-    text = text.replace("\r\n", "\n")
+    text = form.text.replace("\r\n", "\n")
     try:
-        require_base(p, branch, revision)
+        require_base(p, form.branch, form.revision)
         original = _text(ws, p)
-        if action == "preview":
+        if form.action == "preview":
             return {"diff": _preview(original, text)}
-        if action != "save":
+        if form.action != "save":
             raise WorkspaceError("Choose preview or save.")
         data = text.replace("\n", "\r\n") if "\r\n" in original and "\n" not in original.replace("\r\n", "") else text
         sha = commit_changes(ws, p, {"SKILL.md": data.encode()}, "Update SKILL.md")
