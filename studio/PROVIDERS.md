@@ -49,6 +49,39 @@ deadline. Studio passes saved role-specific configuration instead of ambient
 provider keys. The [30 bindings](bindings/readiness.json) cite Chromium and
 native engine evidence using local HTTPS fixtures, not a hosted provider.
 
+## Versioned HTTP API
+
+The provider document reads `GET /api/v1/projects/{id}/providers`. The response
+contains per-role settings, a `has_key` flag, and the available choices. Submit
+JSON to `POST` one of these paths relative to the same endpoint:
+
+- `/{role}` saves `provider`, `base_url`, `model`, `key` and optional `clear`.
+  A blank key is retained only when the provider and normalized URL match.
+  The response is the saved public profile. No response contains the stored key.
+- `/{role}/check` returns a `notice` and a list of safe model IDs.
+- `/readiness/run` accepts the readiness action and options; `checks` and
+  `agents` are arrays. A completed native check returns `result`, `exit_code`,
+  and `show_json`, including when the evaluator reports a failing tier.
+
+Validation and discovery errors return HTTP 422 with `detail.code` and
+`detail.message`; unknown projects and roles return HTTP 404.
+
+### Verification for #29
+
+On the pre-migration document (`8305e1b`), Chromium timed out waiting for the
+versioned profile GET after reload. The new credential-lifecycle API test then
+received HTTP 404 before the save endpoint existed. With the exported document
+and API, `python -m pytest -q tests/studio/test_providers.py` passed all 21
+tests using Chrome 131.0.6778.108, Playwright 1.65.2, Python 3.13.11 and the
+installed SkillEvaluator 1.2.1.
+
+Fixtures include successive ASGI servers reopening one project volume, a private
+HTTPS Git remote, and a local TLS inference gateway that checks each role’s
+path and credential. The suite verifies redacted catalogs, redirect rejection,
+consent before inference, native check rows, and failure exit codes. The
+frontend passed `corepack pnpm typecheck`, `corepack pnpm lint`, and
+`corepack pnpm build`, which emitted `providers.html`.
+
 ## Python boundary
 
 ```python
