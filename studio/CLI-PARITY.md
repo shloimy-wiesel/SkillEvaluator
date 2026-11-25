@@ -24,6 +24,8 @@ The [machine-readable CLI surface](../tests/golden/cli_surface.json) is the opti
 - Replace terminal-specific interactions with working browser experiences: retained reports, interactive feedback, filters, and downloads. Record unavailable runtime prerequisites rather than marking the feature complete.
 - Before claiming release parity, check the target installed distribution against the inventory and exercise representative operations. Keep the golden file as the single source rather than copying thousands of parameter records into Studio.
 
+The [evaluation assets workflow](ASSETS.md) maps the two starter generators and `tier3 validate-grader`, including the execution boundary for repository suites.
+
 ## Running and extending the option audit
 
 Run `python -m studio.option_audit` from the checkout for a JSON report keyed by
