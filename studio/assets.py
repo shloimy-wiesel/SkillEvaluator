@@ -1,5 +1,6 @@
 """Preview engine-generated assets against committed files, never the live checkout."""
 
+from contextlib import suppress
 from difflib import unified_diff
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -201,10 +202,9 @@ def qualify_form(
                 raise WorkspaceError(
                     "Live qualification requires the bundled reference suite on this host. Use Check suite for project manifests."
                 )
-            try:
+            # A not-ready preflight still produces a receipt without inference.
+            with suppress(ValueError):
                 chat = public_identity(worker_environment(ws, p.id, "chat"))
-            except ValueError:
-                pass  # A not-ready preflight still produces a receipt without inference.
         opts = GraderOptions(
             check_suite=action == "check",
             chat=chat,

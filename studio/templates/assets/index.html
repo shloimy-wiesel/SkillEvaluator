@@ -18,8 +18,8 @@
 <h2>Validate the shipped grader</h2><p>Check independently labelled evidence without inference, or qualify the shipped verifier against it.</p>
 <form method="post" action="{{ url_for('qualify_grader',project_id=project.id) }}">
 <input type="hidden" name="branch" value="{{ project.branch }}"><input type="hidden" name="revision" value="{{ project.revision }}">
-<label>Suite <select name="suite"><option value="">Bundled reference suite</option>{% for f in files if f.split('/')[-1]=='suite.json' %}<option>{{ f }}</option>{% endfor %}</select></label>
-<label>Split <select name="split">{% for split in ['assessment','tuning','all'] %}<option>{{ split }}</option>{% endfor %}</select></label>
+<label for="suite">Suite</label><select id="suite" name="suite"><option value="">Bundled reference suite</option>{% for f in files if f.split('/')[-1]=='suite.json' %}<option>{{ f }}</option>{% endfor %}</select>
+<label for="split">Split</label><select id="split" name="split">{% for split in ['assessment','tuning','all'] %}<option>{{ split }}</option>{% endfor %}</select>
 <label>Case IDs (one per line; blank selects all) <textarea name="cases"></textarea></label>
 <label>Qualification policy <select name="policy"><option value="">None</option>{% for f in files %}<option>{{ f }}</option>{% endfor %}</select></label>
 <label>Repeats <input type="number" name="repeats" min="1" max="20" value="3"></label>
