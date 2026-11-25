@@ -15,6 +15,10 @@ The [machine-readable CLI surface](../tests/golden/cli_surface.json) is the opti
 | Configure repository automation | `ci init`, `ci status`, `ci demo` |
 | Inspect the installation | Global verbosity, installed version, contextual help, command-local verbosity |
 
+The [Tier 2 overlap guide](OVERLAP.md) describes the implemented direct
+workflow, focused routes/aliases, catalog inputs, provider prerequisites
+and report equivalents. Option-level evidence: `bindings/overlap.json`.
+
 ## Acceptance criteria for every row
 
 - Map every parameter to a labelled control or a documented browser equivalent, including inherited defaults, paired switches, aliases, repeated values, positional arguments, file types, and backend constraints. File selectors refer to authorized project files or artifacts.
