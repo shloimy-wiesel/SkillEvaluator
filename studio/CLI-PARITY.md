@@ -68,7 +68,13 @@ Publishing re-renders it against the same revision and checks the remote tip.
 
 Tokens come from the saved project; grant the Git and API permissions needed
 for the selected action. GitHub host operations require `gh` (included in the
-Studio image); GitLab uses the origin's HTTPS API and a scoped token. GitLab
+Studio image); GitLab uses the configured installation root (including port and path prefix),
+project CA and a **separate project API token** from GitLab access. Studio
+uses `studio.gitlab.instance(workspace, project)` (#18): `root`, `namespace`,
+`web_url` and project-bound `request(method, suffix, query=..., payload=...)`.
+Live GitLab operations require that integration. No fallback to gitlab.com
+or forwarding of Git credentials to an API. Pipeline/MR links use the
+configured project and numeric host IDs. Private runners also need their own CA trust. GitLab
 before 18.4 requires a project Reporter/read_api admission token. Provider
 credentials and protected environments belong to the CI host. Studio neither
 installs runner dependencies nor verifies model execution during setup.

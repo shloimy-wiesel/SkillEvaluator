@@ -2,6 +2,6 @@ import pytest
 
 
 @pytest.fixture
-def host_api():
+def api_handler():
     """Optional API responses on the authenticated disposable Git host."""
-    return {}
+    return []

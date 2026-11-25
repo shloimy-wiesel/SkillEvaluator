@@ -6,12 +6,26 @@ import subprocess
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from urllib.parse import urlsplit
 
+from .ci_gitlab import configured_instance, host_operation
 from .editing import branches, commit_changes
 from .workspace import WorkspaceError
 
 
 def worker(ws, p, task, **params):
+    lab = None
+    github = urlsplit(p.remote).hostname == "github.com"
+    if not github:
+        lab = configured_instance(ws, p)
+        if task in {"status", "admission", "existing_review", "review_request"}:
+            if lab is None:
+                raise WorkspaceError(
+                    "Configure this project's GitLab instance and API credential for live host operations."
+                )
+            return host_operation(ws, p, lab, task, params)
+        if params.get("mode") == "pr" and lab is None:
+            raise WorkspaceError("Configure the GitLab instance before proposing a merge request.")
     # Separate HOME and repository for each operation, including gh credentials.
     with TemporaryDirectory(dir=ws.data_dir) as temp:
         env = {k: os.environ[k] for k in ("PATH", "LANG", "SSL_CERT_FILE", "GIT_SSL_CAINFO") if k in os.environ}
@@ -29,7 +43,8 @@ def worker(ws, p, task, **params):
                         revision=p.revision,
                         branch=p.branch,
                         remote=p.remote,
-                        token=ws.host_token(p),
+                        token=ws.host_token(p) if github else "",
+                        gitlab_root=lab.root if lab else None,
                         **params,
                     )
                 ),

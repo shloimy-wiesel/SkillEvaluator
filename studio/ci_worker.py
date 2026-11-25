@@ -21,12 +21,14 @@ def invoke(command, args):
 
 
 def run(q):
+    if q["gitlab_root"]:
+        os.environ["SKILLEVALUATOR_GITLAB_API_URL"] = q["gitlab_root"] + "/api/v4"
     host, origin, name = all_tiers._parse_origin(q["remote"])
     platform = "github" if host == "github.com" else "gitlab"
     if platform == "github":
         ci.git_helpers.parse_remote(q["remote"])
-    if q["token"]:
-        os.environ["GH_TOKEN" if platform == "github" else "SKILLEVALUATOR_GITLAB_TOKEN"] = q["token"]
+    if platform == "github" and q["token"]:
+        os.environ["GH_TOKEN"] = q["token"]
     output = io.StringIO()
     ci.console = Console(file=output, force_terminal=False, width=2000, highlight=False)
     if q["task"] == "admission":
@@ -41,36 +43,20 @@ def run(q):
             if len(reviews) != 1:
                 raise ci.SetupError("Inspect the existing branch on the host; no unique open review was found.")
             item = reviews[0]
-            if platform == "github":
-                matches = (
-                    item["head"]["sha"] == q["tip"]
-                    and item["head"]["ref"] == q["head"]
-                    and item["base"]["ref"] == q["branch"]
-                    and item["head"]["repo"]["full_name"] == name
-                )
-                value = item["html_url"]
-            else:
-                matches = (
-                    item.get("sha") == q["tip"]
-                    and item["source_branch"] == q["head"]
-                    and item["target_branch"] == q["branch"]
-                    and item.get("source_project_id") is not None
-                    and item["source_project_id"] == item["target_project_id"]
-                )
-                value = item["web_url"]
+            matches = (
+                item["head"]["sha"] == q["tip"]
+                and item["head"]["ref"] == q["head"]
+                and item["base"]["ref"] == q["branch"]
+                and item["head"]["repo"]["full_name"] == name
+            )
+            value = item["html_url"]
             if not matches:
                 raise ci.SetupError("The open review has a different revision or target. Inspect it on the host.")
-        elif platform == "github":
+        else:
             value = client.api("POST", "/pulls", {"base": q["branch"], "head": q["head"], "title": q["title"]})[
                 "html_url"
             ]
-        else:
-            value = client.api(
-                "POST",
-                "/merge_requests",
-                {"target_branch": q["branch"], "source_branch": q["head"], "title": q["title"]},
-            )["web_url"]
-        pattern = r"/pull/[0-9]+" if platform == "github" else r"/-/merge_requests/[0-9]+"
+        pattern = r"/pull/[0-9]+"
         if not re.fullmatch(re.escape(origin + "/" + name) + pattern, value):
             raise ci.SetupError("Inspect the published branch on the host; unexpected review URL.")
         return {"notice": value}
@@ -130,8 +116,6 @@ def run(q):
             ci, repo, plan["release"], platform, plan["default_branch"], plan["selected_roots"], plan["options"]
         )
         files = {path: generated[path] for path in plan["changed_files"]}
-        if q["mode"] == "pr":
-            plan["gitlab_admission"] = all_tiers.gitlab_admission_prerequisite(origin, online=True)
         if all_tiers._gitlab_root_needs_merge(repo, platform, generated):
             output.seek(0)
             output.truncate()

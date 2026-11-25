@@ -173,39 +173,110 @@ def test_gitlab_all_tier_review(page, private_remote, tmp_path):
         playwright.expect(page.get_by_text("File: more-skills/other/SKILL.md", exact=False)).to_be_visible(timeout=1500)
 
 
-def test_read_gitlab_pipeline_and_create_review_requests(page, private_remote, host_api, tmp_path):
+@pytest.mark.parametrize("transport", ["contract", "persisted"])
+def test_read_gitlab_pipeline_and_create_review_requests(
+    page, private_remote, api_handler, tmp_path, monkeypatch, transport
+):
     import json
+    import sys
+    from types import SimpleNamespace
+    from urllib.parse import urlencode
+    from urllib.request import Request, urlopen
 
     remote = tmp_path / "server/handbook.git"
-    group = remote.parent / "group"
-    group.mkdir()
+    group = remote.parent / "install/gitlab/group/nested"
+    group.mkdir(parents=True)
     (group / "handbook.git").symlink_to(remote)
     url, key = private_remote
-    url = url.replace("/handbook.git", "/group/handbook.git")
-    endpoint = "/api/v4/projects/group%2Fhandbook"
+    root = url.removesuffix("/handbook.git") + "/install/gitlab"
+    url = root + "/group/nested/handbook.git"
+    endpoint = "/install/gitlab/api/v4/projects/group%2Fnested%2Fhandbook"
+    host_api = {}
+    api_token = "api-only-fixture-token"
+
+    def project_api(handler):
+        if "/api/v4/" not in handler.path:
+            return False
+        entry = host_api.get((handler.command, handler.path))
+        code, value = (
+            (entry(handler) if entry else (404, {})) if handler.headers.get("PRIVATE-TOKEN") == api_token else (403, {})
+        )
+        handler.send_response(code)
+        handler.end_headers()
+        handler.wfile.write(json.dumps(value).encode())
+        return True
+
+    api_handler.append(project_api)
+    monkeypatch.setenv("SSL_CERT_FILE", str(tmp_path / "certificate.pem"))
+
+    # #18 owns persistence and TLS transport. Exercise its public consumer contract
+    # with an actual prefix/port/CA-bound HTTP server and distinct API credential.
+    def request(method, suffix="", *, query=None, payload=None):
+        address = root.split("/install/gitlab")[0] + endpoint + suffix + ("?" + urlencode(query) if query else "")
+        req = Request(
+            address,
+            data=json.dumps(payload).encode() if payload else None,
+            method=method,
+            headers={"PRIVATE-TOKEN": api_token},
+        )
+        with urlopen(req, timeout=3) as response:
+            return json.load(response)
+
+    lab = SimpleNamespace(
+        root=root, namespace="group/nested/handbook", web_url=url.removesuffix(".git"), request=request
+    )
+    if transport == "contract":
+        monkeypatch.setitem(
+            sys.modules, "studio.gitlab", SimpleNamespace(instance=lambda _ws, p: lab if p.remote == url else None)
+        )
+    else:
+        pytest.importorskip(
+            "studio.gitlab", reason="Requires the persistent instance settings and CA transport from #18"
+        )
+        monkeypatch.delenv("GIT_SSL_CAINFO")
+        monkeypatch.delenv("SSL_CERT_FILE")
+
+    def connect_project():
+        if transport == "persisted":
+            page.get_by_text("Self-managed GitLab", exact=True).click()
+            page.get_by_label("GitLab installation URL").fill(root)
+            page.get_by_label("Private CA certificate").fill((tmp_path / "certificate.pem").read_text())
+        connect(page, url, key, skill="skills/triage")
+        if transport == "persisted":
+            detail = page.url
+            page.get_by_role("link", name="GitLab access").click()
+            page.get_by_label("GitLab API token").fill(api_token)
+            page.get_by_role("button", name="Save API token").click()
+            page.goto(detail)
+
     host_api["GET", endpoint] = lambda _: (200, {"default_branch": "main"})
     host_api["GET", endpoint + "/pipelines?ref=main&per_page=1"] = lambda _: (
         200,
-        [{"status": "pending", "web_url": url.removesuffix(".git") + "/-/pipelines/17"}],
+        [{"id": 17, "status": "pending", "web_url": "https://gitlab.com/untrusted"}],
     )
     requests = []
 
     def create(req):
         payload = json.loads(req.rfile.read(int(req.headers["Content-Length"])))
         requests.append(payload)
-        return 201, {"web_url": url.removesuffix(".git") + "/-/merge_requests/7"}
+        return 201, {"iid": 7, "web_url": "https://gitlab.com/untrusted"}
 
     host_api["POST", endpoint + "/merge_requests"] = create
     with running(tmp_path / "volume") as base:
         page.goto(base)
-        connect(page, url, key, skill="skills/triage")
+        connect_project()
         page.get_by_role("link", name="Repository CI").click()
         page.get_by_role("link", name="Advanced CI setup").click()
         page.get_by_label("Evaluation tiers").select_option("all")
         page.get_by_label("Publication mode").select_option("pr")
         page.get_by_role("button", name="Read live status").click()
         playwright.expect(page.get_by_role("status")).to_contain_text("Latest pipeline: pending")
+        playwright.expect(page.get_by_role("status")).to_contain_text(lab.web_url + "/-/pipelines/17")
         page.get_by_role("button", name="Review files").click()
+        feedback = yaml.safe_load(page.get_by_label(".gitlab/skill-feedback.yml", exact=True).inner_text())["include"][
+            0
+        ]["inputs"]
+        assert feedback["api-url"] == root + "/api/v4" and feedback["project-id"] == "group/nested/handbook"
         assert not requests
         page.get_by_role("button", name="Apply reviewed setup").click()
         playwright.expect(page.get_by_role("status")).to_contain_text("/merge_requests/7", timeout=3000)
@@ -214,7 +285,7 @@ def test_read_gitlab_pipeline_and_create_review_requests(page, private_remote, h
         subprocess.run(["git", "update-ref", "refs/heads/main", branch], cwd=remote, check=True)
         # Reconnect at the merged default branch.
         page.goto(base)
-        connect(page, url, key, skill="skills/triage")
+        connect_project()
         page.get_by_role("link", name="Repository CI").click()
         page.get_by_role("button", name="Review demo").click()
         page.get_by_role("button", name="Create reviewed PR/MR").click()
@@ -231,6 +302,7 @@ def test_read_gitlab_pipeline_and_create_review_requests(page, private_remote, h
                 200,
                 [
                     {
+                        "iid": 7,
                         "source_branch": demo_head,
                         "target_branch": "main",
                         "sha": sha,
