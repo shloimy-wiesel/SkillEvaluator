@@ -10,7 +10,6 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 from .extensions import JOB_DEFINITIONS, PROJECT_LINKS, ROUTERS
 from .frontend_routes import mount_frontend
@@ -41,7 +40,6 @@ def create_app(data_dir=None, *, routers=(), job_definitions=()):
 
     app = FastAPI(title="SkillEvaluator Studio", lifespan=lifespan)
     app.state.workspace = Workspace(data_dir or os.environ.get("STUDIO_DATA_DIR", "/data"))
-    app.state.templates = Jinja2Templates(directory=PACKAGE / "templates")
     app.mount("/static", StaticFiles(directory=PACKAGE / "static"), name="static")
 
     @app.middleware("http")
