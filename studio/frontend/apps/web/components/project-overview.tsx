@@ -76,11 +76,13 @@ export const ProjectOverview = ({ projectId }: { projectId: string }) => {
         <a href="/">Projects</a> /{" "}
         <span aria-current="page">{project.name}</span>
       </nav>
-      <p className="eyebrow">Project overview</p>
-      <h1>{project.name}</h1>
-      <p className="lede">
-        Edit your skill, check its behavior, or revisit a previous run.
-      </p>
+      <div className="page-intro">
+        <p className="eyebrow">Project overview</p>
+        <h1>{project.name}</h1>
+        <p className="lede">
+          Edit your skill, check its behavior, or revisit a previous run.
+        </p>
+      </div>
       <div className="tasks">
         {groups.map(({ title, hint, actions }, index) => (
           <section className="task" aria-label={title} key={title}>

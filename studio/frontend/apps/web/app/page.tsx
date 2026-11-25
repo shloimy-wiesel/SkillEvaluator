@@ -25,19 +25,33 @@ const Library = () => {
       </h2>
       {data.length ? (
         data.map((p) => (
-          <article key={p.id}>
+          <article className="library-entry" key={p.id}>
             <a className="project" href={`/projects/${p.id}`}>
               {p.name}
             </a>
-            <p>
-              <code>{p.folder}</code> · {p.branch}
-            </p>
+            <dl className="library-meta">
+              <div>
+                <dt>Skill folder</dt>
+                <dd>
+                  <code>{p.folder}</code>
+                </dd>
+              </div>
+              <div>
+                <dt>Branch</dt>
+                <dd>
+                  <code>{p.branch}</code>
+                </dd>
+              </div>
+            </dl>
           </article>
         ))
       ) : (
         <div className="empty">
           <b>No projects yet</b>
-          <p>Your connected skills will appear here.</p>
+          <p>
+            Connect a repository using its HTTPS clone URL to add your first
+            skill here.
+          </p>
         </div>
       )}
     </>
@@ -144,11 +158,13 @@ const Connection = () => {
 export default function Page() {
   return (
     <>
-      <p className="eyebrow">Studio / Workspace</p>
-      <h1>Your projects</h1>
-      <p className="lede">
-        Connect a repository, choose a skill, and pick up where you left off.
-      </p>
+      <div className="page-intro">
+        <p className="eyebrow">Studio / Workspace</p>
+        <h1>Your projects</h1>
+        <p className="lede">
+          Connect a repository, choose a skill, and pick up where you left off.
+        </p>
+      </div>
       <div className="grid">
         <section className="panel">
           <p className="eyebrow">Project library</p>

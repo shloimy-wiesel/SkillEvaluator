@@ -2,6 +2,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import "./workspace.css";
+
 export const metadata: Metadata = { title: "SkillEvaluator Studio" };
 
 /** @returns The frame shared by exported Studio documents. */
@@ -11,7 +13,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <link rel="stylesheet" href="/static/studio.css" />
       </head>
-      <body>
+      <body className="studio-workspace">
         <a className="skip" href="#main">
           Skip to content
         </a>
