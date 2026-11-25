@@ -88,7 +88,6 @@ def test_root_rejects_unmanaged_runtime_inputs_before_queue(page, private_remote
             {"kata_runtime": "/bin/sh"},
             {"include_skills": "/etc"},
             {"copy_repo": "true"},
-            {"harbor_keep_jobs": "true"},
             {"results_dir": "/var/tmp"},
             {"harness_profiles": "/tmp/profiles"},
             {"output_dir": "/tmp/reports"},
@@ -533,6 +532,7 @@ def test_root_folds_harbor_arm_evidence_with_pinned_options(tmp_path, monkeypatc
         codex_model="fixture-model",
         env_mode="kata",
         kata_runtime="kata-qemu",
+        harbor_keep_jobs=True,
         block_on_agent_eval=partial,
         include_revision=True,
     )
@@ -540,7 +540,7 @@ def test_root_folds_harbor_arm_evidence_with_pinned_options(tmp_path, monkeypatc
 
     def harbor(self, request, **kwargs):
         assert "kata_runtime=kata-qemu" in request.environment_kwarg
-        assert (request.copy_repo, request.harbor_keep_jobs, request.include_skills) == (False, False, ())
+        assert (request.copy_repo, request.harbor_keep_jobs, request.include_skills) == (False, True, ())
         observed.append(
             (
                 request.skill_workspace_mode,

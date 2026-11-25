@@ -57,6 +57,7 @@ ROOT_LIVE = {
     "block_on_agent_eval",
     "env_mode",
     "kata_runtime",
+    "harbor_keep_jobs",
     "autopilot",
     "agents",
     "max_cases",
@@ -139,6 +140,7 @@ class ExpertOptions(BaseModel):
     block_on_dedup: bool | None = None
     env_mode: Literal["docker", "kata"] | None = None
     kata_runtime: Literal["kata", "kata-clh", "kata-qemu"] | None = None
+    harbor_keep_jobs: bool = False
     agents: tuple[Agent, ...] = ()
     block_on_agent_eval: bool | None = None
     autopilot: bool | None = None

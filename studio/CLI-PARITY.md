@@ -19,6 +19,11 @@ The [Tier 2 overlap guide](OVERLAP.md) describes the implemented direct
 workflow, focused routes/aliases, catalog inputs, provider prerequisites
 and report equivalents. Option-level evidence: `bindings/overlap.json`.
 
+The [expert checks guide](RUNS.md#expert-checks-and-validation) covers root
+validation, both Tier 1 workflow forms, and focused root/group aliases. See
+`bindings/expert.json` for the native gate, reporter, provider, scanner and
+target-selection tests, including the limits on live context and catalog workers.
+
 ## Acceptance criteria for every row
 
 - Map every parameter to a labelled control or a documented browser equivalent, including inherited defaults, paired switches, aliases, repeated values, positional arguments, file types, and backend constraints. File selectors refer to authorized project files or artifacts.

@@ -38,6 +38,7 @@ Key-backed providers require the chat SDK.</p>{% endif %}
 {% for key,title in [('codex_model','Codex'),('opencode_model','OpenCode'),('claude_code_model','Claude Code')] %}<label>{{ title }} model override<input name="{{ key }}"></label>{% endfor %}
 {% for key,title,min,step in [('n_attempts','Attempts per case',1,1),('n_concurrent','Concurrent cases',1,1),('max_agents','Concurrent agents',1,1),('max_agent_tokens','Maximum agent tokens',0,1),('max_judge_calls','Maximum judge calls',0,1),('max_cost_usd','Maximum agent cost (USD)',0,'any'),('pass_threshold','Case pass threshold',0,'any'),('timeout_multiplier','Timeout multiplier',0,'any')] %}<label>{{ title }}<input type="number" min="{{ min }}" step="{{ step }}" name="{{ key }}"></label>{% endfor %}
 <label>Agent model<input name="model"></label><label>Maximum cases<input type="number" min="1" name="max_cases"></label><label>Maximum total attempts<input type="number" min="0" name="max_attempts_total"></label>
+<label><input type="checkbox" name="harbor_keep_jobs" value="true">Keep Harbor job evidence in private run storage</label>
 <label><input type="checkbox" name="skip_baseline" value="true">Skip baseline</label></details>{% endif %}
 {% if 'checks' in fields %}<label>Checks to run<select multiple name="checks">{% for c in checks %}<option>{{ c }}</option>{% endfor %}</select></label>
 <label>Checks to skip<select multiple name="skip">{% for c in checks + ('secrets',) %}<option>{{ c }}</option>{% endfor %}</select></label>

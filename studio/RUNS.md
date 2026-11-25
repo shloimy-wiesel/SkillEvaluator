@@ -158,7 +158,8 @@ OpenCode rules. For root validation include the harness check. For provenance
 select **Record the pinned revision** and, optionally, supply canonical
 repository and evaluator-build labels. These labels describe the run; Studio
 does not download the named build. The live preset stages only the connected
-skill, uses private result storage and does not retain raw Harbor jobs.
+skill and uses private result storage. Select **Keep Harbor job evidence**
+to retain native jobs there.
 
 ## Live Tier 3
 

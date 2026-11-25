@@ -19,6 +19,7 @@ from skillevaluator.embedded import (
 from skillevaluator.reporting.json_reporter import JSONReporter
 from skillevaluator.reporting.markdown import MarkdownReporter
 
+
 def main():
     resource.setrlimit(resource.RLIMIT_FSIZE, (32 << 20, 32 << 20))
     settings = json.load(sys.stdin)
