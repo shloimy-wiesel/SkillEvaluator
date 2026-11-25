@@ -624,7 +624,9 @@ class LLMClient:
             base_delay=retry_base_delay if retry_base_delay is not None else retry_cfg.base_delay,
             max_delay=retry_max_delay if retry_max_delay is not None else retry_cfg.max_delay,
         )
-        self._http_client = http_client
+        from skillevaluator.embedded import chat_transport
+
+        self._http_client = http_client if http_client is not None else chat_transport.get()
         # Seconds for each provider request, Bedrock's litellm call included;
         # None keeps the provider default. The OpenAI and Anthropic SDKs ignore
         # an http_client's timeout that equals httpx's 5-second default, so the

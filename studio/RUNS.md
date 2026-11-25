@@ -76,6 +76,64 @@ text. Redact sensitive provider output before returning or retaining it.
 Raise `WorkspaceError` only for intentional, safe diagnostics. Other
 exceptions become a generic execution error; raw stderr is not displayed.
 
+## Expert checks and validation
+
+Expand **Expert checks and validation** in Evaluation runs. Pick quality,
+rubric, security, PII, script lint, or harness compatibility to run that
+command alone. **Tier 1 workflow** and **Tier 1 validate** use the respective
+direct CLI entry points. **Validation pipeline** runs root `validate` on
+the connected skill with explicit tiers `1` or `1,2`. Tier 1 gates; Tier 2
+can be advisory or blocking. Fail-fast and continue-on-failure retain their
+engine precedence. A blank check selection uses that command's own defaults
+(notably, direct Tier 1 includes dependency auditing). An explicit skip is
+reported by the evaluator, not simulated by removing a result.
+
+Use **Load commit files** to load a different revision before choosing a
+policy, quality configuration, scanner baseline or waiver. Choices are
+regular Git blobs, YAML/JSON, at most 1 MiB, rechecked in the detached
+worktree. The worker uses packaged harness profiles; it does not evaluate
+custom profile expressions. Harness compatibility is advisory: JSON is a
+separate opt-in export, and each selected harness can have a version.
+
+Choose zero or more native reports. Omission preserves the CLI's default;
+explicit `cli` only requests terminal presentation. The root command also
+writes a benchmark card. GitHub annotations and CLI output appear under
+**Evaluator output**. Native files are project/run-scoped attachments, not
+inline HTML. The job captures structured findings even for terminal-only
+runs without requesting extra native formats or running the check twice.
+
+**Prerequisites.** Rubric, LLM security analysis and LLM verification need
+a key-backed chat profile and the evaluator's `llm` extra. Direct Tier 1
+also uses saved chat settings by default when configured. Tier 2 needs
+`tier2` and both embeddings and chat profiles. The worker snapshots each
+required role privately before queueing; reruns do not pick up later key,
+endpoint or model changes. Each SDK transport uses verified TLS without
+redirects. Ambient provider keys and AWS identity are not inherited.
+The keyless worker can use installed scanners; managed downloads are disabled.
+SkillSpector's separate model transport is not enabled with a chat snapshot.
+Missing scanner evidence can make a run incomplete; a keyless security
+scan is not a certification that every scanner passed.
+
+### Boundary for root Tier 3 integration
+
+Root `validate` with omitted tiers defaults to live evaluation for skills.
+Studio therefore **requires** an explicit tier selection; it never silently
+converts that default to a Tier 1 run. The root command's dataset preflight,
+auto-generation and native Harbor launch currently operate on the target
+tree directly. A standalone Tier 3 job ending in `Outcome` is not a
+replacement for that stage: root validation needs its `ValidationResult`
+objects, fresh output provenance, staged inputs, budgets and gate metadata
+before `emit_reports`. To enable `1,3`, `1,2,3` and the unrestricted default,
+integrate #8's sandbox staging and provider snapshot at that engine boundary
+and verify fail-fast, advisory/blocking gates and combined exports.
+Do not launch repository-authored environments in this worker.
+
+Root catalog fan-out, forced non-skill content types, arbitrary source
+labels and custom harness profiles are not supported by this skill-scoped
+job. Select **Record the pinned revision** to stamp the actual SHA on the
+benchmark. The option audit registers evidence for individually tested
+bindings; the presence of a form is not a whole-command parity claim.
+
 ## Live Tier 3
 
 Open **Live Tier 3** from a project. Select a full commit, the dataset (blank
