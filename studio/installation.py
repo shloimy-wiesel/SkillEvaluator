@@ -25,6 +25,11 @@ def command_paths(command, path=()):
 TOPICS = dict(command_paths(cli))
 
 
+def quality_configs(request, project):
+    _, files = choices_at(request, project, project.revision, "quality-check")
+    return files
+
+
 @lru_cache(maxsize=128)
 def installed_output(args):
     return subprocess.check_output(
@@ -50,7 +55,7 @@ def installation(request: Request, project_id: str, topic: str = "root"):
             "version": installed_output(("--version",)),
             "python": sys.version.split()[0],
             "changed": changed_paths(request.app.state.workspace, project),
-            "configs": choices_at(request, project, project.revision),
+            "configs": quality_configs(request, project),
             "topic": topic,
             "topics": TOPICS,
             "help": installed_output((*TOPICS[topic], "--help")),
@@ -75,7 +80,7 @@ async def queue_changed(request: Request, project_id: str):
         if set(options.paths) - set(changed_paths(request.app.state.workspace, project)):
             raise ValueError
         if options.quality_config and (
-            options.check != "quality" or options.quality_config not in choices_at(request, project, project.revision)
+            options.check != "quality" or options.quality_config not in quality_configs(request, project)
         ):
             raise ValueError
     except ValueError as exc:
