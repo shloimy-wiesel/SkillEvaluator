@@ -33,3 +33,4 @@ Makefile
 SECURITY.md
 SUPPORT.md
 sonar-project.properties
+.studio-data/

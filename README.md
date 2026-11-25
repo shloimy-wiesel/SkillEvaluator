@@ -21,6 +21,9 @@
 SkillEvaluator checks AI agent skills and plugins, and measures a skill's effect
 on task results: start with quality checks, then compare runs with and without a skill.
 
+For a persistent browser workspace backed by a GitHub or GitLab repository,
+see the [Studio Docker quickstart](studio/README.md).
+
 Catch skill issues before merge. Connect your repository to SkillEvaluator with a
 [CI template](https://docs.nvidia.com/skills/skillevaluator/repository-integration)
 for automated quality and security gates, without building or maintaining
