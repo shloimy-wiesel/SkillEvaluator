@@ -1,0 +1,180 @@
+/* Exported documents share this layer; the server also serves the base Studio stylesheet. */
+.studio-workspace {
+  --surface-tint: #f2f7f3;
+  --surface-shadow: 0 2px 6px #17372f0a;
+  background: #f4f6f3;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.studio-workspace > main,
+.studio-workspace > footer {
+  width: 100%;
+  margin-block: 0;
+}
+.studio-workspace > main {
+  flex: 1;
+  min-height: 0;
+}
+.studio-workspace .workspace-link {
+  padding: 0.45rem 0.85rem;
+  border: 1px solid #799a8f;
+  border-radius: 0.5rem;
+  text-decoration: none;
+}
+.studio-workspace .workspace-link:hover {
+  background: #295144;
+}
+@media (max-width: 23rem) {
+  .studio-workspace .brand {
+    font-size: 0.9rem;
+    gap: 0.3rem;
+  }
+  .studio-workspace .workspace-link {
+    padding-inline: 0.45rem;
+  }
+}
+.studio-workspace .page-intro {
+  border-inline-start: 0.25rem solid #67927b;
+  padding-inline-start: clamp(0.85rem, 2vw, 1.5rem);
+  margin-bottom: clamp(1.25rem, 3vw, 2rem);
+}
+.page-intro .lede {
+  margin-bottom: 0;
+  max-width: 64ch;
+}
+.studio-workspace :is(.panel, .task) {
+  box-shadow: var(--surface-shadow);
+}
+.studio-workspace .library-entry {
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 1rem;
+}
+.library-entry .project {
+  display: inline-block;
+  padding-block: 0.2rem;
+  font-size: 1.1rem;
+}
+.library-meta {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+.library-meta > div {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.library-meta dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.studio-workspace .empty {
+  padding: 1.25rem;
+  border: 1px dashed #8da697;
+  background: var(--surface-tint);
+}
+.studio-workspace .empty p {
+  margin-top: 0.35rem;
+  max-width: 39ch;
+}
+.studio-workspace .task ul {
+  margin-top: 0;
+}
+.studio-workspace .task a {
+  line-height: 1.35;
+}
+.studio-workspace .task a:hover {
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+.studio-workspace form fieldset:not(:has(legend)) {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.studio-workspace :is(input:not([type="checkbox"], [type="radio"]), select) {
+  min-height: 2.75rem;
+}
+.studio-workspace details > summary {
+  padding: 0.45rem 0.25rem;
+}
+.studio-workspace form details {
+  margin: 0;
+  padding: 0.25rem 0;
+  border-bottom: 0;
+}
+.studio-workspace form details:first-of-type {
+  margin-top: 1rem;
+}
+.studio-workspace form details[open] {
+  padding-bottom: 1rem;
+}
+.studio-workspace form details:last-of-type {
+  border-bottom: 1px solid var(--line);
+}
+.studio-workspace button:disabled {
+  cursor: default;
+  background: #64746c;
+}
+.studio-workspace output:not(:empty) {
+  display: block;
+  padding: 0.65rem 0.85rem;
+  margin-block: 0.75rem;
+  background: var(--surface-tint);
+  border-inline-start: 0.2rem solid #67927b;
+}
+.studio-workspace pre {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  tab-size: 4;
+}
+.studio-workspace table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  text-align: start;
+}
+.studio-workspace :is(th, td) {
+  text-align: start;
+  vertical-align: top;
+  padding: 0.6rem 0.7rem;
+  border-bottom: 1px solid var(--line);
+}
+.studio-workspace th {
+  background: var(--surface-tint);
+}
+.studio-workspace :focus-visible {
+  outline: 3px solid #995300;
+  outline-offset: 2px;
+}
+.studio-workspace header :focus-visible {
+  outline-color: #e7efab;
+}
+/* Show the two independent profiles together when there is room for both forms. */
+@media (min-width: 60rem) {
+  .studio-workspace main:has(> [aria-labelledby="chat"]) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    column-gap: 1rem;
+  }
+  .studio-workspace main:has(> [aria-labelledby="chat"]) > * {
+    grid-column: 1 / -1;
+  }
+  .studio-workspace
+    main:has(> [aria-labelledby="chat"])
+    > :is([aria-labelledby="chat"], [aria-labelledby="embeddings"]) {
+    grid-column: auto;
+  }
+}
+@media (max-width: 48rem) {
+  .studio-workspace table {
+    display: block;
+    overflow-x: auto;
+  }
+  .studio-workspace :is(td, th) {
+    min-width: 7rem;
+  }
+}

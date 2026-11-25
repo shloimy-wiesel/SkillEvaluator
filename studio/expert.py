@@ -12,16 +12,21 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
+from pydantic import BaseModel, ConfigDict, create_model
 
 from . import expert_catalog, expert_profiles, live_job
 from .expert_options import ACTIONS, ALIASES, CHECKS, FIELDS, FILES, HARNESSES, MULTI, REPORTS, ExpertOptions
+from .frontend_routes import document
 from .jobs import JobDefinition, Outcome
 from .operator_env import operator_env
+from .project_api import failure, get_project
 from .runs import project_for, record_for
 from .worker_deadline import WorkerTimeout, bounded_worker, run_evaluator
 from .workspace import WorkspaceError
 
-router = APIRouter(prefix="/projects/{project_id}/expert")
+router = APIRouter()
+BASE = "/projects/{project_id}/expert"
+API = "/api/v1" + BASE
 SUFFIXES = {".sarif.json": "SARIF", ".junit.xml": "JUnit", ".json": "JSON", ".md": "Markdown", ".html": "HTML"}
 
 
@@ -172,17 +177,16 @@ def invoke(ctx, args, work, output, *, chat, embeddings, runtime, reason, member
 EXPERT = JobDefinition("expert-check-v1", ExpertOptions, evaluate)
 
 
-@router.get("/{action}", name="expert_form")
-def form(request: Request, project_id: str, action: str, sha: str = ""):
+def known_action(action):
     if action not in ACTIONS:
-        raise HTTPException(404)
-    project = project_for(request, project_id)
-    sha = sha or project.revision
-    try:
-        choices = choices_at(request, project, sha, action)
-    except WorkspaceError as exc:
-        return render(request, project, action, project.revision, [], error=str(exc))
-    return render(request, project, action, sha, choices)
+        raise failure(404, "unknown_action", "Unknown expert check.")
+
+
+@router.get(BASE + "/{action}", name="expert_form")
+def form(request: Request, project_id: str, action: str):
+    project_for(request, project_id)
+    known_action(action)
+    return document(request, "expert.html")
 
 
 def choices_at(request, project, sha, action):
@@ -207,51 +211,71 @@ def choices_at(request, project, sha, action):
     return sorted(str(p) for p in allowed - blocked), sorted(files)
 
 
-def render(request, project, action, sha, choices, *, error=None):
-    return request.app.state.templates.TemplateResponse(
-        request=request,
-        name="runs/expert.html",
-        status_code=422 if error else 200,
-        context={
-            "project": project,
-            "action": ALIASES.get(action, action),
-            "label": ACTIONS[action],
-            "formats": REPORTS,
-            "checks": CHECKS,
-            "fields": FIELDS[action],
-            "files": FILES,
-            "dirs": choices[0] if choices else [],
-            "choices": choices[1] if choices else [],
-            "harnesses": HARNESSES,
-            "sha": sha,
-            "error": error,
-        },
+class ExpertView(BaseModel):
+    action: str
+    label: str
+    sha: str
+    folder: str
+    fields: list[str]
+    directories: list[str]
+    choices: list[str]
+    file_labels: dict[str, str]
+    checks: tuple[str, ...]
+    reports: tuple[str, ...]
+    harnesses: tuple[str, ...]
+
+
+@router.get(API + "/{action}")
+def expert_view(request: Request, project_id: str, action: str, sha: str = "") -> ExpertView:
+    project = get_project(request.app.state.workspace, project_id)
+    known_action(action)
+    sha = sha or project.revision
+    try:
+        directories, files = choices_at(request, project, sha, action)
+    except WorkspaceError as exc:
+        raise failure(422, "invalid_revision", str(exc)) from exc
+    return ExpertView(
+        action=ALIASES.get(action, action),
+        label=ACTIONS[action],
+        sha=sha,
+        folder=project.folder,
+        fields=sorted(FIELDS[action]),
+        directories=directories,
+        choices=files,
+        file_labels=FILES,
+        checks=CHECKS,
+        reports=REPORTS,
+        harnesses=HARNESSES,
     )
 
 
-@router.post("/{action}")
-async def queue(request: Request, project_id: str, action: str):
-    project = project_for(request, project_id)
-    if action not in ACTIONS:
-        raise HTTPException(404)
-    data = await request.form()
-    sha = data.get("sha", "")
-    choices = []
+# Reuse the evaluator's public field types without exposing frozen service-only inputs.
+ExpertSubmission = create_model(
+    "ExpertSubmission",
+    __config__=ConfigDict(extra="forbid"),
+    sha=(str, ...),
+    **{
+        key: (field.annotation, field)
+        for key, field in ExpertOptions.model_fields.items()
+        if key in set.union(*FIELDS.values())
+    },
+)
+
+
+class QueuedCheck(BaseModel):
+    run_id: str
+
+
+@router.post(API + "/{action}", status_code=201)
+def queue_json(request: Request, project_id: str, action: str, body: ExpertSubmission) -> QueuedCheck:
+    project = get_project(request.app.state.workspace, project_id)
+    known_action(action)
+    data = body.model_dump(exclude_unset=True, exclude={"sha"})
     try:
-        choices = choices_at(request, project, sha, action)
-        versions = {f"version_{h}" for h in HARNESSES} if action == "harness-check" else set()
-        if set(data) - (FIELDS[action] - {"harness_versions"}) - {"sha"} - versions:
+        if data.keys() - FIELDS[action]:
             raise ValueError
-        options = ExpertOptions(
-            action=action,
-            harness_versions=tuple(f"{h}={data['version_' + h]}" for h in HARNESSES if data.get("version_" + h)),
-            **{
-                key: data.getlist(key) if key in MULTI else data[key]
-                for key in data
-                if key != "sha" and key not in versions and data[key]
-            },
-        )
-        dirs, files = choices
+        options = ExpertOptions(action=action, **data)
+        dirs, files = choices_at(request, project, body.sha, action)
         if any(path not in dirs for path in (options.target, options.catalog_root) if path):
             raise WorkspaceError("Choose an unlinked directory listed at this commit.")
         if options.catalog_root and not Path(options.target or project.folder).is_relative_to(options.catalog_root):
@@ -259,22 +283,32 @@ async def queue(request: Request, project_id: str, action: str):
         if any(path not in files for key in FILES if (path := getattr(options, key))):
             raise WorkspaceError("Choose a configuration file listed at this commit.")
         options = expert_profiles.snapshot(request.app.state.workspace, project.id, options)
-        run_id = request.app.state.jobs.enqueue(project, sha, EXPERT, options)
+        run = request.app.state.jobs.enqueue(project, body.sha, EXPERT, options)
     except (ValueError, WorkspaceError) as exc:
-        return render(
-            request,
-            project,
-            action,
-            sha if isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", sha) else project.revision,
-            choices,
-            error=str(exc)
-            if isinstance(exc, WorkspaceError)
-            else "Invalid settings for this check and tier selection.",
-        )
-    return RedirectResponse(request.url_for("run_detail", project_id=project_id, run_id=run_id), 303)
+        message = str(exc) if isinstance(exc, WorkspaceError) else "Invalid settings for this check and tier selection."
+        raise failure(422, "invalid_check", message) from exc
+    return QueuedCheck(run_id=run)
 
 
-@router.get("/artifacts/{run_id}/{name:path}", name="expert_artifact")
+@router.post(BASE + "/{action}")
+async def queue(request: Request, project_id: str, action: str):
+    known_action(action)
+    form = await request.form()
+    versions = {f"version_{h}" for h in HARNESSES} if action == "harness-check" else set()
+    if set(form) - (FIELDS[action] - {"harness_versions"}) - {"sha"} - versions:
+        raise failure(422, "invalid_check", "Invalid settings for this check.")
+    data = {k: form.getlist(k) if k in MULTI else v for k, v in form.items() if v and k not in versions}
+    if versions:
+        data["harness_versions"] = [f"{k[8:]}={form[k]}" for k in versions if form.get(k)]
+    try:
+        body = ExpertSubmission.model_validate(data)
+    except ValueError as exc:
+        raise failure(422, "invalid_check", "Invalid settings for this check.") from exc
+    queued = queue_json(request, project_id, action, body)
+    return RedirectResponse(request.url_for("run_detail", project_id=project_id, run_id=queued.run_id), 303)
+
+
+@router.get(BASE + "/artifacts/{run_id}/{name:path}", name="expert_artifact")
 def artifact(request: Request, project_id: str, run_id: str, name: str):
     row = record_for(request, project_id, run_id)
     if (
@@ -285,6 +319,8 @@ def artifact(request: Request, project_id: str, run_id: str, name: str):
     ):
         raise HTTPException(404)
     path = request.app.state.workspace.data_dir / "artifacts" / project_id / run_id / name
+    if not path.is_file() or path.is_symlink():
+        raise HTTPException(404)
     return FileResponse(
         path, filename=name, media_type="application/octet-stream", headers={"X-Content-Type-Options": "nosniff"}
     )

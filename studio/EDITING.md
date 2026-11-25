@@ -60,6 +60,11 @@ commit directly to a previously absent branch with the same push guard,
 leaving the selected branch and workspace metadata unchanged. Repository CI
 uses this for the reviewed demo change.
 
+The editor deep link is `/projects/{project_id}/edit`. Its forms post to
+`/api/v1/projects/{project_id}/edit/changes` and `/api/v1/projects/{project_id}/edit/branch`.
+Preview returns a notice in `diff` instead of a patch when either side exceeds
+32 KiB or the two sides exceed 2,000 combined lines. This only limits the preview.
+
 **Compare revisions** is read-only: it resolves branch names already in the
 project clone or a full local commit SHA, then compares Git objects under the
 selected skill folder. It does not refresh the remote, switch branches, stage

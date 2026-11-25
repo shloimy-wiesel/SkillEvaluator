@@ -1,57 +1,99 @@
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import RedirectResponse
-from pydantic import ValidationError
+"""Pinned experiment views and project-scoped JSON mutations."""
 
-from .experiment_jobs import DECOYS, INTERACTION, METRICS, DecoyControls, InteractionControls, freeze
-from .runs import project_for
+from fastapi import APIRouter, Request
+from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, ValidationError
+
+from .experiment_jobs import DECOYS, INTERACTION, METRICS, DecoyControls, InteractionControls, Observations, freeze
+from .frontend_routes import document
+from .project_api import failure, get_project
 from .workspace import WorkspaceError
 
-router = APIRouter(prefix="/projects/{project_id}/experiments")
-ACTIONS = {"metrics": METRICS, "decoys": DECOYS, "interaction": INTERACTION}
+router = APIRouter()
+BASE = "/projects/{project_id}/experiments"
+API = "/api/v1" + BASE
 
 
-def render(request, project, error=None):
-    return request.app.state.templates.TemplateResponse(
-        request=request,
-        name="experiments/index.html",
-        context={"project": project, "error": error},
-        status_code=422 if error else 200,
-    )
+class ExperimentView(BaseModel):
+    folder: str
+    revision: str
 
 
-@router.get("", name="experiments")
+class QueuedExperiment(BaseModel):
+    run_id: str
+
+
+class MetricsRequest(Observations):
+    sha: str
+
+
+class DecoysRequest(DecoyControls):
+    sha: str
+
+
+class InteractionRequest(InteractionControls):
+    sha: str
+
+
+@router.get(BASE, name="experiments")
 def index(request: Request, project_id: str):
-    return render(request, project_for(request, project_id))
+    get_project(request.app.state.workspace, project_id)
+    return document(request, "experiments.html")
 
 
-@router.post("/{action}", name="queue_experiment")
-async def queue(request: Request, project_id: str, action: str):
-    project = project_for(request, project_id)
-    if action not in ACTIONS:
-        raise HTTPException(404)
-    definition = ACTIONS[action]
-    form = await request.form()
-    if any(not isinstance(value, str) for _, value in form.multi_items()):
-        return render(request, project, "Choose committed project inputs by path.")
-    data = {k: v for k, v in form.items() if k != "sha" and v != ""}
+@router.get(API)
+def experiment_view(request: Request, project_id: str) -> ExperimentView:
+    project = get_project(request.app.state.workspace, project_id)
+    return ExperimentView(folder=project.folder, revision=project.revision)
+
+
+def enqueue(request, project_id, body, definition, controls_type, role=None):
+    workspace = request.app.state.workspace
+    project = get_project(workspace, project_id)
+    controls = controls_type.model_validate(body.model_dump(exclude={"sha"}, mode="json"))
     try:
-        if definition is DECOYS:
-            if "exclude" in data:
-                data["exclude"] = data["exclude"].splitlines()
-            controls = DecoyControls.model_validate(data)
-            options = freeze(request.app.state.workspace, project_id, "embeddings", controls, definition.options)
-        elif definition is INTERACTION:
-            data["skills"] = data.get("skills", "").splitlines()
-            data["agents"] = form.getlist("agents")
-            if "kata_dns" in data:
-                data["kata_dns"] = data["kata_dns"].splitlines()
-            controls = InteractionControls.model_validate(data)
-            options = freeze(request.app.state.workspace, project_id, "chat", controls, definition.options)
-        else:
-            options = definition.options.model_validate(data)
-        run = request.app.state.jobs.enqueue(project, form.get("sha", ""), definition, options)
-    except ValidationError:
-        return render(request, project, "Check repository paths and experiment settings.")
+        options = freeze(workspace, project_id, role, controls, definition.options) if role else controls
+        run = request.app.state.jobs.enqueue(project, body.sha, definition, options)
     except WorkspaceError as exc:
-        return render(request, project, str(exc))
-    return RedirectResponse(request.url_for("run_detail", project_id=project_id, run_id=run), 303)
+        raise failure(422, "invalid_experiment", str(exc)) from exc
+    return QueuedExperiment(run_id=run)
+
+
+@router.post(API + "/metrics", status_code=201)
+def metrics(request: Request, project_id: str, body: MetricsRequest) -> QueuedExperiment:
+    return enqueue(request, project_id, body, METRICS, Observations)
+
+
+@router.post(API + "/decoys", status_code=201)
+def decoys(request: Request, project_id: str, body: DecoysRequest) -> QueuedExperiment:
+    return enqueue(request, project_id, body, DECOYS, DecoyControls, "embeddings")
+
+
+@router.post(API + "/interaction", status_code=201)
+def interaction(request: Request, project_id: str, body: InteractionRequest) -> QueuedExperiment:
+    return enqueue(request, project_id, body, INTERACTION, InteractionControls, "chat")
+
+
+@router.post(BASE + "/{action}", name="queue_experiment")
+async def queue(request: Request, project_id: str, action: str):
+    actions = {
+        "metrics": (MetricsRequest, metrics),
+        "decoys": (DecoysRequest, decoys),
+        "interaction": (InteractionRequest, interaction),
+    }
+    if action not in actions:
+        raise failure(404, "unknown_action", "Unknown experiment.")
+    form = await request.form()
+    data = {k: v for k, v in form.items() if v != ""}
+    for key in ("skills", "exclude", "kata_dns"):
+        if isinstance(data.get(key), str):
+            data[key] = data[key].splitlines()
+    if "agents" in data:
+        data["agents"] = form.getlist("agents")
+    model, handler = actions[action]
+    try:
+        body = model.model_validate(data)
+    except ValidationError as exc:
+        raise failure(422, "invalid_experiment", "Check repository paths and experiment settings.") from exc
+    run = handler(request, project_id, body)
+    return RedirectResponse(request.url_for("run_detail", project_id=project_id, run_id=run.run_id), 303)
