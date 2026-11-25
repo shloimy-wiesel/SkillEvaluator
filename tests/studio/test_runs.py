@@ -13,12 +13,20 @@ from test_workspace import connect, playwright, running
 pytest_plugins = ("test_workspace",)
 
 
-def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, private_remote, deployment):
+def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, private_remote, deployment, tmp_path):
+    from test_datasets import seed_skill
+
     expect = playwright.expect
     branch = "author/triage"
     fixed = "---\nname: triage\ndescription: Sort incoming requests.\n---\n# Triage\n"
     revision_a_text = fixed.replace("description:", "description: Draft wording.\ndescription:")
     finding = "Duplicate frontmatter key 'description'"
+    # The variation selector makes the keyless Unicode check quote the evaluated prompt.
+    prompt_a = "Route an urgent ticket marked \u26a0\ufe0f"
+    prompt_b = "Route a routine ticket to the help desk"
+    # Studio discovers this supported dataset path; unlike evals/, it is also scanned by Tier 1.
+    dataset_path = "eval/dataset.json"
+    seed_skill(tmp_path, {dataset_path: '{"skill_name":"triage","evals":[]}'})
 
     def overview():
         page.get_by_role("navigation", name="Breadcrumb").get_by_role("link", name="handbook").click()
@@ -48,7 +56,7 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         link("Datasets").click()
         press("Open draft")
         page.get_by_label("Case ID").fill("route-ticket")
-        page.get_by_label("Prompt", exact=True).fill("Route an urgent ticket")
+        page.get_by_label("Prompt", exact=True).fill(prompt_a)
         page.get_by_label("Expected output", exact=True).fill("Urgent queue")
         press("Add case")
         press("Commit and push")
@@ -65,7 +73,7 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         overview()
         link("Evaluation runs").click()
         expect(page.get_by_label("Commit SHA")).to_have_value(sha_a)
-        page.get_by_label("Static checks").select_option(label="Schema only")
+        page.get_by_label("Static checks").select_option(label="Schema and Unicode")
         press("Queue static checks")
         expect(page.get_by_role("heading", name="tier1-static")).to_be_visible()
         original_run = page.url.removeprefix(first)
@@ -75,6 +83,17 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         page.get_by_label("SKILL.md").fill(fixed)
         press("Save and push")
         expect(page.get_by_role("status")).to_contain_text("Pushed revision")
+        overview()
+        link("Datasets").click()
+        press("Open draft")
+        case = page.locator("article").filter(has=page.get_by_role("heading", name="route-ticket", exact=True))
+        case.get_by_text("Edit case route-ticket").click()
+        expect(case.get_by_label("Prompt", exact=True)).to_have_value(prompt_a)
+        case.get_by_label("Prompt", exact=True).fill(prompt_b)
+        case.get_by_role("button", name="Update case").click()
+        expect(case.locator("p").first).to_have_text(prompt_b)
+        press("Commit and push")
+        expect(page.get_by_role("status")).to_contain_text(f"Pushed dataset changes to {branch}")
         overview()
         sha_b = checkout_sha()
         assert sha_b != sha_a
@@ -105,7 +124,7 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         overview()
         link("Datasets").click()
         press("Open draft")
-        expect(page.get_by_role("heading", name="route-ticket")).to_be_visible()
+        expect(case.locator("p").first).to_have_text(prompt_b)
         overview()
         link("Run history").click()
         expect(page.get_by_label("Commit SHA")).to_have_value(sha_b)
@@ -114,6 +133,15 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         expect(page.get_by_text("Commit", exact=True).locator("+ dd")).to_have_text(sha_a)
         expect(page.get_by_role("status")).to_contain_text("failed")
         expect(page.get_by_text(finding, exact=False)).to_be_visible()
+        report = page.request.get(link("Download JSON").get_attribute("href"))
+        assert report.ok
+        evaluated_lines = [
+            item["line_content"]
+            for result in report.json()["results"]
+            for item in result["findings"]
+            if item["file_path"] == dataset_path and item["category"] == "UNICODE"
+        ]
+        assert any(prompt_a in line for line in evaluated_lines)
 
         # A separate connection to the very same remote must not inherit this history.
         page.get_by_role("navigation", name="Workspace").get_by_role("link", name="Projects").click()
