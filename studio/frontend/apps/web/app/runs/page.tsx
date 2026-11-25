@@ -28,6 +28,7 @@ const HistoryView = ({ initial, path }: { initial: History; path: string }) => {
     data: { project, runs, actions },
     problem,
   } = useActiveRuns(initial, path, pending);
+
   const base = `/projects/${project.id}`;
 
   return (

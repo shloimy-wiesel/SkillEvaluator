@@ -262,8 +262,11 @@ def test_evaluate_selected_project_dataset_and_container_grader(
             "verbose": "true",
             "evaluator_revision": "forged",
         }.items():
-            rejected = page.request.post(page.url, form={"sha": sha, "workflow": workflow, key: value})
+            rejected = page.request.post(
+                page.url.replace(base, base + "/api/v1"), data={"sha": sha, "workflow": workflow, key: value}
+            )
             assert rejected.status == 422, key
+            assert rejected.json()["detail"]["code"] == "invalid_request"
         page.get_by_label("Dataset path").fill("bench.json")
         page.get_by_label("Grading mode").select_option("custom_only", timeout=2000)
         page.get_by_role("button", name="Queue live evaluation").click()

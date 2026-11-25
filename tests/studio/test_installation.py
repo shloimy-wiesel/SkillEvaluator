@@ -63,8 +63,10 @@ def test_changed_files_reach_only_affected_skills(page, private_remote, tmp_path
             ({"quality_config": "/etc/passwd"}, 422),
             ({"sha": "0" * 40}, 409),
         ]:
-            response = page.request.post(entry, form={"sha": sha, "paths": "README.md", "check": "quality", **override})
+            body = {"sha": sha, "paths": "README.md", "check": "quality", **override}
+            response = page.request.post(entry.replace(base, base + "/api/v1"), data={**body, "paths": [body["paths"]]})
             assert response.status == status
+            assert response.json()["detail"]["message"]
         for check, selected in [
             ("schema", paths),
             ("lint-scripts", paths),

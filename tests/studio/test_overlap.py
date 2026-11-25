@@ -213,7 +213,8 @@ def test_scoped_catalog_preflight_and_incomplete_redirect(page, private_remote, 
         form = page.url
         sha = page.get_by_label("Commit SHA").input_value()
         for invalid in ("../broken.json", "/etc/passwd", "alias/SKILL.md"):
-            assert page.request.post(form, form={"sha": sha, "catalog": invalid}).status == 422
+            response = page.request.post(form.replace(base, base + "/api/v1"), data={"sha": sha, "catalog": invalid})
+            assert response.status == 422 and response.json()["detail"]["code"] == "invalid_inputs"
         page.get_by_label("Comparison catalog").select_option("broken.json")
         page.get_by_role("button", name="Queue overlap checks").click()
         playwright.expect(page.get_by_role("status")).to_contain_text("catalog", timeout=10000)

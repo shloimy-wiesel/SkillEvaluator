@@ -2,11 +2,24 @@ import { useEffect, useState } from "react";
 
 import { api, messageOf } from "@/lib/studio-api";
 
-/** @returns Whether the worker may still update this record. */
+/**
+ * @param status - Saved worker status.
+ * @returns Whether the worker may still update this record.
+ */
 export const isActive = (status: string) =>
   status === "queued" || status === "running";
 
-/** @returns The latest run view. Only poll while work is active, with at most one read in flight. */
+const afterInterval = (read: () => Promise<void>) =>
+  window.setTimeout(() => {
+    void read();
+  }, 1000);
+
+/**
+ * @param initial - First successful read of the view.
+ * @param path - Project-scoped endpoint.
+ * @param pending - Determines whether this view contains active work.
+ * @returns The latest run view, with at most one read in flight.
+ */
 export const useActiveRuns = <T>(
   initial: T,
   path: string,
@@ -18,13 +31,16 @@ export const useActiveRuns = <T>(
   useEffect(() => {
     const controller = new AbortController();
     let timer: number | undefined;
+
     const refresh = async () => {
       try {
         const next = await api<T>(path, { signal: controller.signal });
+
         if (!controller.signal.aborted) {
           setData(next);
+
           if (pending(next)) {
-            schedule();
+            timer = afterInterval(refresh);
           }
         }
       } catch (error) {
@@ -33,18 +49,16 @@ export const useActiveRuns = <T>(
         }
       }
     };
-    function schedule() {
-      timer = window.setTimeout(() => {
-        void refresh();
-      }, 1000);
-    }
+
     if (active) {
-      schedule();
+      timer = afterInterval(refresh);
     }
+
     return () => {
       controller.abort();
       window.clearTimeout(timer);
     };
   }, [active, path, pending]);
+
   return { data, problem, active };
 };
