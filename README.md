@@ -35,6 +35,10 @@ the [NVIDIA Verified Skills pipeline](https://github.com/NVIDIA/skills).
 
 ## Get started
 
+**Prefer a browser?** The [self-hosted SkillEvaluator Studio](studio/README.md)
+on this branch opens skill projects from GitHub or GitLab and remembers them
+across container restarts. An operator deploys Studio once; authors open its URL.
+
 Install the CLI in a Python 3.12–3.14 environment:
 
 ```bash

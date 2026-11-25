@@ -4,6 +4,11 @@ All notable changes to SkillEvaluator are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Add a self-hosted Studio workspace for opening Git-backed skill projects
+  in a browser, with saved project settings and private repository access.
+
 ## 1.2.1 - 2026-11-24
 
 ### Added
