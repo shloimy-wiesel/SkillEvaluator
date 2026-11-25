@@ -58,3 +58,46 @@ using a project-specific private trust bundle and separate Git/API tokens,
 created a branch and pushed an edit. The project API created MR `!1` at
 the pushed SHA; the pipeline query returned an empty list. This smoke used
 a real self-managed GitLab container and did not exercise a CI runner.
+
+### Reviewed push → real runner (#13 / #18)
+
+From the repository root on a **Linux host that can reach its local Docker
+bridge addresses**, use a Studio test environment with pytest, Playwright
+and Chromium installed. Choose an unused private subnet that does not
+overlap a host/VPN route or another Docker network. No GitLab account,
+model provider or external CI credentials are needed.
+
+```sh
+# In a fresh Python environment, if needed:
+python -m pip install -e '.[dev]' -r studio/requirements.txt
+python -m playwright install chromium
+
+docker pull gitlab/gitlab-ce:18.11.3-ce.0
+docker pull gitlab/gitlab-runner:alpine-v18.11.0
+python scripts/studio/gitlab_runner_smoke.py --subnet 192.168.237.0/28
+```
+
+The launcher creates a new HTTPS `/forge` installation, a private
+`engineering/platform/handbook` project, and a tagged project runner. It
+publishes no host ports. Only CE and Runner join the internal bridge.
+The shell executor runs **inside the dedicated Runner container** as
+`gitlab-runner`. Its only host bind mount is the public test certificate,
+read-only. No privileged mode, host checkout or Docker socket is used.
+The launcher removes its containers, anonymous volumes, network, test
+workspace and temporary credentials on normal exit (including test failure);
+the pulled images stay cached.
+
+The browser selects **Advanced CI setup → All tiers → Save → Review files
+→ Apply reviewed setup**. GitLab runs the fixture's `smoke-ci.yml` when
+the reviewed `.gitlab-ci.yml` appears. The job checks out the private repo,
+checks for the generated file and skill, and checks its UID and socket
+isolation. **Read live status** must show `success` and the pipeline URL
+for that exact pushed SHA. Studio has no job-list UI: the test uses the
+same project-bound Studio API adapter, with a separate `read_api` token,
+to assert the job's name, success, commit and assigned runner ID.
+
+The project-level CI file override is intentional: this verifies the
+reviewed push, runner execution and status transport. It does **not**
+execute the generated evaluator includes, call a model, run MR feedback,
+or verify reports or artifacts. The test remains skipped in ordinary
+pytest runs.
