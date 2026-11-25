@@ -99,11 +99,13 @@ export const useCIAction = <T extends object>(path: string) => {
 
     const values = new FormData(form, button);
     const target = path + (button.dataset.suffix ?? "");
+
     const request = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(Object.fromEntries(values)),
     };
+
     setBusy(true);
     setProblem("");
 
