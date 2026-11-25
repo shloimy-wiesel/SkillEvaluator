@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}Datasets{% endblock %}
+{% block content %}
+{% macro token() %}<input type="hidden" name="draft" value="{{ draft.token }}"><input type="hidden" name="version" value="{{ draft.state.version }}">{% endmacro %}
+{% macro case_form(c, index) %}
+{% set retry = submitted if submitted and submitted.action in ('add','update') and submitted.index == index|string else {} %}
+<form method="post">{{ token() }}<input type="hidden" name="index" value="{{ index }}">
+<label>Case ID<input required name="case_id" value="{{ retry.get('case_id', c.get('id', '')) }}"></label>
+{% for key, label in [('prompt','Prompt'), ('expected_output','Expected output')] %}
+{% if c.get(key, '') is string %}<label for="{{ key }}-{{ index }}">{{ label }}</label><textarea id="{{ key }}-{{ index }}" required name="{{ key }}">{{ retry.get(key, c.get(key, '')) }}</textarea>
+{% else %}<p>{{ label }} (structured value preserved)</p><pre>{{ c[key]|tojson(indent=2) }}</pre>{% endif %}{% endfor %}
+{% set assertions = c.get('assertions', []) %}
+{% if assertions is sequence and assertions is not string and assertions|reject('string')|list|length == 0 %}
+<label for="assertions-{{ index }}">Assertions</label><textarea id="assertions-{{ index }}" name="assertions" placeholder="One observable behavior per line">{{ retry.get('assertions', assertions|join('\n')) }}</textarea>
+{% else %}<p>Structured assertions preserved</p><pre>{{ assertions|tojson(indent=2) }}</pre>{% endif %}
+{% if 'files' not in c or (c.files is sequence and c.files is not string and c.files|reject('string')|list|length == 0) %}
+<label>Fixture selection<select name="file_mode"><option value="inherit">Inherit (omit files)</option><option value="explicit" {% if retry.get('file_mode') == 'explicit' or (not retry and 'files' in c) %}selected{% endif %}>Explicit list (empty means no files)</option></select></label>
+<label for="files-{{ index }}">Fixture paths</label><textarea id="files-{{ index }}" name="files" placeholder="One relative path per line">{{ retry.get('files', c.get('files', [])|join('\n')) }}</textarea>
+{% endif %}
+{% if 'should_trigger' not in c or c.should_trigger is boolean %}
+<label for="trigger-{{ index }}">Should this skill trigger?</label><select id="trigger-{{ index }}" name="trigger">
+<option value="inherit">Infer from expected skill</option><option value="yes" {% if retry.get('trigger') == 'yes' or (not retry and c.should_trigger is sameas true) %}selected{% endif %}>Yes</option>
+<option value="no" {% if retry.get('trigger') == 'no' or (not retry and c.should_trigger is sameas false) %}selected{% endif %}>No</option></select>{% endif %}
+<button name="action" value="{{ 'add' if index < 0 else 'update' }}">{{ 'Add case' if index < 0 else 'Update case' }}</button>
+{% if index >= 0 %}<button formnovalidate name="action" value="remove">Remove case</button>{% endif %}</form>
+{% endmacro %}
+<div class="datasets">
+<a href="{{ url_for('project', project_id=project.id) }}">← {{ project.name }}</a>
+<p class="eyebrow">Evaluation design / {{ draft.state.branch if draft else project.branch }}</p>
+<h1>Datasets</h1><p class="lede">Design the cases that put your skill to the test.</p>
+{% if error %}<p role="alert" class="error">{{ error }}</p>{% endif %}
+{% if pushed %}<p role="status">Pushed dataset changes to {{ project.branch }}.</p>{% endif %}
+{% if not draft %}
+<section class="panel"><h2>Author a dataset</h2><p>Open a private working copy of this revision. Preview changes before publishing.</p>
+<form method="post"><input type="hidden" name="branch" value="{{ project.branch }}"><input type="hidden" name="revision" value="{{ project.revision }}"><button name="action" value="open">Open draft</button></form></section>
+{% else %}
+<section class="panel"><div class="eyebrow">Working draft · {{ draft.state.revision[:10] }}</div><h2>{{ draft.state.path }}</h2>
+<details><summary>Manage datasets</summary><form method="post">{{ token() }}
+<label>Dataset file<select name="dataset">{% for name in draft.choices() %}<option {% if name == draft.state.path %}selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
+<button name="action" value="switch">Switch dataset</button></form>
+<form method="post">{{ token() }}<label>New dataset name<input name="name" required pattern="[A-Za-z0-9_-]+" placeholder="e.g. routing"></label>
+<p class="hint">Named collections live under evals/datasets/. The evaluator discovers evals/evals.json by default.</p>
+<button name="action" value="create">Create dataset</button></form>
+{% if doc is mapping and doc.evals is defined %}<form method="post">{{ token() }}<label>Skill identity<input required name="identity" value="{{ doc.skill_name }}"></label><button name="action" value="identity">Update identity</button></form>{% endif %}
+</details>
+{% if doc is mapping and doc.evals is defined %}
+{% for c in doc.evals %}<article><h3>{{ c.id }}</h3><p>{{ c.prompt }}</p>
+<details {% if submitted and submitted.index == loop.index0|string %}open{% endif %}><summary>Edit case {{ c.id }}</summary>{{ case_form(c, loop.index0) }}</details></article>{% endfor %}
+{% if not doc.evals %}<p>No cases yet. Start with one task and an independently written expectation.</p>{% endif %}
+<details {% if not doc.evals or (submitted and submitted.action == 'add') %}open{% endif %}><summary>New case</summary>{{ case_form({}, -1) }}</details>
+{% else %}<p>Legacy dataset · Preview migration to edit its cases.</p>{% endif %}
+</section>
+{% if notice %}<p role="status">{{ notice }}</p>{% endif %}
+<section class="panel"><div class="eyebrow">Workbench</div><h2>Dataset tools</h2>
+<form method="post">{{ token() }}
+<label><input type="checkbox" name="strict"> Treat warnings as failures</label>
+<label><input type="checkbox" name="harbor_contract"> Check Harbor contract</label>
+<button name="action" value="validate">Validate draft</button></form>
+{% if validation %}<section aria-label="Validation results"><h3>{{ 'Passed' if validation.passed else 'Failed' }}</h3>
+<ul>{% for check in validation.checks %}<li><b>{{ check.status }} · {{ check.path }}</b> {{ check.message }}</li>{% endfor %}</ul>
+<details><summary>JSON results</summary><pre>{{ validation.checks|tojson(indent=2) }}</pre></details></section>{% endif %}
+<details><summary>Generate cases</summary>
+<p>Generate a preview for <code>evals/evals.json</code>. Model generation uses the saved chat profile and requires the provider SDK on the worker. Local templates need no credentials.</p>
+<form method="post">{{ token() }}
+<label>Grounding<select name="grounding">{% for mode in ['auto','skill','intent','trace'] %}<option>{{ mode }}</option>{% endfor %}</select></label>
+{% for key, label in [('no_llm','Use local templates'),('full','Generate full bucket set'),('force','Overwrite existing cases'),('refine','Refine with retained trajectories')] %}
+<label><input type="checkbox" name="{{ key }}"> {{ label }}</label>{% endfor %}
+{% for key, label in [('prompt','Author guidance file'),('from_results','Completed results folder'),('results_dir','Results root')] %}
+<label>{{ label }} (optional)<input name="{{ key }}" placeholder="Relative to selected skill"></label>{% endfor %}
+<button name="action" value="generate">Generate preview</button></form></details>
+{% if generated %}<h3>Generated preview</h3>{% for c in generated.evals %}<article><b>{{ c.id }}</b><p>{{ c.prompt }}</p><p>{{ c.expected_output }}</p></article>{% endfor %}
+<details><summary>All generated fields</summary><pre>{{ generated|tojson(indent=2) }}</pre></details>
+<form method="post">{{ token() }}<button name="action" value="use_generation">Use generated cases</button></form>{% endif %}
+<details><summary>Migrate dataset</summary><p>Convert the active file without changing the source. Leave destination blank for preview only.</p>
+<form method="post">{{ token() }}<label>Target skill identity (optional)<input name="skill_name"></label>
+<label>New destination (optional)<input name="destination" placeholder="evals/evals.json"></label><button name="action" value="migrate">Run migration</button></form></details>
+{% if migration %}<pre aria-label="Migration preview">{{ migration|tojson(indent=2) }}</pre>{% endif %}
+<details><summary>Import traces</summary><p>Upload an exported session file. Sensitive fields are redacted before review. Candidates start pending.</p>
+<form method="post" enctype="multipart/form-data">{{ token() }}
+<label>Trace export<input type="file" name="export" required accept=".json,.jsonl"></label>
+<label><input type="checkbox" name="force_import"> Replace existing review</label>
+<label><input type="checkbox" name="dry_import"> Dry run (preview only)</label>
+<button name="action" value="import">Import for review</button></form></details>
+{% if sample %}<pre aria-label="Import preview">{{ sample|tojson(indent=2) }}</pre>{% endif %}
+{% if review %}<h3>Review candidates</h3><p>Only accepted cases enter the dataset. Observed output requires a successful trace.</p>
+<form method="post">{{ token() }}
+{% for c in review.candidates %}<article><h3>{{ c.prompt }}</h3><p>{{ c.id }} · {{ c.observed.outcome }}</p>
+<details><summary>Observed evidence and redactions</summary><pre>{{ c.observed|tojson(indent=2) }}</pre>
+<p>Fixtures: {{ c.files|join(', ') or 'None' }}</p><p>Redactions: {{ c.redactions }}</p><p>{{ c.warnings|join('; ') }}</p>
+<p>Suggested assertions: {{ c.review.suggested_assertions|join('; ') or 'None' }}</p></details>
+<label>Review decision<select name="decision_{{ c.id }}">{% for value, label in [('pending','Pending'),('reject','Reject'),('accept','Accept independent expectation'),('accept_observed','Accept successful observed output')] %}
+<option value="{{ value }}" {% if c.review.decision == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+<label>Reviewer expectation<textarea name="expected_{{ c.id }}">{{ c.review.expected_output }}</textarea></label>
+<label>Reviewer assertions<textarea name="assertions_{{ c.id }}">{{ c.review.assertions|join('\n') }}</textarea></label></article>{% endfor %}
+{% if review.skipped %}<details><summary>Skipped records ({{ review.skipped|length }})</summary><pre>{{ review.skipped|tojson(indent=2) }}</pre></details>{% endif %}
+<label><input type="checkbox" name="allow_native" {% if allow_native %}checked{% endif %}> Allow acceptance for native Harbor tasks</label>
+<button name="action" value="preview_accept">Preview acceptance</button><button name="action" value="accept">Stage accepted cases</button></form>
+{% for r in trace_checks %}<p>{{ r.status }} · {{ r.message }}</p>{% endfor %}{% endif %}
+</section>
+<section class="panel"><h2>Review &amp; publish</h2><p>Only Commit and push changes the project branch.</p>
+<form method="post">{{ token() }}<button name="action" value="preview">Preview changes</button>
+{% if draft.state.staged %}<button name="action" value="commit">Commit and push</button>{% endif %}</form>
+{% if diff %}<pre aria-label="Change preview">{{ diff }}</pre>{% endif %}
+<details><summary>Delete dataset</summary><form method="post">{{ token() }}<button name="action" value="delete">Stage dataset deletion</button></form></details>
+<details><summary>Discard working copy</summary><form method="post">{{ token() }}<button name="action" value="discard">Discard private draft</button></form></details>
+</section>{% endif %}</div>
+{% endblock %}
