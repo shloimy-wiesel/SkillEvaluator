@@ -17,6 +17,7 @@ def collect(draft, jobs, consent):
         max_agents=1,
         n_attempts=1,
         max_attempts_total=1,
+        agent_runtime_preflight=False,
     )
     options = snapshot(draft.ws, draft.project.id, controls)
     run = jobs.enqueue(draft.project, draft.state["revision"], LIVE, options)

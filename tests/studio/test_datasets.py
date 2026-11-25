@@ -137,6 +137,7 @@ def test_collect_then_refine_only_the_pinned_case(page, tmp_path, private_remote
     def sandbox(args, cwd, env):
         calls.append(args)
         assert env["SKILL_EVAL_LLM_API_KEY"] == "collection-key"
+        assert "--no-agent-runtime-preflight" in args
         assert "--skip-baseline" in args and args[args.index("--grading-mode") + 1] == "default"
         assert args[args.index("--skill-workspace-mode") + 1] == "isolated"
         assert (Path(args[2]) / "evals/evals.json").read_bytes() == cases.read_bytes()
