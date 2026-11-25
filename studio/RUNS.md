@@ -203,3 +203,36 @@ engine catalog and Docker preflight without a paid trial:
 ```sh
 STUDIO_TEST_LIVE_RUNTIME=1 python -m pytest -q tests/studio/test_live.py
 ```
+
+## Experiments
+
+Open **Experiments** on the project. Each form queues a separate run at its
+selected commit; reopen the result from **Evaluation runs → Run history**.
+Successful experiment actions are **neutral**, not passing publication gates.
+
+- **Select decoys** ranks a committed description-mode embedding catalog using
+  the saved embedding profile. Enter the repository-relative catalog JSON and
+  collection root (`.` for the repository), count (default four), and optionally
+  one excluded catalog member per line and a matching embedding model. Use a
+  collection at, above, or below the target's parent so the manifest is portable.
+  Download the native JSON and review the selected paths, hashes and scores before
+  using it as a decoy manifest. Selection does not run the trials or edit Git.
+- **Run interaction** selects two to 32 project skill folders, in order, and one
+  fixed evaluation source. Use the [live runtime](README.md#live-tier-3-image)
+  and a key-backed chat profile. The engine runs baseline, each skill alone,
+  and all together. Every configuration uses the same suite and fixed attempt
+  count (default one). `overall` requires custom-only grading. A complete
+  interaction can be positive, negative or zero; missing comparable evidence
+  is incomplete, not zero. Studio uses the live generated-task input policy
+  and supports Docker or Kata; backend kwargs, native environments, host
+  execution and raw Harbor job retention are not supported.
+- **Import observations** accepts the engine's external-metrics JSON contract
+  at a pinned project path. The JSON and Markdown preserve declared provenance,
+  matched coverage and custom scores. SkillEvaluator did not execute the tests,
+  verify the producer, or assign a standard score or publication verdict.
+
+In `artifacts/<project>/<run>/`, the native files are `decoys.json`,
+`interactions/interaction_*/interaction.json` (alongside configuration evidence),
+or `observations/external_metrics.{json,md}`. Rerun reuses the original Git
+commit, options and encrypted provider snapshot. A provider call or sandbox
+trial runs again and can incur charges; reopening an export does not.
