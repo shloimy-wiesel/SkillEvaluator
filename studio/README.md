@@ -10,13 +10,17 @@ docker run -d --name skill-studio -p 127.0.0.1:8000:8000 \
   -v skill-workspace:/data skillevaluator-studio
 ```
 
-Open <http://127.0.0.1:8000>. Enter the HTTPS clone URL from GitHub, GitLab,
+Open <http://127.0.0.1:8000>. The image includes the React interface and
+serves it alongside the Python API. Enter the HTTPS clone URL from GitHub, GitLab,
 or your self-hosted instance. Use the final URL (no redirects). Enter `.`
 for a root skill or a path such as `skills/triage`; that directory must
 contain a regular `SKILL.md` on the remote's default branch. Private projects
 also need a username and access token: for GitHub use your account and a token
 with repository contents read access; for GitLab use your username and a
 token with `read_repository`. Enter credentials in the separate fields.
+For example, instead of pasting `https://github.com/mattpocock/skills/tree/main/skills`,
+use `https://github.com/mattpocock/skills.git` as the repository URL and
+`skills/engineering/code-review` as the skill folder.
 For a private GitLab installation, expand **Self-managed GitLab** and enter
 the installation URL (including any port and prefix), not the group URL.
 See [GitLab access and TLS](GITLAB.md) for private CA and API settings.
