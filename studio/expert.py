@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
 from . import expert_profiles, live_job
-from .expert_options import ACTIONS, CHECKS, FIELDS, FILES, HARNESSES, MULTI, REPORTS, ExpertOptions
+from .expert_options import ACTIONS, ALIASES, CHECKS, FIELDS, FILES, HARNESSES, MULTI, REPORTS, ExpertOptions
 from .jobs import JobDefinition, Outcome
 from .runs import project_for, record_for
 from .workspace import WorkspaceError
@@ -142,19 +142,27 @@ def invoke(ctx, args, work, output, *, chat, embeddings, runtime, reason):
 
     native = {}
     captured = work / "studio-result.json"
-    report = json.loads(sanitized(captured.read_bytes())) if captured.exists() else {}
-    for path in sorted(output.iterdir()):
+    is_catalog = (output / "catalog-summary.json").is_file()
+    report = json.loads(sanitized(captured.read_bytes())) if captured.exists() and not is_catalog else {}
+    for path in sorted(output.rglob("*")):
         if path.is_file() and not path.is_symlink():
             for suffix, label in SUFFIXES.items():
                 if path.name.endswith(suffix):
-                    native[path.name] = "Benchmark" if path.name == "BENCHMARK.md" else label
+                    rel = path.relative_to(output)
+                    display = "Benchmark" if path.name == "BENCHMARK.md" else label
+                    catalog = rel.as_posix() == "catalog-summary.json"
+                    native[str(rel)] = ("Catalog summary" if catalog else display) + (
+                        f" · {rel.parent}" if rel.parent.parts else ""
+                    )
                     data = sanitized(path.read_bytes())
-                    (ctx.artifacts / path.name).write_bytes(data)
-                    if label == "JSON":
+                    dest = ctx.artifacts / rel
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_bytes(data)
+                    if label == "JSON" and not rel.parent.parts:
                         report = json.loads(data)
                     break
     terminal = sanitized(log.read_bytes()).decode(errors="replace")
-    if done.returncode and not captured.exists():
+    if done.returncode and not captured.exists() and "catalog-summary.json" not in native:
         raise WorkspaceError(
             "Evaluator could not produce a result. Check configuration file contents and runtime prerequisites."
         )
@@ -163,7 +171,10 @@ def invoke(ctx, args, work, output, *, chat, embeddings, runtime, reason):
     status = report.get("overall_status", "failed" if done.returncode else "passed")
     md = work / "studio-result.md"
     return Outcome(
-        status, done.returncode, json.dumps(report), sanitized(md.read_bytes()).decode() if md.exists() else terminal
+        status,
+        done.returncode,
+        json.dumps(report),
+        sanitized(md.read_bytes()).decode() if md.exists() and not is_catalog else terminal,
     )
 
 
@@ -177,41 +188,49 @@ def form(request: Request, project_id: str, action: str, sha: str = ""):
     project = project_for(request, project_id)
     sha = sha or project.revision
     try:
-        choices = choices_at(request, project, sha)
+        choices = choices_at(request, project, sha, action)
     except WorkspaceError as exc:
         return render(request, project, action, project.revision, [], error=str(exc))
     return render(request, project, action, sha, choices)
 
 
-def choices_at(request, project, sha):
+def choices_at(request, project, sha, action):
     if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", sha):
         raise WorkspaceError("Choose a full commit SHA in this project.")
     tree = request.app.state.workspace.git(project, ["ls-tree", "-rlz", sha])
-    return sorted(
-        name
-        for entry in tree.split("\0")
-        if entry.startswith(("100644 ", "100755 "))
-        for header, name in [entry.split("\t", 1)]
-        if int(header.split()[3]) <= 1024 * 1024
-        and name.isprintable()
-        and name.lower().endswith((".yaml", ".yml", ".json"))
-    )
+    dirs, skills, blocked, files = set(), set(), set(), []
+    for entry in tree.split("\0"):
+        if not entry:
+            continue
+        header, name = entry.split("\t", 1)
+        path = Path(name)
+        if not header.startswith(("100644 ", "100755 ")) or not name.isprintable():
+            blocked.update(path.parents)
+            continue
+        dirs.update(path.parents)
+        if path.name == "SKILL.md":
+            skills.add(path.parent)
+        if int(header.split()[3]) <= 1024 * 1024 and path.suffix.lower() in (".yaml", ".yml", ".json"):
+            files.append(name)
+    allowed = skills if action in ("tier1", "tier1-validate") else dirs
+    return sorted(str(p) for p in allowed - blocked), sorted(files)
 
 
-def render(request, project, action, sha, choices, error=None):
+def render(request, project, action, sha, choices, *, error=None):
     return request.app.state.templates.TemplateResponse(
         request=request,
         name="runs/expert.html",
         status_code=422 if error else 200,
         context={
             "project": project,
-            "action": action,
+            "action": ALIASES.get(action, action),
             "label": ACTIONS[action],
             "formats": REPORTS,
             "checks": CHECKS,
             "fields": FIELDS[action],
             "files": FILES,
-            "choices": choices,
+            "dirs": choices[0] if choices else [],
+            "choices": choices[1] if choices else [],
             "harnesses": HARNESSES,
             "sha": sha,
             "error": error,
@@ -228,7 +247,7 @@ async def queue(request: Request, project_id: str, action: str):
     sha = data.get("sha", "")
     choices = []
     try:
-        choices = choices_at(request, project, sha)
+        choices = choices_at(request, project, sha, action)
         versions = {f"version_{h}" for h in HARNESSES} if action == "harness-check" else set()
         if set(data) - (FIELDS[action] - {"harness_versions"}) - {"sha"} - versions:
             raise ValueError
@@ -241,7 +260,12 @@ async def queue(request: Request, project_id: str, action: str):
                 if key != "sha" and key not in versions and data[key]
             },
         )
-        if any(path not in choices for key in FILES if (path := getattr(options, key))):
+        dirs, files = choices
+        if any(path not in dirs for path in (options.target, options.catalog_root) if path):
+            raise WorkspaceError("Choose an unlinked directory listed at this commit.")
+        if options.catalog_root and not Path(options.target or project.folder).is_relative_to(options.catalog_root):
+            raise WorkspaceError("Catalog root must contain the target.")
+        if any(path not in files for key in FILES if (path := getattr(options, key))):
             raise WorkspaceError("Choose a configuration file listed at this commit.")
         options = expert_profiles.snapshot(request.app.state.workspace, project.id, options)
         run_id = request.app.state.jobs.enqueue(project, sha, EXPERT, options)
@@ -259,12 +283,13 @@ async def queue(request: Request, project_id: str, action: str):
     return RedirectResponse(request.url_for("run_detail", project_id=project_id, run_id=run_id), 303)
 
 
-@router.get("/artifacts/{run_id}/{name}", name="expert_artifact")
+@router.get("/artifacts/{run_id}/{name:path}", name="expert_artifact")
 def artifact(request: Request, project_id: str, run_id: str, name: str):
     row = record_for(request, project_id, run_id)
     if (
         row["kind"] != EXPERT.kind
-        or name != Path(name).name
+        or Path(name).is_absolute()
+        or ".." in Path(name).parts
         or name not in json.loads(row["report"] or "{}").get("native", {})
     ):
         raise HTTPException(404)

@@ -14,11 +14,11 @@ from .workspace import WorkspaceError
 def snapshot(workspace, project_id, options):
     if options.live:
         options = options.model_copy(update={"snapshot_id": uuid4().hex})
-    tier2 = options.action == "validate" and (not options.tiers or "2" in options.tiers)
+    tier2 = options.action == "validate" and options.dedup is not False and (not options.tiers or "2" in options.tiers)
     with closing(database(workspace)) as db:
         if tier2 and load(db, workspace, project_id, "embeddings"):
             options = freeze_role(workspace, project_id, options, "embeddings")
-        required = options.action == "rubric-eval" or options.llm or options.llm_verify
+        required = options.action in ("rubric-eval", "tier1-rubric-eval") or options.llm or options.llm_verify
         automatic = tier2 or options.live or (options.action in {"tier1", "tier1-validate"} and options.llm is None)
         if required or (automatic and load(db, workspace, project_id, "chat")):
             options = freeze_role(workspace, project_id, options, "chat")

@@ -5,7 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from skillevaluator.harness.overlay import profile_names
+from skillevaluator.harness.overlay import PROFILES_DIR, profile_names
+from skillevaluator.source_identity import normalized_evaluated_source
 from skillevaluator.tier1.commands import DEFAULT_CHECKS, OPTIONAL_CHECKS
 
 from .live_job import Agent, Budget, Model, Positive
@@ -24,9 +25,12 @@ ACTIONS = {
     "tier1-validate": "Tier 1 validate",
 }
 WORKFLOWS = ("validate", "tier1", "tier1-validate")
+ALIASES = {f"tier1-{a}": a for a in ("quality-check", "rubric-eval", "security-scan", "pii-scan", "lint-scripts")}
+ACTIONS.update({alias: f"Tier 1: {ACTIONS[a]}" for alias, a in ALIASES.items()})
 REPORTS = ("cli", "json", "html", "markdown", "sarif", "junit", "github")
 CHECKS = (*DEFAULT_CHECKS, *OPTIONAL_CHECKS)
 HARNESSES = tuple(profile_names(None))
+AGENT_HARNESSES = ("claude-code", "codex", "opencode")
 FILES = {
     "quality_config": "Quality configuration",
     "pii_waivers": "PII waivers",
@@ -53,6 +57,8 @@ ROOT_LIVE = {
     "tolerate_baseline_timeouts",
     "block_on_agent_eval",
     "env_mode",
+    "kata_runtime",
+    "harbor_keep_jobs",
     "autopilot",
     "agents",
     "max_cases",
@@ -93,6 +99,13 @@ FIELDS = {
     **{a: COMMON | {"reports"} for a in WORKFLOWS[1:]},
 }
 MULTI = {"reports", "checks", "skip", "harness", "agents"}
+FIELDS.update({alias: FIELDS[a] for alias, a in ALIASES.items()})
+for fields in FIELDS.values():
+    fields.add("target")
+FIELDS["validate"].update({"workers", "content_type", "catalog_root", "full", "dedup", "agent_eval", "external"})
+FIELDS["validate"].update({"evaluated_source_repository", "evaluator_container_revision"})
+for action in ("validate", "harness-check"):
+    FIELDS[action].add("harness_profiles")
 
 
 class FrozenProfile(BaseModel):
@@ -106,6 +119,17 @@ class FrozenProfile(BaseModel):
 class ExpertOptions(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
     action: str
+    full: bool = False
+    dedup: bool | None = None
+    agent_eval: bool | None = None
+    external: bool = False
+    evaluated_source_repository: str | None = Field(None, max_length=512)
+    evaluator_container_revision: str | None = Field(None, max_length=1024)
+    harness_profiles: Literal["agent-clis"] | None = None
+    target: str | None = None
+    catalog_root: str | None = None
+    workers: int | None = Field(None, ge=1, le=4)
+    content_type: Literal["auto", "skill", "rules", "workflows", "plugin"] | None = None
     snapshot_id: str | None = Field(None, pattern=r"^[0-9a-f]{32}$")
     chat: FrozenProfile | None = None
     embeddings: FrozenProfile | None = None
@@ -116,6 +140,8 @@ class ExpertOptions(BaseModel):
     tiers: Literal["1", "1,2", "1,3", "1,2,3"] | None = None
     block_on_dedup: bool | None = None
     env_mode: Literal["docker", "kata"] | None = None
+    kata_runtime: Literal["kata", "kata-clh", "kata-qemu"] | None = None
+    harbor_keep_jobs: bool = False
     agents: tuple[Agent, ...] = ()
     block_on_agent_eval: bool | None = None
     autopilot: bool | None = None
@@ -163,7 +189,7 @@ class ExpertOptions(BaseModel):
 
     @property
     def live(self):
-        return self.action == "validate" and (not self.tiers or "3" in self.tiers)
+        return self.action == "validate" and ("3" in self.tiers if self.tiers else self.agent_eval is not False)
 
     @model_validator(mode="after")
     def scope(self):
@@ -184,10 +210,35 @@ class ExpertOptions(BaseModel):
             for v in self.harness_versions
         ):
             raise ValueError("Invalid harness selection")
-        if not self.live and self.model_dump(exclude_defaults=True).keys() & ROOT_LIVE:
+        if self.harness_profiles and set(self.harness) - set(AGENT_HARNESSES):
+            raise ValueError("Select harnesses from the managed agent CLI set")
+        if not self.live and self.model_dump(exclude_defaults=True).keys() & (ROOT_LIVE - {"autopilot"}):
             raise ValueError("Select Tier 3 to set live controls")
+        if self.live and (
+            self.target or self.catalog_root or self.workers or self.content_type not in {None, "skill", "auto"}
+        ):
+            raise ValueError("Alternate targets and catalog evaluation require static tiers")
+        if (self.workers or 1) > 1 and (self.tiers != "1" or self.llm or self.llm_verify):
+            raise ValueError("Parallel catalog validation requires keyless Tier 1")
+        for directory in (self.target, self.catalog_root):
+            if (
+                directory is not None
+                and directory != "."
+                and (any(p.lower() in {"", ".", "..", ".git"} for p in directory.split("/")) or "\\" in directory)
+            ):
+                raise ValueError("Invalid directory selection")
         if self.block_on_dedup is not None and self.tiers and "2" not in self.tiers:
             raise ValueError("Select Tier 2 to set its gate")
+        if self.external and self.profile == "registry":
+            raise ValueError("External conflicts with registry policy")
+        if self.kata_runtime and self.env_mode != "kata":
+            raise ValueError("Select Kata to set its runtime")
+        for name, value in (
+            ("repository", self.evaluated_source_repository),
+            ("evaluator_container_revision", self.evaluator_container_revision),
+        ):
+            if value is not None and not normalized_evaluated_source({name: value}):
+                raise ValueError("Invalid source identity")
         if any(getattr(self, key) and agent not in self.agents for key, agent in AGENT_MODELS.items()):
             raise ValueError("Select each agent with a model override")
         if self.max_cost_usd is not None and not self.price_file:
@@ -204,15 +255,29 @@ class ExpertOptions(BaseModel):
         return self
 
     def arguments(self, ctx):
-        cmd = ["tier1", "validate"] if self.action == "tier1-validate" else [self.action]
-        cmd.append(str(ctx.skill))
+        cmd = self.action.split("-", 1) if self.action.startswith("tier1-") else [self.action]
+        target = ctx.root / self.target if self.target else ctx.skill
+        cmd.append(str(target))
         if self.action != "harness-check":
             cmd.extend(["--output-dir", str(ctx.artifacts)])
         for key, value in self.model_dump(exclude_defaults=True).items():
             flag = "--" + key.replace("_", "-")
-            if key in {"action", "chat", "embeddings", "snapshot_id", "sandbox_grader_consent"}:
+            if key in {"action", "chat", "embeddings", "snapshot_id", "sandbox_grader_consent", "target"}:
                 continue
-            if key == "reports":
+            if key == "catalog_root":
+                root = ctx.root / value
+                if not target.is_relative_to(root):
+                    raise ValueError("Catalog root must contain the target")
+                cmd.extend([flag, str(root)])
+            elif key == "content_type":
+                cmd.extend(["--type", value])
+            elif key == "kata_runtime":
+                cmd.extend(["--environment-kwarg", f"kata_runtime={value}"])
+            elif key == "harness_profiles":
+                cmd.extend([flag, str(PROFILES_DIR)])
+                if not self.harness:
+                    cmd.extend(["--harness", ",".join(AGENT_HARNESSES)])
+            elif key == "reports":
                 for fmt in value:
                     cmd.extend(["--report", fmt])
             elif key in AGENT_MODELS:
@@ -226,6 +291,8 @@ class ExpertOptions(BaseModel):
                     cmd.extend(["--harness-version", item])
             elif key in {
                 "llm",
+                "dedup",
+                "agent_eval",
                 "block_on_dedup",
                 "block_on_agent_eval",
                 "autopilot",
