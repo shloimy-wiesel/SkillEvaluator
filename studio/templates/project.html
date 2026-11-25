@@ -1,12 +1,18 @@
-{% extends "base.html" %}{% block title %}{{ project.name }}{% endblock %}{% block content %}
-<p class="eyebrow"><a href="/">Projects</a> / Overview</p><h1>{{ project.name }}</h1>
-<p class="lede">Your saved Git workspace.</p>
-<section class="panel"><p class="eyebrow">Project details</p><h2>Connected skill</h2>
-<dl>{% for label,value in [('Repository', project.remote), ('Skill folder', project.folder), ('Branch', project.branch), ('Checkout revision', project.revision)] %}
-<dt>{{ label }}</dt><dd><code>{{ value }}</code></dd>{% endfor %}</dl>
-{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% extends "base.html" %}{% block title %}{{ project.name }}{% endblock %}{% block ancestors %}{% endblock %}{% block content %}
+<p class="eyebrow">Project overview</p><h1>{{ project.name }}</h1>
+<p class="lede">Edit your skill, check its behavior, or revisit a previous run.</p>
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
 {% if notice %}<p role="status">{{ notice }}</p>{% endif %}
+<div class="tasks">
+{% for title, hint, actions in project_links|task_groups %}
+<section class="task" aria-labelledby="task-{{ loop.index }}">
+<span class="marker" aria-hidden="true">{{ '%02d'|format(loop.index) }}</span>
+<h2 id="task-{{ loop.index }}">{{ title }}</h2><p>{{ hint }}</p>
+<ul>{% for label,route,fragment in actions %}<li><a href="{{ url_for(route, project_id=project.id) }}{{ fragment }}">{{ label }}<span aria-hidden="true">→</span></a></li>{% endfor %}</ul>
+</section>{% else %}<p class="empty">No project tools are available in this workspace.</p>{% endfor %}
+</div>
+<section class="panel connection"><p class="eyebrow">Project details</p><h2>Connected skill</h2>
+<dl>{% for label,value in [('Repository', project.remote), ('Skill folder', project.folder), ('Branch', project.branch), ('Checkout revision', project.revision)] %}
+<div><dt>{{ label }}</dt><dd><code>{{ value }}</code></dd></div>{% endfor %}</dl>
 <form method="post" action="/projects/{{ project.id }}/check"><button>Check remote access</button></form></section>
-{% if project_links %}<section><h2>Work on this project</h2><ul>{% for label,route in project_links %}
-<li><a href="{{ url_for(route, project_id=project.id) }}">{{ label }}</a></li>{% endfor %}</ul></section>{% endif %}
 {% block project_actions %}{% endblock %}{% endblock %}

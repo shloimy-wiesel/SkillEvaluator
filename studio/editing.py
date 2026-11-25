@@ -137,7 +137,7 @@ def read_file(ws, p, name, *, repo_root=False):
         return ws.git(p, ["cat-file", "blob", oid], raw=True) if oid else None
 
 
-def commit_changes(ws, p, changes, message, *, repo_root=False):
+def commit_changes(ws, p, changes, message, *, repo_root=False, new_branch=None):
     """Publish one direct child of the expected revision, leaving no dirty state on rejection."""
     with project_lock(ws, p.id), TemporaryDirectory(dir=ws.data_dir) as temp:
         _check(ws, p)
@@ -170,6 +170,10 @@ def commit_changes(ws, p, changes, message, *, repo_root=False):
                 message,
             ],
         )
+        if new_branch is not None:
+            _branch(ws, p, new_branch)
+            _push(ws, p, sha, new_branch, "0" * len(sha))
+            return sha
         _push(ws, p, sha, p.branch, p.revision)
         ws.git(p, ["checkout", "--no-overwrite-ignore", "-B", p.branch, sha, "--"])
         _record(ws, p, p.branch, sha)
