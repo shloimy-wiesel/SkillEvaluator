@@ -150,5 +150,5 @@ def compare(
     except WorkspaceError as exc:
         context["error"] = str(exc)
     return request.app.state.templates.TemplateResponse(
-        request=request, name="comparison.html", context=context, status_code=422 if "error" in context else 200
+        request=request, name="comparison/index.html", context=context, status_code=422 if "error" in context else 200
     )

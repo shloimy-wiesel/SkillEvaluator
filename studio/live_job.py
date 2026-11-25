@@ -23,6 +23,7 @@ from skillevaluator.tier3.dataset_utils import DATASET_EXTENSIONS, find_eval_fil
 
 from .jobs import JobContext, JobDefinition, Outcome
 from .native_location import bounded_directory, native_directory
+from .provider_snapshots import exposes_credential, seal, unseal
 from .providers import worker_environment
 from .worker_deadline import bounded_worker, run_evaluator
 from .workspace import WorkspaceError
@@ -128,9 +129,6 @@ def snapshot(workspace, project_id, controls):
     if config.provider == "bedrock":
         raise WorkspaceError("Choose a key-backed chat provider for Studio live evaluations.")
     env["SKILL_EVAL_LLM_MODEL"] = config.model
-    # Never allow the current saved credential to be submitted as a model or path.
-    if config.api_key and config.api_key in controls.model_dump_json():
-        raise WorkspaceError("Keep credentials out of live settings.")
     profile_id = uuid4().hex
     private = workspace.data_dir / "live-profiles" / project_id
     private.mkdir(parents=True, mode=0o700, exist_ok=True)
@@ -146,8 +144,10 @@ def snapshot(workspace, project_id, controls):
         endpoint=config.base_url or "",
         profile_id=profile_id,
     )
+    if exposes_credential(options, config.api_key):
+        raise WorkspaceError("Keep credentials out of live settings.")
     retained_sources(workspace, project_id, project.folder, options)
-    (private / profile_id).write_bytes(workspace.cipher.encrypt(json.dumps(env).encode()))
+    (private / profile_id).write_bytes(seal(workspace, env))
     return options
 
 
@@ -344,7 +344,7 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
     if options.evaluator_revision != operator_revision():
         raise WorkspaceError("The worker evaluator revision changed; queue a new run.")
     profile = workspace.data_dir / "live-profiles" / ctx.project_id / options.profile_id
-    chat = json.loads(workspace.cipher.decrypt(profile.read_bytes()))
+    chat = unseal(workspace, profile.read_bytes())
     secrets = {
         encoded.encode()
         for key, value in chat.items()

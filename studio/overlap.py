@@ -23,6 +23,7 @@ from skillevaluator.constants import (
 from skillevaluator.provider_config import resolve_embedding_provider, resolve_llm_provider
 
 from .jobs import JobDefinition, Outcome
+from .provider_snapshots import exposes_credential, seal, unseal
 from .providers import MODEL, database, worker_environment
 from .runs import project_for
 from .workspace import WorkspaceError
@@ -121,14 +122,14 @@ def snapshot(workspace, project_id, action, *, model="", llm_model="", **options
         private[role] = asdict(config)
         public[role] = Provider(**{name: getattr(config, name) for name in Provider.model_fields})
     frozen = OverlapOptions(snapshot=uuid4().hex, action=action, **public, **options)
-    if any(p["api_key"] and p["api_key"] in frozen.model_dump_json() for p in private.values()):
+    if exposes_credential(frozen, *(p["api_key"] for p in private.values())):
         raise WorkspaceError("Keep credentials out of public settings.")
     with closing(database(workspace)) as db, db:
         db.execute("""CREATE TABLE IF NOT EXISTS overlap_snapshots
                     (project TEXT, id TEXT, profiles BLOB NOT NULL, PRIMARY KEY(project, id))""")
         db.execute(
             "INSERT INTO overlap_snapshots VALUES (?,?,?)",
-            (project_id, frozen.snapshot, workspace.cipher.encrypt(json.dumps(private).encode())),
+            (project_id, frozen.snapshot, seal(workspace, private)),
         )
     return frozen
 
@@ -152,7 +153,7 @@ def evaluate(ctx, options):
         ).fetchone()
     if not row:
         raise WorkspaceError("Saved provider snapshot is unavailable.")
-    profiles = json.loads(ctx.workspace.cipher.decrypt(row[0]))
+    profiles = unseal(ctx.workspace, row[0])
     env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "PYTHON_DOTENV_DISABLED": "1"}
     allow = ["SSL_CERT_FILE"]
     if options.chat and options.chat.provider == "bedrock":
@@ -223,7 +224,7 @@ def index(request: Request, project_id: str, sha: str = ""):
         raise HTTPException(422, str(exc)) from exc
     return request.app.state.templates.TemplateResponse(
         request=request,
-        name="overlap.html",
+        name="overlap/index.html",
         context={
             "project": project,
             "sha": sha,
@@ -246,7 +247,7 @@ def queue(request: Request, project_id: str, form: Annotated[Submission, Form()]
     except WorkspaceError as exc:
         return request.app.state.templates.TemplateResponse(
             request=request,
-            name="overlap.html",
+            name="overlap/index.html",
             status_code=422,
             context={"project": project, "sha": form.sha, "error": str(exc)},
         )

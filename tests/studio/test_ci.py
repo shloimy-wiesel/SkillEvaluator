@@ -9,6 +9,13 @@ from test_workspace import before_push, connect, page, playwright, private_remot
 SCAN = ".github/workflows/skill-checks.yml"
 
 
+def publish(page, button):
+    with page.expect_response(lambda response: response.request.method == "POST") as posted:
+        page.get_by_role("button", name=button).click()
+    assert posted.value.status == 303
+    assert page.reload().request.method == "GET"
+
+
 @pytest.fixture
 def github_remote(private_remote, tmp_path, monkeypatch):
     import os
@@ -72,7 +79,8 @@ def test_review_checks_then_publish(page, github_remote, tmp_path):
         page.get_by_role("button", name="Review setup").click()
         review = page.get_by_label("Generated workflow").inner_text()
         assert subprocess.run(["git", "cat-file", "-e", "main:" + SCAN], cwd=remote).returncode
-        page.get_by_role("button", name="Publish reviewed workflow").click()
+        publish(page, "Publish reviewed workflow")
+        playwright.expect(page.get_by_role("status")).to_contain_text("Published the reviewed workflow")
         saved = subprocess.check_output(["git", "show", "main:" + SCAN], cwd=remote).decode()
         assert saved == review
         job = yaml.safe_load(saved)["jobs"]["skills"]
@@ -100,7 +108,7 @@ def test_review_demo_then_publish_separate_branch(page, github_remote, tmp_path)
         page.get_by_role("button", name="Publish reviewed workflow").click()
         page.get_by_role("button", name="Review demo").click()
         playwright.expect(page.get_by_label("Demo change")).to_contain_text("<!-- SkillEvaluator onboarding demo:")
-        page.get_by_role("button", name="Publish demo branch").click()
+        publish(page, "Publish demo branch")
         playwright.expect(page.get_by_role("link", name="Open pull request for review")).to_have_attribute(
             "href", github_remote[0].removesuffix(".git") + "/compare/main...ci/skillevaluator-test?expand=1"
         )
@@ -364,7 +372,7 @@ def test_read_gitlab_pipeline_and_create_review_requests(page, gitlab_host):
     ]
     assert feedback["api-url"] == lab.root + "/api/v4" and feedback["project-id"] == "group/nested/handbook"
     assert not requests
-    page.get_by_role("button", name="Apply reviewed setup").click()
+    publish(page, "Apply reviewed setup")
     playwright.expect(page.get_by_role("status")).to_contain_text("/merge_requests/7", timeout=3000)
     branch = requests[0]["source_branch"]
     assert requests[0]["target_branch"] == "main"
@@ -374,7 +382,7 @@ def test_read_gitlab_pipeline_and_create_review_requests(page, gitlab_host):
     host.connect()
     page.get_by_role("link", name="Repository CI").click()
     page.get_by_role("button", name="Review demo").click()
-    page.get_by_role("button", name="Create reviewed PR/MR").click()
+    publish(page, "Create reviewed PR/MR")
     playwright.expect(page.get_by_role("status")).to_contain_text("/merge_requests/7")
     assert requests[1]["source_branch"] == "ci/skillevaluator-all-tiers-test"
     assert b"onboarding demo" in subprocess.check_output(

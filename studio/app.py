@@ -61,7 +61,7 @@ def create_app(data_dir=None, *, routers=(), job_definitions=()):
     def home(request, error=None, folder="."):
         return templates.TemplateResponse(
             request=request,
-            name="home.html",
+            name="workspace/home.html",
             context={"projects": workspace.projects(), "error": error, "folder": folder},
             status_code=422 if error else 200,
         )
@@ -93,7 +93,7 @@ def create_app(data_dir=None, *, routers=(), job_definitions=()):
         project = workspace.get(project_id)
         if project is None:
             raise HTTPException(404, "Unknown project")
-        return templates.TemplateResponse(request=request, name="project.html", context={"project": project})
+        return templates.TemplateResponse(request=request, name="workspace/project.html", context={"project": project})
 
     @app.post("/projects/{project_id}/check")
     def check_access(request: Request, project_id: str):
@@ -104,10 +104,15 @@ def create_app(data_dir=None, *, routers=(), job_definitions=()):
             workspace.git(project, ["ls-remote", "--exit-code", "--", project.remote, "HEAD"], authenticated=True)
         except WorkspaceError as exc:
             return templates.TemplateResponse(
-                request=request, name="project.html", context={"project": project, "error": str(exc)}, status_code=422
+                request=request,
+                name="workspace/project.html",
+                context={"project": project, "error": str(exc)},
+                status_code=422,
             )
         return templates.TemplateResponse(
-            request=request, name="project.html", context={"project": project, "notice": "Remote access confirmed."}
+            request=request,
+            name="workspace/project.html",
+            context={"project": project, "notice": "Remote access confirmed."},
         )
 
     templates.env.globals["gitlab_instance"] = lambda project: instance(workspace, project)
