@@ -13,6 +13,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .grader_sandbox import isolated, require_sandbox
 from .jobs import JobDefinition, Outcome
 from .providers import worker_environment
 from .workspace import WorkspaceError
@@ -25,6 +26,7 @@ class GraderOptions(BaseModel):
     split: Literal["assessment", "all", "tuning"] = "assessment"
     cases: tuple[str, ...] = ()
     chat: tuple[str, str, str] | None = None
+    sandbox_consent: bool = False
     check_suite: bool = True
     repeats: int = Field(default=3, ge=1, le=20)
     concurrency: int = Field(default=1, ge=1, le=4)
@@ -57,12 +59,20 @@ def evaluate(ctx, options):
             raise WorkspaceError("Select a JSON file in the skill.")
         return ctx.input_file((ctx.skill.relative_to(ctx.root) / name).as_posix())
 
-    if options.policy:
-        args.extend(["--qualification-policy", str(selected(options.policy))])
-    if options.suite:
-        manifest = selected(options.suite)
-        if manifest.name != "suite.json":
-            raise WorkspaceError("Select a suite.json manifest.")
+    policy = selected(options.policy) if options.policy else None
+    manifest = selected(options.suite) if options.suite else None
+    if manifest and manifest.name != "suite.json":
+        raise WorkspaceError("Select a suite.json manifest.")
+    if manifest and not options.check_suite:
+        require_sandbox(options.sandbox_consent)
+        chat = worker_environment(ctx.workspace, ctx.project_id, "chat") if options.chat else {}
+        if options.chat and public_identity(chat) != options.chat:
+            raise WorkspaceError("Chat settings changed since this run was queued.")
+        code, payload = isolated(ctx, options, args, manifest=manifest, policy=policy, chat=chat, redact=redact)
+        return finish(options, code, payload)
+    if policy:
+        args.extend(["--qualification-policy", str(policy)])
+    if manifest:
         args.append(str(manifest.parent))
     with TemporaryDirectory() as temp:
         env = {
@@ -74,8 +84,6 @@ def evaluate(ctx, options):
         }
         code, payload = invoke([*args, "--check-suite"], temp, env)
         if not options.check_suite and code != 2:
-            if options.suite:
-                raise WorkspaceError("Live qualification requires the bundled reference suite on this host.")
             # A failed policy preflight must emit the CLI's not_run receipt, even without credentials.
             if code == 0:
                 if options.chat is None:
@@ -89,21 +97,25 @@ def evaluate(ctx, options):
                 if ca := os.environ.get("SSL_CERT_FILE"):
                     env["SSL_CERT_FILE"] = str(Path(ca).resolve())
             code, payload = invoke([*args, "--output", str(Path(temp) / "output")], temp, env, live=True)
-            if "metrics" in payload:
-                from skillevaluator.tier3.grader_validation import gate_failures
-
-                payload["threshold_failures"] = gate_failures(
-                    payload,
-                    {
-                        name: getattr(options, "max_" + name)
-                        for name in ("false_pass_rate", "false_fail_rate", "unjudgeable_rate")
-                    },
-                )
             output = Path(temp) / "output"
             with ZipFile(ctx.artifacts / "qualification.zip", "w", ZIP_DEFLATED) as archive:
                 for path in sorted(output.rglob("*")):
                     if path.is_file() and path.suffix in {".json", ".txt"}:
                         archive.writestr(path.relative_to(output).as_posix(), redact(path.read_text(), env))
+    return finish(options, code, payload)
+
+
+def finish(options, code, payload):
+    if "metrics" in payload:
+        from skillevaluator.tier3.grader_validation import gate_failures
+
+        payload["threshold_failures"] = gate_failures(
+            payload,
+            {
+                name: getattr(options, "max_" + name)
+                for name in ("false_pass_rate", "false_fail_rate", "unjudgeable_rate")
+            },
+        )
     status = "not_run" if payload.get("execution_status") == "not_run" else "passed" if code == 0 else "failed"
     report = json.dumps(payload, indent=2)
     return Outcome(status, code, report, "# Grader validation\n\n```json\n" + report + "\n```\n")
