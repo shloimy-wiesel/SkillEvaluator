@@ -87,7 +87,7 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         expect(page.get_by_label("Commit SHA")).to_have_value(sha_b)
         link(sha_a).click()
         assert page.url == second + original_run
-        expect(page.get_by_text(sha_a, exact=True)).to_be_visible()
+        expect(page.get_by_text("Commit", exact=True).locator("+ dd")).to_have_text(sha_a)
         expect(page.get_by_role("status")).to_contain_text("failed")
         expect(page.get_by_text(finding, exact=False)).to_be_visible()
 
