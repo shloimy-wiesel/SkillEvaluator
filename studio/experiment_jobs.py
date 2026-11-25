@@ -194,6 +194,7 @@ class Interaction(InteractionControls, Profile):
 def interact(ctx, options):
     from skillevaluator.tier3.decoy_identity import decoy_source_copy_ignore
     from skillevaluator.tier3.harbor.secure_copy import copytree_secure
+    from skillevaluator.utils.path_security import find_git_repo_root
 
     selected = [directory(ctx, item) for item in options.skills]
     source = directory(ctx, options.eval_source)
@@ -205,8 +206,14 @@ def interact(ctx, options):
     ):
         raise WorkspaceError("Select distinct, non-overlapping skill folders.")
     output = ctx.artifacts / "interactions"
-    with tempfile.TemporaryDirectory(dir=ctx.root.parent) as temp:
+    # Unlike live evaluate, interact creates additional private skill roots
+    # under TMPDIR. Git discovery there must fall back to each member's own
+    # directory, never to an unrelated checkout containing the Studio volume.
+    scratch = ctx.root.parent if find_git_repo_root(ctx.root.parent) is None else None
+    with tempfile.TemporaryDirectory(dir=scratch) as temp:
         base = Path(temp)
+        if find_git_repo_root(base) is not None:
+            raise WorkspaceError("Interaction trials require a temporary directory outside any Git checkout.")
         suite = live_job.stage(replace(ctx, skill=source), base, Controls())
         members = base / "members"
         members.mkdir()

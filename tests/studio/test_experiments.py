@@ -171,6 +171,13 @@ def test_interaction_pins_suite_and_retains_incomplete_evidence(page, private_re
 
     def engine(args, cwd, env):
         calls.append(1)
+        from skillevaluator.utils.path_security import resolve_repo_context_root
+
+        # The engine freezes each member again underneath TMPDIR. A volume
+        # inside an operator checkout must never become the trial repo context.
+        frozen = Path(env["TMPDIR"]) / "native-snapshot" / "skill-1" / "triage"
+        frozen.mkdir(parents=True)
+        assert resolve_repo_context_root(frozen) == frozen.parent
         assert env["SKILL_EVAL_LLM_API_KEY"] == "chat-secret"
         assert args[:2] == ["tier3", "interact"] and [Path(p).name for p in args[2:4]] == ["triage", "logs"]
         assert not (Path(args[3]) / "evals/config.yml").exists()
@@ -203,6 +210,7 @@ def test_interaction_pins_suite_and_retains_incomplete_evidence(page, private_re
         return 1
 
     monkeypatch.setattr(live_job, "invoke_engine", engine)
+    subprocess.run(["git", "init", "-q", tmp_path / "volume"], check=True)
     with running(tmp_path / "volume") as base:
         settings = open_settings(page, base, private_remote)
         save_profile(
