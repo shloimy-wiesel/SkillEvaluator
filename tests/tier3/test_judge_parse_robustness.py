@@ -581,7 +581,7 @@ def test_template_anthropic_request_uses_model_compatible_temperature(monkeypatc
         return Response()
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-    monkeypatch.setattr(eval_template.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(eval_template, "_open_verifier_request", fake_urlopen)
 
     content, error = eval_template._call_anthropic("prompt", model, 4096, 0.3)
 
@@ -667,7 +667,7 @@ def test_template_structured_judges_retry_nullable_openai_content(
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("SKILL_EVAL_LLM_BASE_URL", "https://openai-compatible.example/v1")
     monkeypatch.delenv("LLM_JUDGE_FALLBACK_MODELS", raising=False)
-    monkeypatch.setattr(eval_template.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(eval_template, "_open_verifier_request", fake_urlopen)
 
     result = getattr(eval_template, judge_name)("question", "ground truth", "agent response")
 
@@ -689,7 +689,7 @@ def test_template_non_string_openai_content_remains_a_provider_error(monkeypatch
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("SKILL_EVAL_LLM_BASE_URL", "https://openai-compatible.example/v1")
     monkeypatch.delenv("LLM_JUDGE_FALLBACK_MODELS", raising=False)
-    monkeypatch.setattr(eval_template.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(eval_template, "_open_verifier_request", fake_urlopen)
 
     result = eval_template.judge_accuracy("question", "ground truth", "agent response")
 
@@ -798,7 +798,7 @@ def _replay(monkeypatch, replies):
         requests.append(request)
         return _JSONResponse(next(pending))
 
-    monkeypatch.setattr(eval_template.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(eval_template, "_open_verifier_request", fake_urlopen)
     return requests
 
 

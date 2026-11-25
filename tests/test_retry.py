@@ -196,7 +196,7 @@ def test_verifier_preserves_rate_limit_error_body_when_retry_after_exceeds_cap(
             io.BytesIO(b'{"error":"capacity returns in one hour"}'),
         )
 
-    monkeypatch.setattr(verifier.urllib.request, "urlopen", rate_limited)
+    monkeypatch.setattr(verifier, "_open_verifier_request", rate_limited)
     request = verifier.urllib.request.Request("https://example.test/v1/chat/completions")
     with pytest.raises(urllib.error.HTTPError) as exc_info:
         verifier._urlopen_with_retry(request)
