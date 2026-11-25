@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Skill lift history{% endblock %}
+{% block content %}
+<h1>Skill lift history</h1><p>Review retained live evaluations of <code>{{ project.folder }}</code>.</p>
+<form class="panel"><label for="scope">Results scope</label><select multiple id="scope" name="scope">{% for run in choices %}<option value="{{ run.id }}" {% if run.id in scope %}selected{% endif %}>{{ run.created }} · {{ run.id }}</option>{% endfor %}</select>
+<p>Leave the scope empty to include all retained evaluations for this skill.</p>
+<label for="agent">Agent filter</label><input id="agent" name="agent" value="{{ agent }}" placeholder="All agents">
+{% for key, value, label in [('current',current,'Current evaluation'),('prior',prior,'Prior evaluation')] %}
+<label for="{{ key }}">{{ label }}</label><select id="{{ key }}" name="{{ key }}"><option value="latest">{{ 'Latest completed' if key == 'current' else 'Latest earlier compatible revision' }}</option>
+{% for run in choices %}<option value="{{ run.id }}" {% if run.id == value %}selected{% endif %}>{{ run.created }} · {{ run.id }}</option>{% endfor %}</select>{% endfor %}
+<button>Inspect results</button></form>
+<h2>Baseline lift trend</h2>
+<table><thead><tr>{% for title in ['Native run','Agent','Segment','With skill','Without skill','Lift','Lift change'] %}<th>{{ title }}</th>{% endfor %}</tr></thead><tbody>
+{% for row in trend.rows %}<tr>{% for value in [row.run_id,row.agent,row.segment,row.with_skill_score,row.without_skill_score,row.lift_delta,row.lift_change] %}<td>{{ value if value is not none else 'Not measured' }}</td>{% endfor %}</tr>{% else %}<tr><td colspan="7">No matching retained rows.</td></tr>{% endfor %}</tbody></table>
+{% for fmt,label in [('json','JSON'),('csv','CSV'),('md','Markdown')] %}<a href="{{ request.url.include_query_params(download=fmt) }}">History {{ label }}</a> {% endfor %}
+<h2>Version comparison</h2><p>{{ comparison.status }}{% if comparison.source_studio_run %} · Prior evaluation {{ comparison.source_studio_run }}{% endif %}</p>
+{% for reason in comparison.reasons %}<p>{{ reason }}</p>{% endfor %}
+{% for agent, scores in comparison.get('agents', {}).items() %}<p>{{ agent }}: {{ scores.prior_overall }} → {{ scores.current_overall }} ({{ '%+.2f'|format(scores.delta) }})</p>{% endfor %}
+<a href="{{ request.url.include_query_params(download='comparison') }}">Comparison JSON</a>
+{% endblock %}

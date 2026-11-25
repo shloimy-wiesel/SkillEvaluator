@@ -91,3 +91,18 @@ branch tip and complete Git tree still match the reviewed change. A failed API r
 review branch available. Hosted configuration can also finish partially; the
 wizard reports confirmed steps. No live hosted evaluation is claimed by the
 fixture tests.
+
+## Retained live results
+
+Open **Results → Skill lift history** from a connected project. Results scope
+selects immutable Studio evaluation roots for that project and skill folder;
+leave it empty to include all of them. Both flat and skill-nested native runs
+are inspected in place so native path-bound provenance remains verifiable.
+The exact agent filter applies to history (including JSON, CSV and Markdown).
+A missing lift change means that a comparable change was not measured.
+
+Current **Latest completed** follows native completion ordering. Prior **Latest
+earlier compatible revision** skips unchanged revisions and incompatible
+candidates. Explicit selections allow inspecting a mismatch or an unchanged
+revision. **Comparison JSON** contains the paired version result, separate from
+within-run baseline lift; unavailable evidence has no invented delta.

@@ -3,6 +3,7 @@
 import json
 import re
 from difflib import SequenceMatcher
+from pathlib import Path
 
 from fastapi import APIRouter, Request
 
@@ -99,7 +100,7 @@ def review_results(ws, project, sides):
         )
         retained.append((row["id"], row["sha"]) if usable else None)
     if any(retained):
-        evidence = retained_evidence(ws.data_dir, project.id, retained)
+        evidence = retained_evidence(ws.data_dir, project.id, retained, Path(project.folder).name or project.name)
         for side, rows in zip(sides, evidence["history"], strict=True):
             side["history"] = rows
         return evidence["comparison"]

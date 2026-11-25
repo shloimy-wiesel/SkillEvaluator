@@ -46,15 +46,16 @@ def history_directories(root: Path) -> list[Path]:
     except OSError:
         pass
 
-    def key(path: Path):
-        parsed = _run_timestamp_parts(path.name)
-        try:
-            mtime = (path / "result.json").lstat().st_mtime_ns
-        except OSError:
-            mtime = 0
-        return (parsed[0].isoformat() if parsed else "", mtime, path.name)
+    return sorted(directories, key=history_sort_key)
 
-    return sorted(directories, key=key)
+
+def history_sort_key(path: Path):
+    parsed = _run_timestamp_parts(path.name)
+    try:
+        mtime = (path / "result.json").lstat().st_mtime_ns
+    except OSError:
+        mtime = 0
+    return (parsed[0].isoformat() if parsed else "", mtime, path.name)
 
 
 def _mapping(value: Any) -> dict[str, Any]:
@@ -307,6 +308,11 @@ def collect_history(skill_path: Path, results_dir: Path | None = None, agent: st
         if found := history_directories(candidate):
             root, directories = candidate, found
             break
+    return history_from_directories(directories, str(root), agent)
+
+
+def history_from_directories(directories, results_root: str, agent: str | None = None) -> dict:
+    """Apply native trend semantics across an already scoped chronological selection."""
     rows, states = [], {}
     for directory in directories:
         try:
@@ -350,7 +356,7 @@ def collect_history(skill_path: Path, results_dir: Path | None = None, agent: st
                 else (prior_lift if not mismatches else None),
             }
             rows.append({key: row.get(key) for key in _ROW_FIELDS})
-    return {"schema_version": "1.0", "results_root": str(root), "rows": rows}
+    return {"schema_version": "1.0", "results_root": results_root, "rows": rows}
 
 
 def _coverage(row: dict) -> str:

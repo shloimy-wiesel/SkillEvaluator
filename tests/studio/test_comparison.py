@@ -71,3 +71,48 @@ def test_author_compares_paired_evidence_then_inspects_policy_mismatch(
         playwright.expect(page.get_by_label("Current arm scores")).to_contain_text("\N{MINUS SIGN}0.30")
         forged = page.request.get(page.url.replace("current_run=" + "b" * 32, "current_run=" + "a" * 32))
         assert forged.status == 422 and "Choose a run retained for the selected revision" in forged.text()
+
+
+def test_download_scoped_native_trends_and_version_report(page, tmp_path, private_remote, evaluation, monkeypatch):
+    import csv
+    import json
+
+    volume = tmp_path / "volume"
+    monkeypatch.setenv("SKILLEVALUATOR_OUTPUT_PROVENANCE_KEY_FILE", str(volume / "tier3-output.key"))
+    with running(volume) as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        page.get_by_role("link", name="Skill lift history").click(timeout=2000)
+        project = page.url.split("/")[-3]
+        for char, score, folder in [("a", 0.8, "triage"), ("b", 0.2, ""), ("c", 0.7, "elsewhere")]:
+            run = char * 32
+            assert "error" not in evaluation(
+                char, score, output_dir=volume / "artifacts" / project / run / "tier3" / folder
+            )
+            with closing(sqlite3.connect(volume / "studio.sqlite3")) as db, db:
+                db.execute(
+                    "INSERT INTO runs(id,project_id,sha,folder,kind,options,status,report) VALUES(?,?,?,?,?,?,?,?)",
+                    (run, project, char * 40, "skills/triage", "tier3-live-v1", "{}", "neutral", "{}"),
+                )
+        page.reload()
+
+        def download(label):
+            with page.expect_download() as waiting:
+                page.get_by_role("link", name=label, exact=True).click()
+            return waiting.value.path().read_text()
+
+        assert [r["lift_change"] for r in json.loads(download("History JSON"))["rows"]] == [None, -0.6]
+        assert len(list(csv.DictReader(download("History CSV").splitlines()))) == 2
+        assert "Skill Lift history" in download("History Markdown")
+        page.get_by_label("Results scope").select_option(["a" * 32])
+        page.get_by_role("button", name="Inspect results").click()
+        assert len(json.loads(download("History JSON"))["rows"]) == 1
+        assert json.loads(download("Comparison JSON"))["status"] == "unavailable"
+        page.get_by_label("Results scope").select_option([])
+        page.get_by_label("Agent filter").fill("missing")
+        page.get_by_label("Current evaluation").select_option("b" * 32)
+        page.get_by_label("Prior evaluation").select_option("a" * 32)
+        page.get_by_role("button", name="Inspect results").click()
+        assert json.loads(download("History JSON"))["rows"] == []
+        assert json.loads(download("Comparison JSON"))["agents"]["opencode"]["delta"] == -0.6
+        assert page.request.get(page.url + "&scope=" + "f" * 32).status == 422
