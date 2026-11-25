@@ -751,4 +751,8 @@ def emit_reports(
         if announce_paths:
             console.print(f"[dim]{fmt} report:[/dim] [cyan]{escape_markup(str(output_path))}[/cyan]")
 
+    from skillevaluator.embedded import report_observer
+
+    if observer := report_observer.get():
+        observer(results)
     return all(result.passed for result in results)

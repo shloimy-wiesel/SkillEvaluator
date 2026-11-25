@@ -7,6 +7,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 
 from .static_job import STATIC, StaticOptions
+from .expert_options import ACTIONS
 from .workspace import WorkspaceError
 
 router = APIRouter(prefix="/projects/{project_id}/runs")
@@ -31,7 +32,11 @@ def index(request: Request, project_id: str):
     return request.app.state.templates.TemplateResponse(
         request=request,
         name="runs/index.html",
-        context={"project": project_for(request, project_id), "runs": request.app.state.jobs.history(project_id)},
+        context={
+            "project": project_for(request, project_id),
+            "runs": request.app.state.jobs.history(project_id),
+            "actions": ACTIONS,
+        },
     )
 
 
@@ -54,6 +59,7 @@ def queue(
                 "error": str(exc),
                 "sha": sha,
                 "checks": checks,
+                "actions": ACTIONS,
             },
         )
     return RedirectResponse(request.url_for("run_detail", project_id=project_id, run_id=run_id), 303)
