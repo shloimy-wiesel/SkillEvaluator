@@ -1,5 +1,4 @@
 {% extends "base.html" %}{% block title %}Provider settings{% endblock %}{% block content %}
-<p class="eyebrow"><a href="{{ url_for('project', project_id=project.id) }}">{{ project.name }}</a> / Configuration</p>
 <h1>Provider settings</h1><p>Chat and embedding requests use separate profiles for this project.</p>
 {% if error %}<p role="alert">{{ error }}</p>{% endif %}
 {% for role,title in [('chat','Chat'),('embeddings','Embeddings')] %}{% set p = profiles[role] %}
