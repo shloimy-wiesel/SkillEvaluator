@@ -4,13 +4,55 @@ from test_workspace import connect, playwright, running
 pytest_plugins = ("test_workspace",)
 
 
-def test_author_runs_only_quality_and_downloads_requested_evidence(page, private_remote, tmp_path):
+def publish(tmp_path, files):
+    import subprocess
+
+    seed = tmp_path / "seed"
+    for path, text in files.items():
+        dest = seed / path
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(text)
+    repo = tmp_path / "server/handbook.git"
+    subprocess.run(["git", "add", "."], cwd=seed, check=True)
+    subprocess.run(["git", "-c", "user.name=test", "-c", "user.email=t@example.org", "commit", "-m", "inputs"],
+                   cwd=seed, check=True)
+    subprocess.run(["git", "push", repo, "main"], cwd=seed, check=True)
+    subprocess.run(["git", "update-server-info"], cwd=repo, check=True)
+
+
+def test_parallel_catalog_reports_each_child_at_selected_commit(page, private_remote, tmp_path):
+    publish(tmp_path, {"skills/second/SKILL.md": "# Missing frontmatter\n"})
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        page.get_by_role("heading", name="handbook").wait_for()
+        page.goto(page.url + "/expert/validate")
+        page.get_by_label("Target directory").select_option("skills", timeout=2000)
+        page.get_by_label("Catalog workers").fill("2")
+        page.get_by_label("Checks to run").select_option("schema")
+        page.get_by_label("Tiers").select_option("1")
+        sha = page.get_by_label("Commit SHA").input_value()
+        for bad in ({"target": "/etc"}, {"target": "alias"}, {"workers": 5}):
+            assert page.request.post(page.url, form={"sha": sha, "tiers": "1", **bad}).status == 422
+        page.get_by_role("button", name="Queue check").click()
+        playwright.expect(page.get_by_role("status")).to_contain_text("failed", timeout=25000)
+        summary = page.request.get(page.get_by_role("link", name="Download native Catalog summary").get_attribute("href")).json()
+        assert (summary["total"], summary["failed"]) == (2, 2)
+        assert {s["name"] for s in summary["skills"]} == {"triage", "second"}
+        for s in summary["skills"]:
+            leaf = page.get_by_role("link", name=f"Download native JSON · {s['name']}", exact=True)
+            assert "SKILL.md must have YAML frontmatter" in page.request.get(leaf.get_attribute("href")).text()
+        assert "2 workers" in page.locator("body").text_content()
+
+
+@pytest.mark.parametrize("label", ["Quality check", "Tier 1: Quality check"])
+def test_author_runs_only_quality_and_downloads_requested_evidence(page, private_remote, tmp_path, label):
     with running(tmp_path / "volume") as base:
         page.goto(base)
         connect(page, *private_remote, skill="skills/triage")
         page.get_by_role("link", name="Evaluation runs").click()
         page.get_by_text("Expert checks and validation", exact=True).click(timeout=2000)
-        page.get_by_role("link", name="Quality check", exact=True).click()
+        page.get_by_role("link", name=label, exact=True).click(timeout=3000)
         page.get_by_label("Minimum score").fill("100")
         page.get_by_label("Reports").select_option("json")
         page.get_by_role("button", name="Queue check").click()

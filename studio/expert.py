@@ -14,8 +14,9 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
 from . import expert_profiles, live_job
-from .expert_options import ACTIONS, CHECKS, FIELDS, FILES, HARNESSES, MULTI, REPORTS, ExpertOptions
+from .expert_options import ACTIONS, ALIASES, CHECKS, FIELDS, FILES, HARNESSES, MULTI, REPORTS, ExpertOptions
 from .jobs import JobDefinition, Outcome
+from .overlap import choices as directory_choices
 from .runs import project_for, record_for
 from .workspace import WorkspaceError
 
@@ -143,18 +144,25 @@ def invoke(ctx, args, work, output, *, chat, embeddings, runtime, reason):
     native = {}
     captured = work / "studio-result.json"
     report = json.loads(sanitized(captured.read_bytes())) if captured.exists() else {}
-    for path in sorted(output.iterdir()):
+    for path in sorted(output.rglob("*")):
         if path.is_file() and not path.is_symlink():
             for suffix, label in SUFFIXES.items():
                 if path.name.endswith(suffix):
-                    native[path.name] = "Benchmark" if path.name == "BENCHMARK.md" else label
+                    rel = path.relative_to(output)
+                    display = "Benchmark" if path.name == "BENCHMARK.md" else label
+                    catalog = rel.as_posix() == "catalog-summary.json"
+                    native[str(rel)] = ("Catalog summary" if catalog else display) + (
+                        f" · {rel.parent}" if rel.parent.parts else ""
+                    )
                     data = sanitized(path.read_bytes())
-                    (ctx.artifacts / path.name).write_bytes(data)
-                    if label == "JSON":
+                    dest = ctx.artifacts / rel
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_bytes(data)
+                    if label == "JSON" and not rel.parent.parts:
                         report = json.loads(data)
                     break
     terminal = sanitized(log.read_bytes()).decode(errors="replace")
-    if done.returncode and not captured.exists():
+    if done.returncode and not captured.exists() and "catalog-summary.json" not in native:
         raise WorkspaceError(
             "Evaluator could not produce a result. Check configuration file contents and runtime prerequisites."
         )
@@ -187,7 +195,7 @@ def choices_at(request, project, sha):
     if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", sha):
         raise WorkspaceError("Choose a full commit SHA in this project.")
     tree = request.app.state.workspace.git(project, ["ls-tree", "-rlz", sha])
-    return sorted(
+    return directory_choices(request.app.state.workspace, project, sha)[0], sorted(
         name
         for entry in tree.split("\0")
         if entry.startswith(("100644 ", "100755 "))
@@ -205,13 +213,14 @@ def render(request, project, action, sha, choices, error=None):
         status_code=422 if error else 200,
         context={
             "project": project,
-            "action": action,
+            "action": ALIASES.get(action, action),
             "label": ACTIONS[action],
             "formats": REPORTS,
             "checks": CHECKS,
             "fields": FIELDS[action],
             "files": FILES,
-            "choices": choices,
+            "dirs": choices[0] if choices else [],
+            "choices": choices[1] if choices else [],
             "harnesses": HARNESSES,
             "sha": sha,
             "error": error,
@@ -241,7 +250,12 @@ async def queue(request: Request, project_id: str, action: str):
                 if key != "sha" and key not in versions and data[key]
             },
         )
-        if any(path not in choices for key in FILES if (path := getattr(options, key))):
+        dirs, files = choices
+        if any(path not in dirs for path in (options.target, options.catalog_root) if path):
+            raise WorkspaceError("Choose an unlinked directory listed at this commit.")
+        if options.catalog_root and not Path(options.target or project.folder).is_relative_to(options.catalog_root):
+            raise WorkspaceError("Catalog root must contain the target.")
+        if any(path not in files for key in FILES if (path := getattr(options, key))):
             raise WorkspaceError("Choose a configuration file listed at this commit.")
         options = expert_profiles.snapshot(request.app.state.workspace, project.id, options)
         run_id = request.app.state.jobs.enqueue(project, sha, EXPERT, options)
@@ -259,12 +273,12 @@ async def queue(request: Request, project_id: str, action: str):
     return RedirectResponse(request.url_for("run_detail", project_id=project_id, run_id=run_id), 303)
 
 
-@router.get("/artifacts/{run_id}/{name}", name="expert_artifact")
+@router.get("/artifacts/{run_id}/{name:path}", name="expert_artifact")
 def artifact(request: Request, project_id: str, run_id: str, name: str):
     row = record_for(request, project_id, run_id)
     if (
         row["kind"] != EXPERT.kind
-        or name != Path(name).name
+        or Path(name).is_absolute() or ".." in Path(name).parts
         or name not in json.loads(row["report"] or "{}").get("native", {})
     ):
         raise HTTPException(404)

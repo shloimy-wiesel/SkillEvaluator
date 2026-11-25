@@ -13,8 +13,18 @@ Key-backed providers require the chat SDK.</p>{% endif %}
 <form method="post">
 <input type="hidden" name="sha" value="{{ sha }}">
 <p>Loaded revision: <code>{{ sha }}</code></p>
+{% if 'target' in fields %}<label>Target directory<select name="target"><option value="">Connected skill</option>{% for dir in dirs %}<option>{{ dir }}</option>{% endfor %}</select></label>{% endif %}
+{% if 'workers' in fields %}
+<p>Alternate targets and catalog workers require Tier 1 or Tier 1 and Tier 2.</p>
+<label>Catalog workers<input type="number" min="1" max="4" name="workers"></label>
+<label>Catalog root<select name="catalog_root"><option value="">Evaluator default</option>{% for dir in dirs %}<option>{{ dir }}</option>{% endfor %}</select></label>
+<label>Content type<select name="content_type"><option value="">Auto-detect</option>{% for t in ('skill','rules','workflows','plugin') %}<option>{{ t }}</option>{% endfor %}</select></label>{% endif %}
 {% if 'tiers' in fields %}<label>Tiers<select name="tiers"><option value="">Engine default (all three tiers)</option><option value="1">Tier 1 only</option><option value="1,2">Tier 1 and Tier 2</option><option value="1,3">Tier 1 and Tier 3</option><option value="1,2,3">All three tiers</option></select></label>
 <label>Tier 2 gate<select name="block_on_dedup"><option value="">Evaluator default</option><option value="true">Blocking</option><option value="false">Advisory</option></select></label>
+<details><summary>Workflow shortcuts</summary><p>Explicit tiers override the live shortcut. Disabling deduplication skips Tier 2 even when selected.</p>
+<label><input type="checkbox" name="full" value="true">Full validation</label>
+<label><input type="checkbox" name="external" value="true">External policy shortcut</label>
+{% for key,title in [('dedup','Deduplication'),('agent_eval','Live agent evaluation')] %}<label>{{ title }}<select name="{{ key }}"><option value="">Engine default</option><option value="true">Enable</option><option value="false">Disable</option></select></label>{% endfor %}</details>
 <label><input type="checkbox" name="include_revision" value="true">Record the pinned revision on the benchmark card (automatic with Tier 3)</label>
 <details><summary>Tier 3 settings</summary>
 <p>Blank settings use the root evaluator defaults and the pinned run policy. Measured trials require the dedicated Harbor runtime and a saved chat profile.</p>
@@ -36,6 +46,7 @@ Key-backed providers require the chat SDK.</p>{% endif %}
 {% for key,title in [('fail_fast','Stop on first failure'),('continue_on_failure','Continue on failure'),('verbose','Verbose output'),('llm_verify','Verify findings with chat provider')] if key in fields %}<label><input type="checkbox" name="{{ key }}" value="true">{{ title }}</label>{% endfor %}
 {% for key,title in files.items() if key in fields %}<label>{{ title }}<select name="{{ key }}"><option value="">Evaluator default</option>{% for path in choices %}<option>{{ path }}</option>{% endfor %}</select></label>{% endfor %}
 {% if 'harness' in fields %}<label for="harness">Harnesses</label><select id="harness" name="harness" multiple>{% for h in harnesses %}<option>{{ h }}</option>{% endfor %}</select>{% endif %}
+{% if 'harness_profiles' in fields %}<label>Managed harness profiles<select name="harness_profiles"><option value="">Evaluator default</option><option value="agent-clis">Agent CLIs (Claude Code, Codex, OpenCode)</option></select></label>{% endif %}
 {% if action == 'harness-check' %}
 <p>Advisory compatibility for packaged profiles. An omitted selection checks all harnesses.</p>
 <label>Context tokens<input type="number" min="0" name="context_tokens"></label>
