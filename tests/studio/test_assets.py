@@ -9,7 +9,17 @@ def test_custom_grader_preview_and_push(page, tmp_path, private_remote):
     with running(tmp_path / "volume") as base:
         page.goto(base)
         connect(page, *private_remote, skill="skills/triage")
-        page.get_by_role("link", name="Evaluation assets").click(timeout=2000)
+        with page.expect_response(
+            lambda response: "/api/v1/projects/" in response.url and response.url.endswith("/assets"), timeout=5000
+        ) as loaded:
+            page.get_by_role("link", name="Evaluation assets").click(timeout=2000)
+        assert loaded.value.json()["project"]["branch"] == "main"
+        endpoint = loaded.value.url
+        revision = loaded.value.json()["project"]["revision"]
+        invalid = page.request.post(
+            endpoint + "/qualify", data={"branch": "main", "revision": revision, "action": "check", "concurrency": 5}
+        )
+        assert invalid.status == 422 and invalid.json()["detail"]["code"] == "invalid_request"
         form = page.get_by_role("form", name="Custom grader")
         form.get_by_label("Language").select_option("shell")
         form.get_by_label("Grading mode").select_option("custom_only")
@@ -24,6 +34,19 @@ def test_custom_grader_preview_and_push(page, tmp_path, private_remote):
         assert b"custom_only" in subprocess.check_output(
             ["git", "show", "main:skills/triage/evals/config.yml"], cwd=remote
         )
+        stale = page.request.post(
+            endpoint + "/scaffold",
+            data={
+                "branch": "main",
+                "revision": revision,
+                "action": "save",
+                "kind": "grader",
+                "language": "python",
+                "mode": "custom_only",
+                "force": True,
+            },
+        )
+        assert stale.status == 409 and stale.json()["detail"]["code"] == "stale_revision"
 
         # Overwrite replaces the alternate language; --no-config keeps the prior mode.
         form.get_by_label("Overwrite existing starter").check()
@@ -170,6 +193,9 @@ def test_run_shipped_verifier_retains_attempt_evidence(page, tmp_path, private_r
         from zipfile import ZipFile
 
         response = page.request.get(page.get_by_role("link", name="Download attempt evidence").get_attribute("href"))
+        assert response.headers["content-type"] == "application/zip"
+        assert 'filename="grader-validation.zip"' in response.headers["content-disposition"]
+        assert page.request.get(response.url.rsplit("/", 1)[0] + "/unknown-run").status == 404
         with ZipFile(BytesIO(response.body())) as archive:
             assert b"insufficient_evidence" in archive.read("missing/attempt-1/expected-vs-observed.json")
             assert not any(b"test-only-key" in archive.read(name) for name in archive.namelist())
@@ -206,12 +232,13 @@ def test_authored_suite_requires_consent_and_sandbox(page, tmp_path, private_rem
         page.get_by_role("link", name="Evaluation assets").click()
         page.get_by_label("Suite", exact=True).select_option("labels/suite.json")
         page.get_by_role("button", name="Run qualification").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("consent")
-        page.get_by_label("Suite", exact=True).select_option("labels/suite.json")
+        form = page.get_by_role("form", name="Grader qualification")
+        playwright.expect(form.get_by_role("alert")).to_contain_text("consent")
+        playwright.expect(form.get_by_label("Suite", exact=True)).to_have_value("labels/suite.json")
         page.get_by_label("Allow this project suite").check()
         page.get_by_role("button", name="Run qualification").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("isolated Docker worker")
-        page.get_by_label("Suite", exact=True).select_option("labels/suite.json")
+        playwright.expect(form.get_by_role("alert")).to_contain_text("isolated Docker worker")
+        playwright.expect(form.get_by_label("Suite", exact=True)).to_have_value("labels/suite.json")
         page.get_by_label("Case IDs").fill("arithmetic")
         page.get_by_role("button", name="Check suite").click()
         playwright.expect(page.get_by_role("main")).to_contain_text("Suite valid: 1 assessment cases.", timeout=8000)
