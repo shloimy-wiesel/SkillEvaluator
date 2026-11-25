@@ -5,8 +5,11 @@
 <p role="status">{{ run.status }} · {{ run.progress }}</p>
 <dl><dt>Commit</dt><dd><code>{{ run.sha }}</code></dd><dt>Skill folder</dt><dd>{{ run.folder }}</dd>
 <dt>Configuration</dt><dd><code>{{ run.options }}</code></dd>
-{% if run.exit_code is not none %}<dt>Gate exit code</dt><dd>{{ run.exit_code }}</dd>{% endif %}</dl>
+{% if run.exit_code is not none %}<dt>{% if run.kind in ('external-metrics-v1', 'skill-interaction-v1', 'select-decoys-v1') %}Command exit code{% else %}Gate exit code{% endif %}</dt><dd>{{ run.exit_code }}</dd>{% endif %}</dl>
 {% if report %}<h2>Results</h2>
+{% if run.kind == 'tier3-live-v1' %}<p><a href="{{url_for('review_run', project_id=project.id, run_id=run.id)}}">Review artifacts and feedback</a> · <a href="{{url_for('review_run', project_id=project.id, run_id=run.id)}}?agents=true">Compare agents</a></p>{% endif %}
+{% if run.kind == "external-metrics-v1" %}<p>External observations · SkillEvaluator did not execute these tests or verify their source claims.</p><pre>{{ run.markdown }}</pre>{% endif %}
+{% if run.kind in ("select-decoys-v1", "skill-interaction-v1") %}<pre>{{ run.markdown }}</pre>{% endif %}
 {% if report.tier3 %}<p>Tier 3 verdict: {{ report.tier3.verdict|default("unavailable", true) }} · Execution: {{ report.tier3.execution_status }}</p>
 {% if report.tier3.summary %}<details><summary>Evaluation summary</summary><pre>{{ report.tier3.summary|tojson(indent=2) }}</pre></details>{% endif %}{% endif %}
 {% for reason in report.execution_errors|default([],true) %}<p>{{ reason }}</p>{% endfor %}
@@ -28,6 +31,7 @@
 {% for finding in result.findings %}<p><b>{{ finding.severity }}</b> {{ finding.message }}<br>{{ finding.file_path }}
 {% if finding.suggestion %}<br>{{ finding.suggestion }}{% endif %}</p>{% endfor %}</section>{% endfor %}
 {% if run.kind == 'expert-check-v1' %}
+{% if report.studio_dataset %}<p>{{ report.studio_dataset }}</p>{% endif %}
 {% if report.terminal %}<details><summary>Evaluator output</summary><pre>{{ report.terminal }}</pre></details>{% endif %}
 {% for name,label in report.native.items() %}
 <a href="{{ url_for('expert_artifact', project_id=project.id, run_id=run.id, name=name) }}">Download native {{ label }}</a>

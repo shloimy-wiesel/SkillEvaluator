@@ -28,6 +28,7 @@ Model = Annotated[str, Field(pattern=r"^[a-zA-Z0-9_.:/@+-]{1,256}$")]
 
 
 class Controls(BaseModel):
+    harbor_keep_jobs: bool = False
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
     workflow: Literal["evaluate", "direct"] = "evaluate"
     env_mode: Literal["docker", "kata"] = "docker"
@@ -120,8 +121,7 @@ def snapshot(workspace, project_id, controls):
     )
 
 
-def invoke_engine(args, cwd, env):
-    """No shell, repo cwd, stdin, ambient providers, or repository Python path."""
+def sandbox_preflight(cwd, env):
     if os.environ.get("STUDIO_LIVE_ENABLED") != "1":
         raise WorkspaceError("Live runtime is disabled. Configure the Studio live image and sandbox daemon.")
     for command, message in [
@@ -142,6 +142,10 @@ def invoke_engine(args, cwd, env):
             )
         except (OSError, subprocess.SubprocessError) as exc:
             raise WorkspaceError(message) from exc
+
+
+def invoke_engine(args, cwd, env):
+    sandbox_preflight(cwd, env)
     return subprocess.run(
         [sys.executable, "-I", "-c", "from skillevaluator.cli import cli; cli()", *args],
         env=env,
@@ -152,11 +156,10 @@ def invoke_engine(args, cwd, env):
     ).returncode
 
 
-def stage(ctx, base, options):
+def check_stage_policy(source):
     """Only generated Harbor tasks; no repository-authored launchers or native environments."""
     from skillevaluator.tier3.evals_config import load_evals_config
 
-    source = ctx.skill
     if any((source / "evals" / name).exists() for name in ("environment", "harbor")):
         raise WorkspaceError("This preset needs a dataset and a generated task environment.")
     config, config_path = load_evals_config(source)
@@ -183,10 +186,12 @@ def stage(ctx, base, options):
         }
     ):
         raise WorkspaceError("The pinned run policy contains settings outside this Studio preset.")
+    return config_path
+
+
+def stage_skill(source, base, exclude):
     skill = base / "inputs" / source.name
-    shutil.copytree(
-        source, skill, ignore=lambda root, _names: {".git", "eval", "evals"} if Path(root) == source else {".git"}
-    )
+    shutil.copytree(source, skill, ignore=lambda root, _names: {".git", *exclude} if Path(root) == source else {".git"})
     # Bind linked-file discovery to this input projection even when the Studio
     # volume itself is nested in an unrelated developer checkout.
     subprocess.run(
@@ -197,6 +202,13 @@ def stage(ctx, base, options):
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    return skill
+
+
+def stage(ctx, base, options):
+    source = ctx.skill
+    config_path = check_stage_policy(source)
+    skill = stage_skill(source, base, {"eval", "evals"})
     evals = skill / "evals"
     evals.mkdir()
     if config_path:
@@ -305,6 +317,8 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
                 args.append(("--" if enabled else "--no-") + name.replace("_", "-"))
         if options.autopilot:
             args.append("--autopilot")
+        if options.harbor_keep_jobs:
+            args.append("--harbor-keep-jobs")
         env = {
             k: os.environ[k]
             for k in ("DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "SSL_CERT_FILE")

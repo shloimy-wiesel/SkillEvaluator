@@ -6,6 +6,8 @@ from .ci_routes import router as ci_router
 from .comparison import router as comparison_router
 from .dataset_routes import router as dataset_router
 from .editor_routes import router as editor_router
+from .experiment_jobs import DECOYS, INTERACTION, METRICS
+from .experiment_routes import router as experiment_router
 from .expert import EXPERT
 from .expert import router as expert_router
 from .grader_job import GRADER
@@ -15,6 +17,7 @@ from .live_routes import router as live_router
 from .overlap import OVERLAP
 from .overlap import router as overlap_router
 from .providers import router as provider_router
+from .review import router as review_router
 from .runs import router as runs_router
 from .static_job import STATIC
 
@@ -28,9 +31,11 @@ ROUTERS = (
     live_router,
     comparison_router,
     history_router,
+    review_router,
     overlap_router,
     expert_router,
     advanced_ci_router,
+    experiment_router,
 )
 PROJECT_LINKS = (
     ("Compare revisions", "compare_revisions"),
@@ -41,7 +46,9 @@ PROJECT_LINKS = (
     ("Evaluation runs", "runs_index"),
     ("Evaluate overlap", "overlap_form"),
     ("Live Tier 3", "live_index"),
+    ("Experiments", "experiments"),
     ("Evaluation assets", "assets"),
     ("Repository CI", "repository_ci"),
+    ("Results dashboard", "results_dashboard"),
 )
-JOB_DEFINITIONS = (STATIC, GRADER, LIVE, OVERLAP, EXPERT)
+JOB_DEFINITIONS = (STATIC, GRADER, LIVE, OVERLAP, EXPERT, METRICS, DECOYS, INTERACTION)

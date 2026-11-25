@@ -82,8 +82,9 @@ Expand **Expert checks and validation** in Evaluation runs. Pick quality,
 rubric, security, PII, script lint, or harness compatibility to run that
 command alone. **Tier 1 workflow** and **Tier 1 validate** use the respective
 direct CLI entry points. **Validation pipeline** runs root `validate` on
-the connected skill with explicit tiers `1` or `1,2`. Tier 1 gates; Tier 2
-can be advisory or blocking. Fail-fast and continue-on-failure retain their
+the connected skill with all three tiers by default. Select `1`, `1,2`, `1,3`,
+or `1,2,3` to set the tier scope explicitly. Tier 1 gates; Tier 2 defaults to
+blocking and Tier 3 to advisory. Fail-fast and continue-on-failure retain their
 engine precedence. A blank check selection uses that command's own defaults
 (notably, direct Tier 1 includes dependency auditing). An explicit skip is
 reported by the evaluator, not simulated by removing a result.
@@ -104,8 +105,9 @@ runs without requesting extra native formats or running the check twice.
 
 **Prerequisites.** Rubric, LLM security analysis and LLM verification need
 a key-backed chat profile and the evaluator's `llm` extra. Direct Tier 1
-also uses saved chat settings by default when configured. Tier 2 needs
-`tier2` and both embeddings and chat profiles. The worker snapshots each
+also uses saved chat settings by default when configured. Measured Tier 2
+needs `tier2`, an embeddings profile, and chat for model-backed judging.
+With no embeddings profile root validation records the native skip. The worker snapshots each
 required role privately before queueing; reruns do not pick up later key,
 endpoint or model changes. Each SDK transport uses verified TLS without
 redirects. Ambient provider keys and AWS identity are not inherited.
@@ -114,23 +116,36 @@ SkillSpector's separate model transport is not enabled with a chat snapshot.
 Missing scanner evidence can make a run incomplete; a keyless security
 scan is not a certification that every scanner passed.
 
-### Boundary for root Tier 3 integration
+### Running root validation with Tier 3
 
-Root `validate` with omitted tiers defaults to live evaluation for skills.
-Studio therefore **requires** an explicit tier selection; it never silently
-converts that default to a Tier 1 run. The root command's dataset preflight,
-auto-generation and native Harbor launch currently operate on the target
-tree directly. A standalone Tier 3 job ending in `Outcome` is not a
-replacement for that stage: root validation needs its `ValidationResult`
-objects, fresh output provenance, staged inputs, budgets and gate metadata
-before `emit_reports`. To enable `1,3`, `1,2,3` and the unrestricted default,
-integrate #8's sandbox staging and provider snapshot at that engine boundary
-and verify fail-fast, advisory/blocking gates and combined exports.
-Do not launch repository-authored environments in this worker.
+Start with **Checks to run → unicode** and no provider profiles to try the
+whole pipeline without model charges. The root command prepares a deterministic
+starter if needed. Its combined JSON, HTML and benchmark record execution and
+gate decisions separately: an advisory skip is not a measured pass. Use
+**Prepare missing dataset → No** to require committed cases, and **Tier 3
+blocking gate → Yes** to include the live result in the exit gate.
+
+For measured trials, build and configure the [live image and dedicated Docker
+daemon](README.md#live-tier-3-image), set `STUDIO_LIVE_ENABLED=1`, and save a
+key-backed chat profile reachable by both Studio and the trial containers.
+The worker checks Harbor, Compose and the daemon first. Choose Kata only when
+that daemon has a working Kata runtime. Configure embeddings separately for
+Tier 2. Budget cases × agents × attempts × arms; a USD limit requires a
+committed JSON price file and excludes judge and container costs.
+
+All tiers evaluate one private copy of the pinned skill. The CLI prepares
+cases before capturing source evidence. Reruns reuse a saved generated starter,
+provider snapshots, SHA and options. Measured runs use generated Harbor tasks,
+isolated skill workspaces and a fresh private results directory. Repo-defined
+environments, native task bundles, committed `evals/results`, group workspaces
+and setup commands are outside this preset. A sandbox preflight failure is
+reported by root validation alongside earlier tiers. The native root reporters
+write the requested formats and compulsory benchmark with the pinned revision;
+partial arm evidence is retained when the engine can authenticate the run.
 
 Root catalog fan-out, forced non-skill content types, arbitrary source
 labels and custom harness profiles are not supported by this skill-scoped
-job. Select **Record the pinned revision** to stamp the actual SHA on the
+job. For static-only runs select **Record the pinned revision** to stamp the actual SHA on the
 benchmark. The option audit registers evidence for individually tested
 bindings; the presence of a form is not a whole-command parity claim.
 
@@ -213,3 +228,60 @@ artifact inspection. The isolated reader ignores `latest`, rejects linked
 artifacts, and limits inspection to 16,000 entries, 8 MiB per JSON or marker
 file and 64 MiB total of those files per run. Timeout: 30 seconds. No reader
 starts trials or accesses provider credentials.
+
+## Review a completed run
+
+Open **Results dashboard** from the project. Select one or several retained
+runs, filter the performance rows, or switch to paired-arm comparisons. The
+tables use the engine's dashboard reader for saved JSON reports. Choose
+**Native retained measurements** for the retained agent configuration, costs,
+times and token counts (16 MiB per native file, 64 MiB per run). Missing
+measurements remain unavailable; comparison rows explain gaps in coverage.
+To compare individual evaluator scores, open a run and choose **Compare
+agents** for the CLI's score matrix over that run's retained summaries.
+
+Choose **Review artifacts and feedback** to search the file list, preview
+native HTML reports as text, or inspect JSON evidence (8 MiB per file).
+**View report** rebuilds missing HTML from a temporary copy of the native
+evidence, using the saved feedback without another judge call.
+Turn on **Retain Harbor jobs** before launching a run to keep the raw job
+trajectories as well as collected trials. Select a trajectory and filter its
+steps by source. Only supported files from the selected run are indexed.
+
+**Ask about this run** sends compact canonical evidence, saved feedback and
+prior turns to the project's current key-backed chat profile. Completed turns
+stay in the volume's SQLite history; reopening a conversation sends nothing
+until you ask another question. Provider failures do not add a turn.
+
+## Experiments
+
+Open **Experiments** on the project. Each form queues a separate run at its
+selected commit; reopen the result from **Evaluation runs → Run history**.
+Successful experiment actions are **neutral**, not passing publication gates.
+
+- **Select decoys** ranks a committed description-mode embedding catalog using
+  the saved embedding profile. Enter the repository-relative catalog JSON and
+  collection root (`.` for the repository), count (default four), and optionally
+  one excluded catalog member per line and a matching embedding model. Use a
+  collection at, above, or below the target's parent so the manifest is portable.
+  Download the native JSON and review the selected paths, hashes and scores before
+  using it as a decoy manifest. Selection does not run the trials or edit Git.
+- **Run interaction** selects two to 32 project skill folders, in order, and one
+  fixed evaluation source. Use the [live runtime](README.md#live-tier-3-image)
+  and a key-backed chat profile. The engine runs baseline, each skill alone,
+  and all together. Every configuration uses the same suite and fixed attempt
+  count (default one). `overall` requires custom-only grading. A complete
+  interaction can be positive, negative or zero; missing comparable evidence
+  is incomplete, not zero. Studio uses the live generated-task input policy
+  and supports Docker or Kata; backend kwargs, native environments, host
+  execution and raw Harbor job retention are not supported.
+- **Import observations** accepts the engine's external-metrics JSON contract
+  at a pinned project path. The JSON and Markdown preserve declared provenance,
+  matched coverage and custom scores. SkillEvaluator did not execute the tests,
+  verify the producer, or assign a standard score or publication verdict.
+
+In `artifacts/<project>/<run>/`, the native files are `decoys.json`,
+`interactions/interaction_*/interaction.json` (alongside configuration evidence),
+or `observations/external_metrics.{json,md}`. Rerun reuses the original Git
+commit, options and encrypted provider snapshot. A provider call or sandbox
+trial runs again and can incur charges; reopening an export does not.

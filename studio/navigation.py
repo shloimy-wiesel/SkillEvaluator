@@ -5,8 +5,8 @@ from collections import defaultdict
 # Entries are ordered within each task: common operations precede setup.
 TASK_ROUTES = {
     "Authoring": ("skill_editor", "datasets", "assets", "repository_ci"),
-    "Evaluation": ("runs_index", "overlap_form", "live_index", "provider_settings"),
-    "Results": ("compare_revisions", "skill_history"),
+    "Evaluation": ("runs_index", "overlap_form", "live_index", "experiments", "provider_settings"),
+    "Results": ("results_dashboard", "compare_revisions", "skill_history"),
 }
 
 
