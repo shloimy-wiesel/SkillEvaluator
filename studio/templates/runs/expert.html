@@ -15,7 +15,7 @@ Key-backed providers require the chat SDK.</p>{% endif %}
 <p>Loaded revision: <code>{{ sha }}</code></p>
 {% if 'target' in fields %}<label>Target directory<select name="target"><option value="">Connected skill</option>{% for dir in dirs %}<option>{{ dir }}</option>{% endfor %}</select></label>{% endif %}
 {% if 'workers' in fields %}
-<p>Alternate targets and catalog workers require Tier 1 or Tier 1 and Tier 2.</p>
+<p>Alternate targets require static tiers. Use keyless Tier 1 for parallel catalog workers.</p>
 <label>Catalog workers<input type="number" min="1" max="4" name="workers"></label>
 <label>Catalog root<select name="catalog_root"><option value="">Evaluator default</option>{% for dir in dirs %}<option>{{ dir }}</option>{% endfor %}</select></label>
 <label>Content type<select name="content_type"><option value="">Auto-detect</option>{% for t in ('skill','rules','workflows','plugin') %}<option>{{ t }}</option>{% endfor %}</select></label>{% endif %}
@@ -26,10 +26,13 @@ Key-backed providers require the chat SDK.</p>{% endif %}
 <label><input type="checkbox" name="external" value="true">External policy shortcut</label>
 {% for key,title in [('dedup','Deduplication'),('agent_eval','Live agent evaluation')] %}<label>{{ title }}<select name="{{ key }}"><option value="">Engine default</option><option value="true">Enable</option><option value="false">Disable</option></select></label>{% endfor %}</details>
 <label><input type="checkbox" name="include_revision" value="true">Record the pinned revision on the benchmark card (automatic with Tier 3)</label>
+<label>Source repository label (owner/repository)<input name="evaluated_source_repository"></label>
+<label>Evaluator build label (image revision or commit)<input name="evaluator_container_revision"></label>
 <details><summary>Tier 3 settings</summary>
 <p>Blank settings use the root evaluator defaults and the pinned run policy. Measured trials require the dedicated Harbor runtime and a saved chat profile.</p>
 {% for key,title in [('block_on_agent_eval','Tier 3 blocking gate'),('agent_runtime_preflight','Paid agent preflight'),('autopilot','Prepare missing dataset'),('stop_on_pass','Stop after first pass'),('tolerate_baseline_timeouts','Tolerate baseline timeouts')] %}<label>{{ title }}<select name="{{ key }}"><option value="">Engine default</option><option value="true">Yes</option><option value="false">No</option></select></label>{% endfor %}
 <label>Sandbox<select name="env_mode"><option value="">Engine default</option><option>docker</option><option>kata</option></select></label>
+<label>Kata runtime<select name="kata_runtime"><option value="">Engine default</option>{% for r in ('kata','kata-clh','kata-qemu') %}<option>{{ r }}</option>{% endfor %}</select></label>
 <label>Agents<select multiple name="agents">{% for a in ['codex','opencode','claude-code'] %}<option>{{ a }}</option>{% endfor %}</select></label>
 <label>Grading mode<select name="grading_mode"><option value="">Engine default</option>{% for m in ['default','custom_only','default_plus_custom'] %}<option>{{ m }}</option>{% endfor %}</select></label>
 {% for key,title in [('codex_model','Codex'),('opencode_model','OpenCode'),('claude_code_model','Claude Code')] %}<label>{{ title }} model override<input name="{{ key }}"></label>{% endfor %}

@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from skillevaluator.harness.overlay import PROFILES_DIR, profile_names
+from skillevaluator.source_identity import normalized_evaluated_source
 from skillevaluator.tier1.commands import DEFAULT_CHECKS, OPTIONAL_CHECKS
 
 from .live_job import Agent, Budget, Model, Positive
@@ -55,6 +56,7 @@ ROOT_LIVE = {
     "tolerate_baseline_timeouts",
     "block_on_agent_eval",
     "env_mode",
+    "kata_runtime",
     "autopilot",
     "agents",
     "max_cases",
@@ -96,10 +98,10 @@ FIELDS = {
 }
 MULTI = {"reports", "checks", "skip", "harness", "agents"}
 FIELDS.update({alias: FIELDS[a] for alias, a in ALIASES.items()})
-for action in FIELDS:
-    if action != "harness-check":
-        FIELDS[action].add("target")
+for fields in FIELDS.values():
+    fields.add("target")
 FIELDS["validate"].update({"workers", "content_type", "catalog_root", "full", "dedup", "agent_eval", "external"})
+FIELDS["validate"].update({"evaluated_source_repository", "evaluator_container_revision"})
 for action in ("validate", "harness-check"):
     FIELDS[action].add("harness_profiles")
 
@@ -119,6 +121,8 @@ class ExpertOptions(BaseModel):
     dedup: bool | None = None
     agent_eval: bool | None = None
     external: bool = False
+    evaluated_source_repository: str | None = Field(None, max_length=512)
+    evaluator_container_revision: str | None = Field(None, max_length=1024)
     harness_profiles: Literal["agent-clis"] | None = None
     target: str | None = None
     catalog_root: str | None = None
@@ -134,6 +138,7 @@ class ExpertOptions(BaseModel):
     tiers: Literal["1", "1,2", "1,3", "1,2,3"] | None = None
     block_on_dedup: bool | None = None
     env_mode: Literal["docker", "kata"] | None = None
+    kata_runtime: Literal["kata", "kata-clh", "kata-qemu"] | None = None
     agents: tuple[Agent, ...] = ()
     block_on_agent_eval: bool | None = None
     autopilot: bool | None = None
@@ -203,19 +208,33 @@ class ExpertOptions(BaseModel):
             raise ValueError("Invalid harness selection")
         if self.harness_profiles and set(self.harness) - set(AGENT_HARNESSES):
             raise ValueError("Select harnesses from the managed agent CLI set")
-        if not self.live and self.model_dump(exclude_defaults=True).keys() & ROOT_LIVE:
+        if not self.live and self.model_dump(exclude_defaults=True).keys() & (ROOT_LIVE - {"autopilot"}):
             raise ValueError("Select Tier 3 to set live controls")
-        if self.live and (self.target or self.catalog_root or self.workers):
+        if self.live and (
+            self.target or self.catalog_root or self.workers or self.content_type not in {None, "skill", "auto"}
+        ):
             raise ValueError("Alternate targets and catalog evaluation require static tiers")
+        if (self.workers or 1) > 1 and (self.tiers != "1" or self.llm or self.llm_verify):
+            raise ValueError("Parallel catalog validation requires keyless Tier 1")
         for directory in (self.target, self.catalog_root):
-            if directory is not None and directory != "." and (
-                any(p.lower() in {"", ".", "..", ".git"} for p in directory.split("/")) or "\\" in directory
+            if (
+                directory is not None
+                and directory != "."
+                and (any(p.lower() in {"", ".", "..", ".git"} for p in directory.split("/")) or "\\" in directory)
             ):
                 raise ValueError("Invalid directory selection")
         if self.block_on_dedup is not None and self.tiers and "2" not in self.tiers:
             raise ValueError("Select Tier 2 to set its gate")
         if self.external and self.profile == "registry":
             raise ValueError("External conflicts with registry policy")
+        if self.kata_runtime and self.env_mode != "kata":
+            raise ValueError("Select Kata to set its runtime")
+        for name, value in (
+            ("repository", self.evaluated_source_repository),
+            ("evaluator_container_revision", self.evaluator_container_revision),
+        ):
+            if value is not None and not normalized_evaluated_source({name: value}):
+                raise ValueError("Invalid source identity")
         if any(getattr(self, key) and agent not in self.agents for key, agent in AGENT_MODELS.items()):
             raise ValueError("Select each agent with a model override")
         if self.max_cost_usd is not None and not self.price_file:
@@ -248,6 +267,8 @@ class ExpertOptions(BaseModel):
                 cmd.extend([flag, str(root)])
             elif key == "content_type":
                 cmd.extend(["--type", value])
+            elif key == "kata_runtime":
+                cmd.extend(["--environment-kwarg", f"kata_runtime={value}"])
             elif key == "harness_profiles":
                 cmd.extend([flag, str(PROFILES_DIR)])
                 if not self.harness:

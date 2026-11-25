@@ -16,7 +16,6 @@ from fastapi.responses import FileResponse, RedirectResponse
 from . import expert_profiles, live_job
 from .expert_options import ACTIONS, ALIASES, CHECKS, FIELDS, FILES, HARNESSES, MULTI, REPORTS, ExpertOptions
 from .jobs import JobDefinition, Outcome
-from .overlap import choices as directory_choices
 from .runs import project_for, record_for
 from .workspace import WorkspaceError
 
@@ -143,7 +142,8 @@ def invoke(ctx, args, work, output, *, chat, embeddings, runtime, reason):
 
     native = {}
     captured = work / "studio-result.json"
-    report = json.loads(sanitized(captured.read_bytes())) if captured.exists() else {}
+    is_catalog = (output / "catalog-summary.json").is_file()
+    report = json.loads(sanitized(captured.read_bytes())) if captured.exists() and not is_catalog else {}
     for path in sorted(output.rglob("*")):
         if path.is_file() and not path.is_symlink():
             for suffix, label in SUFFIXES.items():
@@ -171,7 +171,10 @@ def invoke(ctx, args, work, output, *, chat, embeddings, runtime, reason):
     status = report.get("overall_status", "failed" if done.returncode else "passed")
     md = work / "studio-result.md"
     return Outcome(
-        status, done.returncode, json.dumps(report), sanitized(md.read_bytes()).decode() if md.exists() else terminal
+        status,
+        done.returncode,
+        json.dumps(report),
+        sanitized(md.read_bytes()).decode() if md.exists() and not is_catalog else terminal,
     )
 
 
@@ -185,28 +188,35 @@ def form(request: Request, project_id: str, action: str, sha: str = ""):
     project = project_for(request, project_id)
     sha = sha or project.revision
     try:
-        choices = choices_at(request, project, sha)
+        choices = choices_at(request, project, sha, action)
     except WorkspaceError as exc:
         return render(request, project, action, project.revision, [], error=str(exc))
     return render(request, project, action, sha, choices)
 
 
-def choices_at(request, project, sha):
+def choices_at(request, project, sha, action):
     if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", sha):
         raise WorkspaceError("Choose a full commit SHA in this project.")
     tree = request.app.state.workspace.git(project, ["ls-tree", "-rlz", sha])
-    return directory_choices(request.app.state.workspace, project, sha)[0], sorted(
-        name
-        for entry in tree.split("\0")
-        if entry.startswith(("100644 ", "100755 "))
-        for header, name in [entry.split("\t", 1)]
-        if int(header.split()[3]) <= 1024 * 1024
-        and name.isprintable()
-        and name.lower().endswith((".yaml", ".yml", ".json"))
-    )
+    dirs, skills, blocked, files = set(), set(), set(), []
+    for entry in tree.split("\0"):
+        if not entry:
+            continue
+        header, name = entry.split("\t", 1)
+        path = Path(name)
+        if not header.startswith(("100644 ", "100755 ")) or not name.isprintable():
+            blocked.update(path.parents)
+            continue
+        dirs.update(path.parents)
+        if path.name == "SKILL.md":
+            skills.add(path.parent)
+        if int(header.split()[3]) <= 1024 * 1024 and path.suffix.lower() in (".yaml", ".yml", ".json"):
+            files.append(name)
+    allowed = skills if action in ("tier1", "tier1-validate") else dirs
+    return sorted(str(p) for p in allowed - blocked), sorted(files)
 
 
-def render(request, project, action, sha, choices, error=None):
+def render(request, project, action, sha, choices, *, error=None):
     return request.app.state.templates.TemplateResponse(
         request=request,
         name="runs/expert.html",
@@ -237,7 +247,7 @@ async def queue(request: Request, project_id: str, action: str):
     sha = data.get("sha", "")
     choices = []
     try:
-        choices = choices_at(request, project, sha)
+        choices = choices_at(request, project, sha, action)
         versions = {f"version_{h}" for h in HARNESSES} if action == "harness-check" else set()
         if set(data) - (FIELDS[action] - {"harness_versions"}) - {"sha"} - versions:
             raise ValueError
@@ -278,7 +288,8 @@ def artifact(request: Request, project_id: str, run_id: str, name: str):
     row = record_for(request, project_id, run_id)
     if (
         row["kind"] != EXPERT.kind
-        or Path(name).is_absolute() or ".." in Path(name).parts
+        or Path(name).is_absolute()
+        or ".." in Path(name).parts
         or name not in json.loads(row["report"] or "{}").get("native", {})
     ):
         raise HTTPException(404)

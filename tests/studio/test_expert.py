@@ -14,8 +14,11 @@ def publish(tmp_path, files):
         dest.write_text(text)
     repo = tmp_path / "server/handbook.git"
     subprocess.run(["git", "add", "."], cwd=seed, check=True)
-    subprocess.run(["git", "-c", "user.name=test", "-c", "user.email=t@example.org", "commit", "-m", "inputs"],
-                   cwd=seed, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=test", "-c", "user.email=t@example.org", "commit", "-m", "inputs"],
+        cwd=seed,
+        check=True,
+    )
     subprocess.run(["git", "push", repo, "main"], cwd=seed, check=True)
     subprocess.run(["git", "update-server-info"], cwd=repo, check=True)
 
@@ -32,17 +35,82 @@ def test_parallel_catalog_reports_each_child_at_selected_commit(page, private_re
         page.get_by_label("Checks to run").select_option("schema")
         page.get_by_label("Tiers").select_option("1")
         sha = page.get_by_label("Commit SHA").input_value()
-        for bad in ({"target": "/etc"}, {"target": "alias"}, {"workers": 5}):
+        for bad in ({"target": "/etc"}, {"target": "alias"}, {"workers": 5}, {"workers": 2, "tiers": "1,2"}):
             assert page.request.post(page.url, form={"sha": sha, "tiers": "1", **bad}).status == 422
         page.get_by_role("button", name="Queue check").click()
         playwright.expect(page.get_by_role("status")).to_contain_text("failed", timeout=25000)
-        summary = page.request.get(page.get_by_role("link", name="Download native Catalog summary").get_attribute("href")).json()
+        summary = page.request.get(
+            page.get_by_role("link", name="Download native Catalog summary").get_attribute("href")
+        ).json()
         assert (summary["total"], summary["failed"]) == (2, 2)
         assert {s["name"] for s in summary["skills"]} == {"triage", "second"}
         for s in summary["skills"]:
             leaf = page.get_by_role("link", name=f"Download native JSON · {s['name']}", exact=True)
             assert "SKILL.md must have YAML frontmatter" in page.request.get(leaf.get_attribute("href")).text()
         assert "2 workers" in page.locator("body").text_content()
+
+
+def test_harness_collection_uses_the_loaded_commit(page, private_remote, tmp_path):
+    import subprocess
+
+    publish(tmp_path, {"skills/second/SKILL.md": "# Second\n"})
+    pinned = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tmp_path / "seed", text=True).strip()
+    publish(tmp_path, {"skills/later/SKILL.md": "# Later\n"})
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        page.get_by_role("heading", name="handbook").wait_for()
+        page.goto(page.url + "/expert/harness-check")
+        page.get_by_label("Commit SHA").fill(pinned)
+        page.get_by_role("button", name="Load commit files").click()
+        page.get_by_label("Target directory").select_option("skills", timeout=2000)
+        page.get_by_label("Managed harness profiles").select_option("agent-clis")
+        page.get_by_label("Write harness JSON").check()
+        page.get_by_label("Verbose output").check()
+        page.get_by_role("button", name="Queue check").click()
+        link = page.get_by_role("link", name="Download native JSON")
+        playwright.expect(link).to_be_visible(timeout=20000)
+        report = page.request.get(link.get_attribute("href")).json()["harness_compatibility"]
+        assert {p.split("/")[-1] for p in report} == {"triage", "second"}
+        assert all({r["harness"] for r in rows} == {"codex", "opencode", "claude-code"} for rows in report.values())
+        assert "verified 0." in page.locator("body").text_content()
+
+
+def test_root_rejects_unmanaged_runtime_inputs_before_queue(page, private_remote, tmp_path):
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        page.get_by_role("heading", name="handbook").wait_for()
+        page.goto(page.url + "/expert/validate")
+        sha = page.get_by_label("Commit SHA").input_value()
+        for fields in (
+            {"environment_kwarg": "volume=/etc"},
+            {"kata_runtime": "/bin/sh"},
+            {"include_skills": "/etc"},
+            {"copy_repo": "true"},
+            {"harbor_keep_jobs": "true"},
+            {"results_dir": "/var/tmp"},
+            {"harness_profiles": "/tmp/profiles"},
+            {"output_dir": "/tmp/reports"},
+            {"external": "true", "profile": "registry"},
+        ):
+            response = page.request.post(page.url, form={"sha": sha, **fields})
+            assert response.status == 422
+        page.goto(page.url.split("/expert/")[0] + "/runs")
+        assert page.get_by_text("No runs yet.", exact=False).count() == 1
+
+
+@pytest.mark.parametrize("action", ["validate", "security-scan", "tier1-security-scan"])
+def test_security_enrichment_requires_saved_provider(page, private_remote, tmp_path, action):
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        page.get_by_role("heading", name="handbook").wait_for()
+        page.goto(page.url + "/expert/" + action)
+        sha = page.get_by_label("Commit SHA").input_value()
+        for key in ("llm", "llm_verify"):
+            response = page.request.post(page.url, form={"sha": sha, key: "true"})
+            assert response.status == 422 and "chat provider" in response.text()
 
 
 @pytest.mark.parametrize("label", ["Quality check", "Tier 1: Quality check"])
@@ -85,11 +153,27 @@ def test_workflow_runs_selected_checks_and_honors_report_omission(page, private_
         assert page.get_by_role("link", name="Download native JSON").count() == 0
         assert page.get_by_role("link", name="Download native HTML").count() == 0
         assert page.get_by_role("link", name="Download native Benchmark").count() == int(action == "validate")
+        if action == "validate":
+            page.go_back()
+            page.get_by_label("Reports").select_option([])
+            page.get_by_label("Verbose output").check()
+            page.get_by_role("button", name="Queue check").click()
+            playwright.expect(page.get_by_role("status")).to_contain_text("failed", timeout=20000)
+            assert page.get_by_role("link", name="Download native JSON").count() == 0
+            assert page.get_by_role("link", name="Download native Benchmark").count() == 1
 
 
 @pytest.mark.parametrize(
     "action,expected",
-    [("pii-scan", "PII"), ("security-scan", "Security"), ("lint-scripts", "Lint"), ("harness-check", "codex")],
+    [
+        ("pii-scan", "PII"),
+        ("security-scan", "Security"),
+        ("lint-scripts", "Lint"),
+        ("harness-check", "codex"),
+        ("tier1-pii-scan", "PII"),
+        ("tier1-security-scan", "Security"),
+        ("tier1-lint-scripts", "Lint"),
+    ],
 )
 def test_focused_command_keeps_own_scope(page, private_remote, tmp_path, action, expected):
     with running(tmp_path / "volume") as base:
@@ -113,7 +197,8 @@ def test_focused_command_keeps_own_scope(page, private_remote, tmp_path, action,
             assert expected.lower() in report["results"][0]["validator"].lower()
 
 
-def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, loopback_tls, monkeypatch):
+@pytest.mark.parametrize("action", ["rubric-eval", "tier1-rubric-eval", "tier1", "tier1-validate"])
+def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, loopback_tls, monkeypatch, *, action):
     import json
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     from threading import Thread
@@ -161,15 +246,19 @@ def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, l
             connect(page, *private_remote, skill="skills/triage")
             page.get_by_role("heading", name="handbook").wait_for()
             project = page.url
-            page.goto(project + "/expert/rubric-eval")
+            page.goto(project + "/expert/" + action)
             sha = page.get_by_label("Commit SHA").input_value()
-            denied = page.request.post(page.url, form={"sha": sha})
+            workflow = action in ("tier1", "tier1-validate")
+            denied = page.request.post(page.url, form={"sha": sha, **({"llm": "true"} if workflow else {})})
             assert denied.status == 422 and "chat provider" in denied.text()
             endpoint = f"https://127.0.0.1:{judge.server_port}/v1"
             page.goto(project + "/providers")
             chat = page.get_by_role("region", name="Chat", exact=True)
             save_profile(chat, endpoint, "frozen-model", "frozen-secret")
-            page.goto(project + "/expert/rubric-eval")
+            page.goto(project + "/expert/" + action)
+            if workflow:
+                page.get_by_label("Checks to run").select_option("unicode")
+                page.get_by_label("Model-backed checks").select_option("true")
             page.get_by_label("Minimum score").fill("90")
             page.get_by_label("Reports").select_option("json")
             page.get_by_role("button", name="Queue check").click()
@@ -189,7 +278,7 @@ def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, l
 
 @pytest.mark.parametrize("tiers", ["1,2", "1,2,3"])
 def test_cross_tier_validation_routes_embeddings_separately(
-    page, private_remote, tmp_path, loopback_tls, monkeypatch, tiers
+    page, private_remote, tmp_path, loopback_tls, monkeypatch, *, tiers
 ):
     import json
     import subprocess
@@ -443,12 +532,15 @@ def test_root_folds_harbor_arm_evidence_with_pinned_options(tmp_path, monkeypatc
         max_attempts_total=4,
         codex_model="fixture-model",
         env_mode="kata",
+        kata_runtime="kata-qemu",
         block_on_agent_eval=partial,
         include_revision=True,
     )
     observed = []
 
     def harbor(self, request, **kwargs):
+        assert "kata_runtime=kata-qemu" in request.environment_kwarg
+        assert (request.copy_repo, request.harbor_keep_jobs, request.include_skills) == (False, False, ())
         observed.append(
             (
                 request.skill_workspace_mode,

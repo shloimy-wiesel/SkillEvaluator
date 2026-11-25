@@ -80,7 +80,8 @@ exceptions become a generic execution error; raw stderr is not displayed.
 
 Expand **Expert checks and validation** in Evaluation runs. Pick quality,
 rubric, security, PII, script lint, or harness compatibility to run that
-command alone. **Tier 1 workflow** and **Tier 1 validate** use the respective
+command alone. The **Tier 1: …** links invoke the corresponding grouped
+CLI commands. **Tier 1 workflow** and **Tier 1 validate** use the respective
 direct CLI entry points. **Validation pipeline** runs root `validate` on
 the connected skill with all three tiers by default. Select `1`, `1,2`, `1,3`,
 or `1,2,3` to set the tier scope explicitly. Tier 1 gates; Tier 2 defaults to
@@ -143,11 +144,21 @@ reported by root validation alongside earlier tiers. The native root reporters
 write the requested formats and compulsory benchmark with the pinned revision;
 partial arm evidence is retained when the engine can authenticate the run.
 
-Root catalog fan-out, forced non-skill content types, arbitrary source
-labels and custom harness profiles are not supported by this skill-scoped
-job. For static-only runs select **Record the pinned revision** to stamp the actual SHA on the
-benchmark. The option audit registers evidence for individually tested
-bindings; the presence of a form is not a whole-command parity claim.
+For static validation choose **Target directory** at the loaded commit.
+Select a collection for native catalog discovery, an optional catalog root
+containing the target, and **Catalog workers** (1–4; parallel runs require
+keyless Tier 1). The result retains the
+catalog summary and each member’s requested files. Linked or submodule-containing
+directories cannot be selected. Root validation also accepts rules, workflows
+and plugins; direct Tier 1 requires one skill. Alternate targets require Tier 3
+to be off. Explicit tiers override the full, live and autopilot shortcuts.
+
+**Managed harness profiles** selects the packaged Claude Code, Codex and
+OpenCode rules. For root validation include the harness check. For provenance
+select **Record the pinned revision** and, optionally, supply canonical
+repository and evaluator-build labels. These labels describe the run; Studio
+does not download the named build. The live preset stages only the connected
+skill, uses private result storage and does not retain raw Harbor jobs.
 
 ## Live Tier 3
 
