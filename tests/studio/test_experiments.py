@@ -4,6 +4,7 @@ import hashlib
 import json
 import subprocess
 
+from run_journey import rerun_saved_inputs
 from test_workspace import connect, playwright, running
 
 pytest_plugins = ("test_workspace", "test_providers")
@@ -354,7 +355,7 @@ def test_interaction_rerun_reuses_defaults_and_original_profile(page, private_re
         page.goto(base + settings)
         save_profile(chat, "https://chat.example/v1", "replacement", "new-key")
         page.goto(prior)
-        page.get_by_role("button", name="Rerun saved inputs").click()
+        rerun_saved_inputs(page)
         playwright.expect(page.get_by_role("status")).to_contain_text("neutral")
         assert observed == [("original", "old-key")] * 2
         assert "old-key" not in page.content()

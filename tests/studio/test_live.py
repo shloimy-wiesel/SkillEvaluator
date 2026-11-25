@@ -3,6 +3,7 @@
 import os
 
 import pytest
+from run_journey import rerun_saved_inputs
 from test_providers import open_settings, save_profile
 from test_workspace import connect, playwright, running
 
@@ -122,8 +123,7 @@ def test_direct_workflow_retains_evidence_and_reruns_original_profile(page, priv
         page.goto(base + settings)
         save_profile(panel, "https://chat.example/v1", "model-two", "replacement")
         page.goto(original)
-        page.get_by_role("button", name="Rerun saved inputs").click()
-        page.wait_for_url(lambda url: url != original and "/runs/" in url)
+        rerun_saved_inputs(page)
         playwright.expect(page.get_by_role("status")).to_contain_text("neutral")
         assert len(calls) == 2
         assert "chat-secret" not in page.content()
