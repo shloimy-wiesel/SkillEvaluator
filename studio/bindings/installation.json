@@ -1,0 +1,68 @@
+[
+  {
+    "key": "root",
+    "status": "implemented",
+    "equivalent": "Installed root command group help and available subcommands",
+    "evidence": "tests/studio/test_installation.py::test_installed_version_context_help_and_safe_detail"
+  },
+  {
+    "key": "tier1",
+    "status": "implemented",
+    "equivalent": "Installed tier1 command group help and available subcommands",
+    "evidence": "tests/studio/test_installation.py::test_installed_version_context_help_and_safe_detail"
+  },
+  {
+    "key": "tier2",
+    "status": "implemented",
+    "equivalent": "Installed tier2 command group help and available subcommands",
+    "evidence": "tests/studio/test_installation.py::test_installed_version_context_help_and_safe_detail"
+  },
+  {
+    "key": "tier3",
+    "status": "implemented",
+    "equivalent": "Installed tier3 command group help and available subcommands",
+    "evidence": "tests/studio/test_installation.py::test_installed_version_context_help_and_safe_detail"
+  },
+  {
+    "key": "root:version",
+    "status": "implemented",
+    "equivalent": "Version reported by the installed evaluator",
+    "evidence": "tests/studio/test_installation.py::test_installed_version_context_help_and_safe_detail"
+  },
+  {
+    "key": "root:verbose",
+    "status": "implemented",
+    "equivalent": "Expandable run diagnostics; changed-file detail enables engine DEBUG logging and retains only safe aggregate fields",
+    "evidence": "tests/studio/test_installation.py::test_changed_files_reach_only_affected_skills"
+  },
+  {
+    "key": "precommit-run",
+    "status": "implemented",
+    "equivalent": "Offline hook on a selected immutable change set; per-skill results and gate exit code",
+    "evidence": "tests/studio/test_installation.py::test_changed_files_reach_only_affected_skills"
+  },
+  {
+    "key": "precommit-run:check",
+    "status": "implemented",
+    "equivalent": "Choose schema, quality or script lint",
+    "evidence": "tests/studio/test_installation.py::test_changed_files_reach_only_affected_skills"
+  },
+  {
+    "key": "precommit-run:paths",
+    "status": "implemented",
+    "equivalent": "Select affected paths from the pinned first-parent diff",
+    "evidence": "tests/studio/test_installation.py::test_changed_files_reach_only_affected_skills"
+  },
+  {
+    "key": "precommit-run:min_score",
+    "status": "implemented",
+    "equivalent": "Set the quality gate threshold",
+    "evidence": "tests/studio/test_installation.py::test_changed_files_reach_only_affected_skills"
+  },
+  {
+    "key": "precommit-run:quality_config",
+    "status": "implemented",
+    "equivalent": "Choose a regular managed configuration file at the same SHA",
+    "evidence": "tests/studio/test_installation.py::test_changed_files_reach_only_affected_skills"
+  }
+]
