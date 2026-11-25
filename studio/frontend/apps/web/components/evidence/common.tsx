@@ -26,16 +26,23 @@ interface View {
 
 interface ScreenProps<T extends View> {
   screen: ComponentType<{ data: T }>;
+  recovery?: ComponentType<{ path: string }>;
 }
 
 const Load = <T extends View>({
   screen: Screen,
+  recovery: Recovery,
   path,
 }: ScreenProps<T> & { path: string }) => {
   const { data, error } = useResource<T>(path);
 
   if (error !== undefined) {
-    return <p role="alert">{error}</p>;
+    return (
+      <>
+        <p role="alert">{error}</p>
+        {Recovery && <Recovery path={path} />}
+      </>
+    );
   }
 
   if (!data) {
@@ -52,13 +59,16 @@ const Load = <T extends View>({
   );
 };
 
-/** @returns A scoped evidence screen for the current author URL. */
+/**
+ * @param props - Evidence screen and optional form for recovering from invalid selections.
+ * @returns A scoped evidence screen for the current author URL.
+ */
 // oxlint-disable-next-line sonarjs/function-name -- React component.
-export const EvidencePage = <T extends View>({ screen }: ScreenProps<T>) => {
+export const EvidencePage = <T extends View>(props: ScreenProps<T>) => {
   const path = useSyncExternalStore(subscribe, browserPath, serverPath);
 
   return path ? (
-    <Load path={path} screen={screen} />
+    <Load path={path} screen={props.screen} recovery={props.recovery} />
   ) : (
     <output>Opening evidence…</output>
   );

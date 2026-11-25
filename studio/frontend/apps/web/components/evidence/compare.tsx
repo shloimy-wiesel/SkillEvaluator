@@ -144,28 +144,52 @@ const Result = ({ side, project }: { side: Side; project: Project }) => {
   );
 };
 
+const RevisionForm = ({
+  choices,
+  selection,
+}: {
+  choices: string[];
+  selection: Pick<Data, "current" | "prior">;
+}) => (
+  <form>
+    <datalist id="refs">
+      {choices.map((v) => (
+        <option key={v} value={v}>
+          {v}
+        </option>
+      ))}
+    </datalist>
+    {(["prior", "current"] as const).map((k) => (
+      <label key={k}>
+        {k === "prior" ? "Prior" : "Current"} revision
+        <input list="refs" name={k} defaultValue={selection[k]} required />
+      </label>
+    ))}
+    <button type="submit">Compare revisions</button>
+  </form>
+);
+
+const Retry = ({ path }: { path: string }) => {
+  const params = new URLSearchParams(path.split("?")[1]);
+
+  return (
+    <RevisionForm
+      choices={[]}
+      selection={{
+        prior: params.get("prior") ?? "",
+        current: params.get("current") ?? "",
+      }}
+    />
+  );
+};
+
 const Screen = ({ data: d }: { data: Data }) => (
   <>
     <h1>Compare revisions</h1>
     <a href={`/projects/${d.project.id}/results/history`}>
       Skill lift history and version exports
     </a>
-    <form>
-      <datalist id="refs">
-        {d.choices.map((v) => (
-          <option key={v} value={v}>
-            {v}
-          </option>
-        ))}
-      </datalist>
-      {(["prior", "current"] as const).map((k) => (
-        <label key={k}>
-          {k === "prior" ? "Prior" : "Current"} revision
-          <input list="refs" name={k} defaultValue={d[k]} required />
-        </label>
-      ))}
-      <button type="submit">Compare revisions</button>
-    </form>
+    <RevisionForm choices={d.choices} selection={d} />
     <h2>Changed files · {d.count}</h2>
     {d.files.map((f, i) => (
       <details key={f.path} open={i === 0}>
@@ -203,5 +227,5 @@ const Screen = ({ data: d }: { data: Data }) => (
 
 /** @returns The evidence document at its canonical author URL. */
 export default function Compare() {
-  return <EvidencePage screen={Screen} />;
+  return <EvidencePage screen={Screen} recovery={Retry} />;
 }

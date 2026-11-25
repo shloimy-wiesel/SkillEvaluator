@@ -123,6 +123,9 @@ def compare(
     request: Request, project_id: str, *, prior: str = "", current: str = "", prior_run: str = "", current_run: str = ""
 ):
     project = project_for(request, project_id)
+    browser = not request.url.path.startswith("/api/v1/")
+    if browser and not request.query_params:
+        return document(request, "compare.html")
     ws = request.app.state.workspace
     jobs = request.app.state.jobs
     context = {"project": project, "prior": prior or project.branch, "current": current or project.branch, "sides": []}
@@ -136,6 +139,8 @@ def compare(
             run = next((r for r in choices if r["id"] == requested), None) if requested else next(iter(choices), None)
             if requested and not run:
                 raise WorkspaceError("Choose a run retained for the selected revision.")
+            if browser:
+                continue
             row = jobs.get(project_id, run["id"]) if run else None
             context["sides"].append(
                 {
@@ -146,12 +151,16 @@ def compare(
                     "report": json.loads(row["report"] or "{}") if row else {},
                 }
             )
-        if not request.url.path.startswith("/api/v1/"):
+        if browser:
             return document(request, "compare.html")
         left, right = context["sides"]
         context["files"], context["count"] = changed_files(ws, project, left["sha"], right["sha"])
         context["comparison"] = review_results(ws, project, context["sides"])
     except WorkspaceError as exc:
+        if browser:
+            response = document(request, "compare.html")
+            response.status_code = 422
+            return response
         raise HTTPException(422, str(exc)) from exc
     for side in context["sides"]:
         side["choices"] = [dict(r) for r in side["choices"]]

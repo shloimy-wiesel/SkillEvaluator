@@ -30,6 +30,13 @@ def test_compare_branch_to_commit_without_switching(page, tmp_path, private_remo
         checkout = next((tmp_path / "volume/projects").iterdir())
         assert subprocess.check_output(["git", "branch", "--show-current"], cwd=checkout).strip() == b"main"
         assert subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=checkout).decode().strip() == main
+        page.get_by_label("Current revision").fill("missing-branch")
+        page.get_by_role("button", name="Compare revisions").click()
+        playwright.expect(page.get_by_role("main").get_by_role("alert")).to_contain_text("Choose a saved branch")
+        playwright.expect(page.get_by_label("Prior revision")).to_have_value(main)
+        page.get_by_label("Current revision").fill("candidate")
+        page.get_by_role("button", name="Compare revisions").click()
+        playwright.expect(page.get_by_label("Current source")).to_have_text("# Candidate\n")
 
 
 def test_large_source_comparison_reports_budget_only_for_changed_files(page, tmp_path, private_remote):
@@ -95,7 +102,9 @@ def test_author_compares_paired_evidence_then_inspects_policy_mismatch(
         page.get_by_role("button", name="Compare selected runs").click()
         playwright.expect(page.get_by_label("Version comparison")).to_contain_text("\N{MINUS SIGN}0.60")
         playwright.expect(page.get_by_label("Current arm scores")).to_contain_text("\N{MINUS SIGN}0.30")
-        forged = page.request.get(page.url.replace("current_run=" + "b" * 32, "current_run=" + "a" * 32))
+        wrong = page.url.replace("current_run=" + "b" * 32, "current_run=" + "a" * 32)
+        assert page.request.get(wrong).status == 422
+        forged = page.request.get(wrong.replace("/projects/", "/api/v1/projects/"))
         assert forged.status == 422 and "Choose a run retained for the selected revision" in forged.text()
 
 
