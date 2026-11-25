@@ -143,6 +143,11 @@ reported by root validation alongside earlier tiers. The native root reporters
 write the requested formats and compulsory benchmark with the pinned revision;
 partial arm evidence is retained when the engine can authenticate the run.
 
+For a custom grader, check **Allow the repository grader in the sandbox** on
+the live, root validation or interaction form. The worker checks the effective
+mode from the selected revision, including an inherited grading policy.
+Granting consent does not bypass the sandbox preflight.
+
 Root catalog fan-out, forced non-skill content types, arbitrary source
 labels and custom harness profiles are not supported by this skill-scoped
 job. For static-only runs select **Record the pinned revision** to stamp the actual SHA on the

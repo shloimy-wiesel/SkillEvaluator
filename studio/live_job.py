@@ -157,7 +157,7 @@ def invoke_engine(args, cwd, env):
     ).returncode
 
 
-def check_stage_policy(source):
+def check_stage_policy(source, options):
     """Only generated Harbor tasks; no repository-authored launchers or native environments."""
     from skillevaluator.tier3.evals_config import load_evals_config
 
@@ -190,7 +190,7 @@ def check_stage_policy(source):
         }
     ):
         raise WorkspaceError("The pinned run policy contains settings outside this Studio preset.")
-    return config_path
+    return config_path, effective_mode
 
 
 def stage_skill(source, base, exclude):
@@ -211,7 +211,7 @@ def stage_skill(source, base, exclude):
 
 def stage(ctx, base, options):
     source = ctx.skill
-    config_path = check_stage_policy(source)
+    config_path, effective_mode = check_stage_policy(source, options)
     skill = stage_skill(source, base, {"eval", "evals"})
     evals = skill / "evals"
     evals.mkdir()

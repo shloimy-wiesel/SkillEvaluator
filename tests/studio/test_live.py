@@ -18,6 +18,32 @@ def test_live_requires_project_chat_profile(page, private_remote, tmp_path):
         playwright.expect(page.get_by_role("alert")).to_contain_text("chat provider")
 
 
+def test_inherited_custom_mode_needs_consent_and_available_sandbox(page, private_remote, tmp_path, monkeypatch):
+    from test_datasets import seed_skill
+
+    monkeypatch.delenv("STUDIO_LIVE_ENABLED", raising=False)
+    seed_skill(
+        tmp_path,
+        {
+            "evals/config.yml": "schema_version: 1\ngrading:\n  mode: custom_only\n",
+            "evals/grader.py": "raise AssertionError('must never execute on Studio')",
+            "evals/evals.json": '{"skill_name":"triage","evals":[]}',
+        },
+    )
+    with running(tmp_path / "volume") as base:
+        settings = open_settings(page, base, private_remote)
+        save_profile(
+            page.get_by_role("region", name="Chat", exact=True), "https://chat.example/v1", "test", "private-key"
+        )
+        for consent in (False, True):
+            page.goto(base + settings.removesuffix("/providers") + "/live")
+            page.get_by_label("Allow the repository grader in the sandbox").set_checked(consent)
+            page.get_by_role("button", name="Queue live evaluation").click()
+            playwright.expect(page.get_by_role("status")).to_contain_text(
+                "runtime is disabled" if consent else "consent", timeout=8000
+            )
+
+
 def test_direct_workflow_retains_evidence_and_reruns_original_profile(page, private_remote, tmp_path, monkeypatch):
     import json
     import subprocess

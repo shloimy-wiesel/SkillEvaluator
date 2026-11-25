@@ -140,7 +140,7 @@ def test_collect_then_refine_only_the_pinned_case(page, tmp_path, private_remote
         assert "--skip-baseline" in args and args[args.index("--grading-mode") + 1] == "default"
         assert args[args.index("--skill-workspace-mode") + 1] == "isolated"
         assert (Path(args[2]) / "evals/evals.json").read_bytes() == cases.read_bytes()
-        result = Path(args[args.index("--results-dir") + 1]) / "20260101_120000"
+        result = Path(args[args.index("--results-dir") + 1]) / "triage/20260101_120000"
         trial = result / "codex/with-skill/trials/urgent"
         trial.mkdir(parents=True)
         (trial.parent.parent / "summary.json").write_text(

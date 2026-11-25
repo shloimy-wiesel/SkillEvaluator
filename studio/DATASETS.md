@@ -24,6 +24,11 @@ read-only so editing a prompt cannot flatten them.
 | Import traces | Upload a JSON/JSONL export (up to 2 MiB). Review output is private to the draft. Dry run previews without replacing the review; force explicitly replaces an existing review. Inspect evidence, warnings, fixture names, suggestions, redactions and skipped records. |
 | Accept traces | Leave candidates pending, reject, supply independent expectations and assertions, or explicitly accept successful observed output. Preview acceptance or stage accepted cases in `evals/evals.json` with their redacted fixtures. Native Harbor requires explicit opt-in. |
 
+Collection previews accept at most 64 MiB of unlinked trial evidence. The
+browser/adapter tests use a fixture trial and the real refinement engine.
+`STUDIO_TEST_LIVE_RUNTIME=1` additionally checks Docker and authenticated
+model discovery; it does not purchase a provider trial.
+
 Draft snapshots support up to 4096 regular files / 64 MiB, with no symlinks
 or submodules inside the selected skill. Generation and validation use a
 separate interpreter; chat credentials are supplied only for model generation.
