@@ -14,8 +14,8 @@
 <label>Release channel <select name="channel"><option value="pinned">Bundled pinned release</option><option value="stable" {% if channel=='stable' %}selected{% endif %}>Follow stable</option></select></label>
 <button name="action" value="review">Review setup</button>
 {% if workflow %}<h3>.github/workflows/skill-checks.yml</h3><pre aria-label="Generated workflow">{{ workflow }}</pre><input type="hidden" name="approval" value="{{ digest }}"><button name="action" value="publish">Publish reviewed workflow</button>{% endif %}</form>
-{% endif %}<h2>Try a demo pull request</h2><p>After setup on the default branch, review a comment-only skill change. Publish a separate branch, then confirm the pull request on your Git host.</p>
+{% endif %}<h2>Try a demo pull request</h2><p>After setup on the default branch, review a comment-only skill change. Create a review request on a separate branch with the project credential.</p>
 <form method="post" action="{{ url_for('ci_demo', project_id=project.id) }}">{{ base() }}<button name="action" value="review">Review demo</button>
-{% if demo %}<pre aria-label="Demo change">{{ demo }}</pre><p>New branch: {{ demo_branch }} · File: {{ project.folder }}/SKILL.md</p><input type="hidden" name="approval" value="{{ demo_digest }}"><button name="action" value="request">Create reviewed PR/MR</button>{% if not gitlab %}<button name="action" value="publish">Publish demo branch</button>{% endif %}{% endif %}</form>
+{% if demo %}<pre aria-label="Demo change">{{ demo }}</pre><p>New branch: {{ demo_branch }} · File: {{ demo_target }}</p><input type="hidden" name="approval" value="{{ demo_digest }}"><button name="action" value="request">Create reviewed PR/MR</button>{% if not gitlab %}<button name="action" value="publish">Publish demo branch</button>{% endif %}{% endif %}</form>
 {% if compare %}<a href="{{ compare }}">Open pull request for review</a>{% endif %}
 {% endblock %}

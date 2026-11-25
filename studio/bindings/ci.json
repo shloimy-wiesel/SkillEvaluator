@@ -67,8 +67,8 @@
   },
   {
     "key": "ci demo",
-    "status": "partial",
-    "equivalent": "Detect the connected host and installed scan, review the connected skill comment, and authorize its PR/MR. Existing review branches require manual inspection.",
+    "status": "implemented",
+    "equivalent": "Detect the connected host and installed scan, review a comment on a tracked skill within the configured scan roots, and authorize its PR/MR. Matching open review requests are reused.",
     "evidence": "tests/studio/test_ci.py::test_read_gitlab_pipeline_and_create_review_requests"
   },
   {
@@ -272,19 +272,19 @@
   {
     "key": "ci demo:no_input",
     "status": "implemented",
-    "equivalent": "Detect the connected host and installed scan, review the connected skill comment, and authorize its PR/MR. Existing review branches require manual inspection.",
+    "equivalent": "Detect the connected host and installed scan, review a comment on a tracked skill within the configured scan roots, and authorize its PR/MR. Matching open review requests are reused.",
     "evidence": "tests/studio/test_ci.py::test_read_gitlab_pipeline_and_create_review_requests"
   },
   {
     "key": "ci demo:platform",
     "status": "implemented",
-    "equivalent": "Detect the connected host and installed scan, review the connected skill comment, and authorize its PR/MR. Existing review branches require manual inspection.",
+    "equivalent": "Detect the connected host and installed scan, review a comment on a tracked skill within the configured scan roots, and authorize its PR/MR. Matching open review requests are reused.",
     "evidence": "tests/studio/test_ci.py::test_read_gitlab_pipeline_and_create_review_requests"
   },
   {
     "key": "ci demo:tiers",
     "status": "implemented",
-    "equivalent": "Detect the connected host and installed scan, review the connected skill comment, and authorize its PR/MR. Existing review branches require manual inspection.",
+    "equivalent": "Detect the connected host and installed scan, review a comment on a tracked skill within the configured scan roots, and authorize its PR/MR. Matching open review requests are reused.",
     "evidence": "tests/studio/test_ci.py::test_read_gitlab_pipeline_and_create_review_requests"
   }
 ]

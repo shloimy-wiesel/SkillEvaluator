@@ -133,8 +133,20 @@ def test_changed_review_and_untrusted_workflow_fields_are_rejected(page, github_
         assert subprocess.run(["git", "cat-file", "-e", "main:" + SCAN], cwd=remote).returncode
 
 
+def second_skill(tmp_path, remote):
+    seed = tmp_path / "seed"
+    (seed / "more-skills/other").mkdir(parents=True)
+    (seed / "more-skills/other/SKILL.md").write_text("# Other\n")
+    subprocess.run(["git", "add", "."], cwd=seed, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=a", "-c", "user.email=a@example.com", "commit", "-m", "other"], cwd=seed, check=True
+    )
+    subprocess.run(["git", "push", str(remote), "main"], cwd=seed, check=True)
+
+
 def test_gitlab_all_tier_review(page, private_remote, tmp_path):
     remote = tmp_path / "server/handbook.git"
+    second_skill(tmp_path, remote)
     # Nested GitLab project path, served by the same authenticated Git backend.
     group = remote.parent / "group"
     group.mkdir()
@@ -148,13 +160,17 @@ def test_gitlab_all_tier_review(page, private_remote, tmp_path):
         page.get_by_label("Evaluation tiers").select_option("all")
         page.get_by_label("Attempts").fill("4")
         page.get_by_label("Runner label").fill("protected-linux")
-        page.get_by_label("Scan roots").fill("skills")
+        page.get_by_label("Scan roots").fill("more-skills")
         page.get_by_role("button", name="Review files").click()
         preview = page.get_by_label(".gitlab-ci.yml", exact=True).inner_text()
         assert yaml.safe_load(preview)["variables"]["SKILL_EVAL_N_ATTEMPTS"] == "4"
         assert yaml.safe_load(preview)["variables"]["SKILL_EVAL_RUNNER"] == "protected-linux"
         page.get_by_role("button", name="Apply reviewed setup").click()
         assert subprocess.check_output(["git", "show", "main:.gitlab-ci.yml"], cwd=remote).decode() == preview
+
+        page.get_by_role("link", name="Repository CI").click()
+        page.get_by_role("button", name="Review demo").click()
+        playwright.expect(page.get_by_text("File: more-skills/other/SKILL.md", exact=False)).to_be_visible(timeout=1500)
 
 
 def test_read_gitlab_pipeline_and_create_review_requests(page, private_remote, host_api, tmp_path):
@@ -208,6 +224,28 @@ def test_read_gitlab_pipeline_and_create_review_requests(page, private_remote, h
             ["git", "show", requests[1]["source_branch"] + ":skills/triage/SKILL.md"], cwd=remote
         )
 
+        demo_head = requests[1]["source_branch"]
+        sha = subprocess.check_output(["git", "rev-parse", demo_head], cwd=remote, text=True).strip()
+        host_api["GET", endpoint + "/merge_requests?state=opened&source_branch=ci%2Fskillevaluator-all-tiers-test"] = (
+            lambda _: (
+                200,
+                [
+                    {
+                        "source_branch": demo_head,
+                        "target_branch": "main",
+                        "sha": sha,
+                        "source_project_id": 17,
+                        "target_project_id": 17,
+                        "web_url": url.removesuffix(".git") + "/-/merge_requests/7",
+                    }
+                ],
+            )
+        )
+        page.get_by_role("button", name="Review demo").click()
+        page.get_by_role("button", name="Create reviewed PR/MR").click()
+        playwright.expect(page.get_by_role("status")).to_contain_text("/merge_requests/7", timeout=1500)
+        assert len(requests) == 2
+
 
 def test_github_hosted_setup_review_and_receipt(page, github_remote, tmp_path):
     """The real wizard provisions Pages and pushes two branches via isolated git/gh transports."""
@@ -217,14 +255,7 @@ def test_github_hosted_setup_review_and_receipt(page, github_remote, tmp_path):
     canonical, key = github_remote
     remote = tmp_path / "server/handbook.git"
     marker = tmp_path / "pages-api-created"
-    seed = tmp_path / "seed"
-    (seed / "more-skills/other").mkdir(parents=True)
-    (seed / "more-skills/other/SKILL.md").write_text("# Other\n")
-    subprocess.run(["git", "add", "."], cwd=seed, check=True)
-    subprocess.run(
-        ["git", "-c", "user.name=a", "-c", "user.email=a@example.com", "commit", "-m", "other"], cwd=seed, check=True
-    )
-    subprocess.run(["git", "push", str(remote), "main"], cwd=seed, check=True)
+    second_skill(tmp_path, remote)
     with running(tmp_path / "volume") as base:
         page.goto(base)
         connect(page, canonical, key, skill="skills/triage")

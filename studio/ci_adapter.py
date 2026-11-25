@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from .editing import commit_changes
+from .editing import branches, commit_changes
 from .workspace import WorkspaceError
 
 
@@ -48,7 +48,10 @@ def worker(ws, p, task, **params):
 
 def review_branch(ws, p, files, head, title, *, repo_root=False):
     worker(ws, p, "admission")
-    commit_changes(ws, p, files, title, new_branch=head, repo_root=repo_root)
+    existing = branches(ws, p).get(head)
+    commit_changes(ws, p, files, title, new_branch=head, repo_root=repo_root, matching_tip=existing)
+    if existing:
+        return worker(ws, p, "existing_review", head=head, tip=existing)["notice"]
     try:
         return worker(ws, p, "review_request", head=head, title=title)["notice"]
     except WorkspaceError as exc:

@@ -34,9 +34,33 @@ def run(q):
         if info["default_branch"] != q["branch"]:
             raise ci.SetupError("Open the current default branch before creating a review request.")
         return {}
-    if q["task"] == "review_request":
+    if q["task"] in ("review_request", "existing_review"):
         client = all_tiers.Client(ci, platform, origin, name)
-        if platform == "github":
+        if q["task"] == "existing_review":
+            reviews = client.reviews(q["head"])
+            if len(reviews) != 1:
+                raise ci.SetupError("Inspect the existing branch on the host; no unique open review was found.")
+            item = reviews[0]
+            if platform == "github":
+                matches = (
+                    item["head"]["sha"] == q["tip"]
+                    and item["head"]["ref"] == q["head"]
+                    and item["base"]["ref"] == q["branch"]
+                    and item["head"]["repo"]["full_name"] == name
+                )
+                value = item["html_url"]
+            else:
+                matches = (
+                    item.get("sha") == q["tip"]
+                    and item["source_branch"] == q["head"]
+                    and item["target_branch"] == q["branch"]
+                    and item.get("source_project_id") is not None
+                    and item["source_project_id"] == item["target_project_id"]
+                )
+                value = item["web_url"]
+            if not matches:
+                raise ci.SetupError("The open review has a different revision or target. Inspect it on the host.")
+        elif platform == "github":
             value = client.api("POST", "/pulls", {"base": q["branch"], "head": q["head"], "title": q["title"]})[
                 "html_url"
             ]

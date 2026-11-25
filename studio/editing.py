@@ -137,7 +137,7 @@ def read_file(ws, p, name, *, repo_root=False):
         return ws.git(p, ["cat-file", "blob", oid], raw=True) if oid else None
 
 
-def commit_changes(ws, p, changes, message, *, repo_root=False, new_branch=None, executable=None):
+def commit_changes(ws, p, changes, message, *, repo_root=False, new_branch=None, executable=None, matching_tip=None):
     """Publish one direct child of the expected revision, leaving no dirty state on rejection."""
     with project_lock(ws, p.id), TemporaryDirectory(dir=ws.data_dir) as temp:
         _check(ws, p)
@@ -168,6 +168,17 @@ def commit_changes(ws, p, changes, message, *, repo_root=False, new_branch=None,
         tree = ws.git(p, ["write-tree"], index=index)
         if tree == ws.git(p, ["rev-parse", "HEAD^{tree}"]):
             raise WorkspaceError("There are no changes to save.")
+        if matching_tip is not None:
+            # Reopening a hosted review must not update its branch. Verify both
+            # its entire raw tree and its single parent against the author draft.
+            _branch(ws, p, new_branch)
+            ws.git(p, ["fetch", "--no-tags", "--", p.remote, f"refs/heads/{new_branch}"], authenticated=True)
+            if (
+                ws.git(p, ["rev-list", "--parents", "-1", "FETCH_HEAD"]).split() != [matching_tip, p.revision]
+                or ws.git(p, ["rev-parse", "FETCH_HEAD^{tree}"]) != tree
+            ):
+                raise Conflict("The existing review branch differs from this draft. Inspect it on the host.")
+            return matching_tip
         sha = ws.git(
             p,
             [

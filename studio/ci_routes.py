@@ -103,6 +103,25 @@ def operate(request: Request, project_id: str, form: Annotated[SetupForm, Form()
         return page(request, p, 409 if isinstance(exc, Conflict) else 422, error=str(exc))
 
 
+def demo_manifest(ws, p, roots):
+    def selected(path):
+        return any(root == "." or path.startswith(root + "/") for root in roots)
+
+    connected = (Path(p.folder) / "SKILL.md").as_posix()
+    if selected(connected):
+        return connected
+    entries = ws.git(p, ["ls-tree", "-rz", p.revision], raw=True)
+    if len(entries) > 16 * 1024 * 1024:
+        raise WorkspaceError("Repository discovery exceeded the size limit.")
+    for entry in entries.split(b"\0"):
+        if not entry.startswith((b"100644 blob ", b"100755 blob ")):
+            continue
+        path = entry.partition(b"\t")[2].decode("utf-8", errors="replace")
+        if Path(path).name == "SKILL.md" and selected(path):
+            return path
+    raise WorkspaceError("No tracked skill manifest matches the configured scan roots.")
+
+
 @router.post("/demo", name="ci_demo")
 def demo(request: Request, project_id: str, form: Annotated[DemoForm, Form()]):
     from skillevaluator import ci_onboarding as ci
@@ -142,23 +161,28 @@ def demo(request: Request, project_id: str, form: Annotated[DemoForm, Form()]):
                     roots = ci.workflow_helpers.existing_scan(scan.decode()).roots
             except (KeyError, AttributeError, TypeError, ci.SetupError, UnicodeError) as exc:
                 raise WorkspaceError("Demo requires a recognized scan workflow.") from exc
-            if not any(root in (".", p.folder) or p.folder.startswith(root + "/") for root in roots):
-                raise WorkspaceError("The workflow does not scan this skill folder.")
-            saved = read_file(ws, p, "SKILL.md")
+            target = demo_manifest(ws, p, roots)
+            saved = read_file(ws, p, target, repo_root=True)
             if saved is None:
                 raise WorkspaceError("The skill manifest is missing.")
             comment = "\n<!-- SkillEvaluator onboarding demo: exercise automatic PR feedback. -->\n"
             draft = saved + comment.encode()
-            digest = hashlib.sha256(draft).hexdigest()
+            digest = hashlib.sha256(p.revision.encode() + b"\0" + target.encode() + b"\0" + draft).hexdigest()
             demo_branch = all_tiers.DEMO_BRANCH if all_mode else ci.DEMO_BRANCH
             if form.action == "review":
-                return page(request, p, demo=comment, demo_digest=digest, demo_branch=demo_branch)
+                return page(request, p, demo=comment, demo_digest=digest, demo_branch=demo_branch, demo_target=target)
             if form.approval != digest:
                 raise WorkspaceError("Review the demo change before publishing.")
             if form.action == "request":
-                url = review_branch(ws, p, {"SKILL.md": draft}, demo_branch, "Exercise automatic skill review feedback")
-                return page(request, p, notice="Created review request: " + url, compare=url)
-            commit_changes(ws, p, {"SKILL.md": draft}, "Exercise automatic skill PR feedback", new_branch=demo_branch)
+                url = review_branch(
+                    ws, p, {target: draft}, demo_branch, "Exercise automatic skill review feedback", repo_root=True
+                )
+                return page(request, p, notice="Review request: " + url, compare=url)
+            if is_gitlab(p):
+                raise WorkspaceError("Choose the reviewed merge request action on GitLab.")
+            commit_changes(
+                ws, p, {target: draft}, "Exercise automatic skill PR feedback", new_branch=demo_branch, repo_root=True
+            )
             compare = (
                 f"{p.remote.rstrip('/').removesuffix('.git')}/compare/{quote(branch, safe='')}...{demo_branch}?expand=1"
             )

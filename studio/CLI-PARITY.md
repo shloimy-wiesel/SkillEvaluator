@@ -64,7 +64,7 @@ Publishing re-renders it against the same revision and checks the remote tip.
 | Save | Commits the reviewed files to the open branch. This may start CI. Unlike local CLI save, hosted workflow publication requires live privacy/ownership preflight. |
 | PR | Creates a setup branch and authenticated request. GitHub Tier 1 uses the wizard's admin checks and can provision Actions, Pages, the report history and deployment environment. Private Pages must already have verified private visibility. |
 | Live status | CLI status reads the live default branch, host settings and latest run or pipeline. Configuration alone is not a verified scan. |
-| Demo | On the current default branch, review the connected skill's comment-only change; create its PR/MR without switching your project. |
+| Demo | On the current default branch, review a comment-only change to a tracked skill under the configured scan roots; create its PR/MR without switching your project. |
 
 Tokens come from the saved project; grant the Git and API permissions needed
 for the selected action. GitHub host operations require `gh` (included in the
@@ -76,9 +76,8 @@ installs runner dependencies nor verifies model execution during setup.
 For a candidate release, install an operator-reviewed CLI descriptor under
 `$STUDIO_DATA_DIR/ci-releases/NAME.json` (letters, digits, hyphens or underscores;
 16 KiB maximum). Authors choose the name, never a host path. Only literal
-repository selectors and typed runner/model options are accepted. Existing
-all-tier or demo review branches are not overwritten: inspect the existing
-request on the host. A failed API request after a successful push leaves the
+repository selectors and typed runner/model options are accepted. Studio reopens an existing all-tier setup or demo request only if its base,
+branch tip and complete Git tree still match the reviewed change. A failed API request after a successful push leaves the
 review branch available. Hosted configuration can also finish partially; the
 wizard reports confirmed steps. No live hosted evaluation is claimed by the
 fixture tests.
