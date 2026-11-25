@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import sys
 import webbrowser
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -1041,17 +1041,22 @@ def compare_results(skill_path: Path, *, results_dir: Path | None = None) -> int
         console.print(f"[red]Error: No results found. Searched: {escape_markup(searched)}[/red]")
         return 1
 
+    return render_agent_comparison(
+        skill_path, (ordered_run_directories(root) for root in candidate_roots if root.exists()), console
+    )
+
+
+def render_agent_comparison(skill_path: Path, directory_groups: Iterable[Iterable[Path]], console: Console) -> int:
+    """Render the CLI score matrix for already selected, ordered result directories."""
     agent_with: dict[str, dict[str, float]] = {}
     agent_without: dict[str, dict[str, float]] = {}
     agent_meta: dict[str, dict[str, Any]] = {}
 
-    for candidate_root in candidate_roots:
-        if not candidate_root.exists():
-            continue
+    for directories in directory_groups:
         root_with: dict[str, dict[str, float]] = {}
         root_without: dict[str, dict[str, float]] = {}
         root_meta: dict[str, dict[str, Any]] = {}
-        for ts_dir in ordered_run_directories(candidate_root):
+        for ts_dir in directories:
             allow_missing_status = _run_timestamp(ts_dir.name) is None or is_legacy_completed_run_dir(ts_dir)
             try:
                 agent_dirs = sorted(ts_dir.iterdir())

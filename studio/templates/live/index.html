@@ -14,6 +14,7 @@
 <details><summary>Trial settings and budgets</summary>
 <p>Blank limits use the pinned run policy and engine defaults. The paid workload scales with cases × agents × attempts × arms.</p>
 <label>Agent model override<input name="model"></label>
+<label><input type="checkbox" name="harbor_keep_jobs">Retain Harbor jobs for trajectory review</label>
 {% for key,label in [('codex_model','Codex'),('opencode_model','OpenCode'),('claude_code_model','Claude Code')] %}
 <label>{{ label }} model override<input name="{{ key }}"></label>{% endfor %}
 {% for key,label,min,step in [
