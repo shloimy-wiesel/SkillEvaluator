@@ -9,6 +9,10 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from pydantic import ValidationError
+from starlette.concurrency import run_in_threadpool
+
+from .readiness import AGENTS, RECOGNIZED_CHECKS, Probe, all_env_modes, inspect
 
 router = APIRouter(prefix="/projects/{project_id}/providers")
 CHOICES = {
@@ -76,7 +80,15 @@ def render(request, project, **messages):
     return request.app.state.templates.TemplateResponse(
         request=request,
         name="providers/index.html",
-        context=dict(project=project, choices=CHOICES, profiles=profiles, **messages),
+        context=dict(
+            project=project,
+            choices=CHOICES,
+            profiles=profiles,
+            scanners=sorted(RECOGNIZED_CHECKS),
+            runtime_agents=AGENTS,
+            modes=all_env_modes(),
+            **messages,
+        ),
         status_code=422 if "error" in messages else 200,
         headers={"Cache-Control": "no-store"},
     )
@@ -85,6 +97,40 @@ def render(request, project, **messages):
 @router.get("", name="provider_settings")
 def settings(request: Request, project_id: str):
     return render(request, project_for(request, project_id))
+
+
+@router.post("/readiness/run", name="native_readiness")
+async def readiness(request: Request, project_id: str):
+    project = project_for(request, project_id)
+    async with request.form() as form:
+        values = dict(form)
+        for name in ("agents", "checks"):
+            values[name] = form.getlist(name)
+    try:
+        probe = Probe.model_validate(values)
+    except ValidationError as exc:
+        fields = {
+            str(error["loc"][0]) for error in exc.errors() if error["loc"] and error["loc"][0] in Probe.model_fields
+        }
+        return render(
+            request, project, error="Invalid readiness settings. Check: " + ", ".join(sorted(fields) or ["form fields"])
+        )
+    return await run_in_threadpool(run_readiness, request, project, probe)
+
+
+def run_readiness(request, project, probe):
+    try:
+        workspace = request.app.state.workspace
+        profiles = {}
+        for role in CHOICES:
+            try:
+                profiles[role] = worker_environment(workspace, project.id, role)
+            except ValueError:
+                profiles[role] = {}
+        result, code = inspect(probe, profiles["chat"], profiles["embeddings"])
+    except ValueError as exc:
+        return render(request, project, error=str(exc))
+    return render(request, project, result=result, exit_code=code, show_json=probe.as_json)
 
 
 def valid_url(url):

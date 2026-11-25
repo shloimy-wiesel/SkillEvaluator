@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Annotated, Literal
 from uuid import uuid4
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, IPvAnyAddress, model_validator
 
 from skillevaluator.provider_config import resolve_embedding_provider, resolve_llm_provider
 from skillevaluator.reporting.external_metrics import import_external_metrics
+from skillevaluator.tier3.evals_config import encode_environment_kwarg
 
 from . import live_job
 from .jobs import JobDefinition, Outcome
@@ -182,9 +183,20 @@ class InteractionControls(Settings):
     agents: tuple[Agent, ...] = ()
     model: Model | None = None
     env_mode: Literal["docker", "kata"] = "docker"
+    kata_runtime: Literal["kata", "kata-qemu", "kata-clh"] | None = None
+    kata_dns: tuple[IPvAnyAddress, ...] = ()
+    harbor_keep_jobs: bool = False
     metric: Literal["goal_accuracy", "accuracy", "overall"] = "goal_accuracy"
     n_attempts: Positive = 1
     n_concurrent: Positive | None = None
+
+    @model_validator(mode="after")
+    def validate_backend(self):
+        if self.env_mode != "kata" and (self.kata_runtime or self.kata_dns):
+            raise ValueError("Kata settings require the Kata backend.")
+        if any("%" in str(server) for server in self.kata_dns):
+            raise ValueError("Choose unscoped DNS addresses.")
+        return self
 
 
 class Interaction(InteractionControls, Profile):
@@ -236,6 +248,12 @@ def interact(ctx, options):
         ]
         if options.n_concurrent is not None:
             args += ["--n-concurrent", str(options.n_concurrent)]
+        if options.kata_runtime:
+            args += ["--environment-kwarg", encode_environment_kwarg("kata_runtime", options.kata_runtime)]
+        if options.kata_dns:
+            args += ["--environment-kwarg", encode_environment_kwarg("kata_dns", list(map(str, options.kata_dns)))]
+        if options.harbor_keep_jobs:
+            args.append("--harbor-keep-jobs")
         if options.model:
             args += ["--model", options.model]
         if options.agents:
@@ -266,6 +284,14 @@ def interact(ctx, options):
     text = reports[0].read_text()
     report = json.loads(text)
     summary = f"# Skill interaction · {report['status']}\n\nMetric: {options.metric}\n"
+    if options.harbor_keep_jobs:
+        native = reports[0].parent
+        retained = sorted(
+            p.relative_to(native).as_posix() for p in native.glob("*/*/_harbor-jobs") if p.resolve() == p and p.is_dir()
+        )
+        summary += "\nRetained Harbor job directories (relative to the interaction report):\n"
+        summary += "\n".join("- " + path for path in retained) or "None produced."
+        summary += "\n"
     for reason in report.get("reasons", []):
         summary += "\n- " + reason
     for name, agent in report.get("agents", {}).items():

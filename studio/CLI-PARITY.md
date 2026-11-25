@@ -30,6 +30,10 @@ and report equivalents. Option-level evidence: `bindings/overlap.json`.
 
 The [evaluation assets workflow](ASSETS.md) maps the two starter generators and `tier3 validate-grader`, including the execution boundary for repository suites.
 
+[Project readiness](PROVIDERS.md#project-readiness) maps `doctor`,
+`health-check`, `tier3 doctor` and `models`, including the consent boundary,
+worker prerequisites and tested limits. See `bindings/readiness.json`.
+
 [Review a completed run](RUNS.md#review-a-completed-run) covers agent score
 comparison, reports, Harbor trajectory inspection, dashboard filters and
 multi-turn feedback. The run picker binds these readers to retained project
@@ -98,7 +102,55 @@ review branch available. Hosted configuration can also finish partially; the
 wizard reports confirmed steps. No live hosted evaluation is claimed by the
 fixture tests.
 
+## Retained live results
+
+Open **Results → Skill lift history** from a connected project. Results scope
+selects immutable Studio evaluation roots for that project and skill folder;
+leave it empty to include all of them. Both flat and skill-nested native runs
+are inspected in place so native path-bound provenance remains verifiable.
+The exact agent filter applies to history (including JSON, CSV and Markdown).
+A missing lift change means that a comparable change was not measured.
+
+Current **Latest completed** follows native completion ordering. Prior **Latest
+earlier compatible revision** skips unchanged revisions and incompatible
+candidates. Explicit selections allow inspecting a mismatch or an unchanged
+revision. **Comparison JSON** contains the paired version result, separate from
+within-run baseline lift; unavailable evidence has no invented delta.
+
 [Experiments](RUNS.md#experiments) maps selection, fixed-suite interactions
-and external metrics to pinned jobs with native JSON exports. Interaction
-backend kwargs and raw Harbor jobs remain unbound. The browser interaction
-proof uses a fixture at the sandbox invocation boundary, not a paid live trial.
+and external metrics to pinned jobs with native JSON exports. Of the 24
+experiment command and parameter rows, 16 are implemented and eight partial:
+selection and its catalog root require a portable committed collection;
+interaction, skills, evaluation source, agents, environment and backend
+kwargs are limited to Studio's fixed-suite isolated presets. Docker accepts
+no kwargs; Kata exposes runtime presets and literal DNS addresses.
+The browser exercises opt-in job retention and incomplete evidence at the
+sandbox invocation boundary. `tests/tier3/test_interactions.py` checks
+propagation through all configurations and rejects incomparable outcomes;
+`tests/test_harbor_environment_contract.py` and
+`tests/test_harbor_artifact_retention.py` exercise backend validation and
+native retention. These tests do not qualify a paid live trial.
+
+## Installation and changed-file checks
+
+From **Project tools → Installation and changed files**, inspect the installed
+CLI version and choose contextual help for a command or tier group. Help and
+version come from the same Python environment that executes checks. Expand
+**Diagnostic detail** for the runtime, folder and revision; each retained run
+also has a detail panel. **Include redacted evaluator detail** enables the
+engine's verbose logging level for a changed-file run. Only its effective level
+and path/skill counts are retained there, never the process environment or raw
+debug log.
+
+Select one or more paths from the connected commit's diff against its first
+parent (all paths for the initial commit). The hidden `precommit-run` equivalent
+checks each affected skill once across the repository. Unrelated paths produce
+no results and a successful exit. Quality uses the evaluator defaults unless
+you change the threshold or select a tracked configuration (YAML/JSON, up to
+1 MiB). Paths and config stay pinned on replay; linked inputs are unsupported.
+
+Requires Git, the installed evaluator and Studio dependencies, and a connected
+project; these three checks need no provider, credentials or external service.
+The Chromium integration test uses only a local private HTTPS Git fixture and
+compares the rendered report and exit code with the installed CLI on the same
+files. Evidence for the 11 command/option rows: `bindings/installation.json`.
