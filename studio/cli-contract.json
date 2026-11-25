@@ -1,0 +1,8 @@
+{
+  "source": "../tests/golden/cli_surface.json",
+  "entry_point": "skillevaluator.cli:cli",
+  "direct_workflows": ["tier1", "tier2", "tier3"],
+  "baseline_revision": "ff69db2",
+  "verification": "source audit; installed distribution not verified",
+  "coverage_status": "specified, not implemented"
+}
