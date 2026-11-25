@@ -59,3 +59,10 @@ retain the usual mode behavior. Never source this mapping from form fields.
 commit directly to a previously absent branch with the same push guard,
 leaving the selected branch and workspace metadata unchanged. Repository CI
 uses this for the reviewed demo change.
+
+**Compare revisions** is read-only: it resolves branch names already in the
+project clone or a full local commit SHA, then compares Git objects under the
+selected skill folder. It does not refresh the remote, switch branches, stage
+files, or change the current draft. The preview shows up to 20 changed files,
+32 KiB of text per side, and highlights changed lines in smaller files.
+Binary, linked, deleted and empty files have explicit preview states.

@@ -108,7 +108,10 @@ measured failure. A neutral skill verdict can have CLI exit code zero.
    `evaluated_source.commit`. Missing measurements are absent. Preflight or
    incomplete outputs can have no canonical evaluation payload.
 3. Under the private `artifacts/<project_id>/<run_id>/tier3/` root there is
-   one real `<native-run-id>/` directory. Ignore the `latest` alias. Use its
+   one real `<skill-name>/<native-run-id>/` directory (older adapters use
+   `<native-run-id>/`). Use `studio.native_location.native_directory(root)`
+   to resolve the native run in place; its generated marker binds it to its
+   original path. Ignore the `latest` alias. Use its
    `result.json`, `run_config.json`, `<agent>/<arm>/summary.json`, engine
    feedback, report and dataset snapshot with the existing native readers.
    The selected/generated source dataset is also retained as `dataset.<ext>`
@@ -128,3 +131,25 @@ engine catalog and Docker preflight without a paid trial:
 ```sh
 STUDIO_TEST_LIVE_RUNTIME=1 python -m pytest -q tests/studio/test_live.py
 ```
+
+## Compare retained evidence
+
+Open **Results → Compare revisions**. Choose the prior and current source.
+Each side starts with the newest Studio run at that exact commit. When a
+commit has multiple runs, choose the intended runs and select **Compare
+selected runs**. The resulting URL pins both SHAs and Studio run IDs. Each
+card links back to the original findings, settings and exports.
+
+**Paired baseline lift** is the native history measurement for one agent
+within one run (with skill versus without skill). **With-skill change** is
+the native version comparison between runs (current minus prior). Its
+eligibility and paired scores come from the same reader as `tier3
+compare-versions`, including custom grading and unchanged skill identity.
+Two passing gates alone do not establish a score change. Unknown coverage,
+skipped arms, different settings and missing evidence stay visible.
+
+Only terminal, project- and revision-matched live reports authorize native
+artifact inspection. The isolated reader ignores `latest`, rejects linked
+artifacts, and limits inspection to 16,000 entries, 8 MiB per JSON or marker
+file and 64 MiB total of those files per run. Timeout: 30 seconds. No reader
+starts trials or accesses provider credentials.

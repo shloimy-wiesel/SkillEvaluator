@@ -35,6 +35,7 @@ Open a self-hosted browser workspace, pick a project and branch, edit the skill 
 - Reuse the existing engine, validators and report contracts. Distinguish skipped, incomplete, failed and passed; missing measurements are not zero.
 - Present first-class workflows plus an advanced option catalogue. Translate terminal presentation switches to browser equivalents. Aliases may share a control. Do not expose arbitrary shell commands, host paths or executable configuration as substitutes for forms.
 - Track capability coverage individually, including prerequisites, incompatible settings, defaults, inputs, exports, and browser equivalents. Inventory alone does not count as implementation.
+- Revision review pairs two immutable source snapshots with independently selected retained run IDs. Keep within-run baseline lift separate from across-version with-skill change; display a reason when pairing is unavailable.
 
 ## Testing Decisions
 

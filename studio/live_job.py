@@ -334,19 +334,22 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
                 temporary = saved_dataset.with_suffix(".part")
                 shutil.copyfile(dataset, temporary)
                 temporary.replace(saved_dataset)
-    paths = [path for path in output.glob("*/result.json") if path.resolve() == path and path.is_file()]
-    if len(paths) != 1:
+    from .native_location import native_directory
+
+    try:
+        result_path = native_directory(output) / "result.json"
+    except (ValueError, OSError, RuntimeError) as exc:
         raise WorkspaceError(
             "No canonical Tier 3 result. Check dataset, provider/agent compatibility and sandbox readiness."
-        )
+        ) from exc
     from skillevaluator.evaluation.tier3_report import agent_eval_result_from_directory
     from skillevaluator.reporting.json_reporter import JSONReporter
     from skillevaluator.tier3.harbor.run_budget import budget_fully_denied
 
-    payload = json.loads(paths[0].read_text())
+    payload = json.loads(result_path.read_text())
     result = agent_eval_result_from_directory(
         ctx.skill,
-        paths[0].parent,
+        result_path.parent,
         env_mode=options.env_mode,
         engine_result=payload,
         evaluated_source={"commit": ctx.revision},
@@ -363,7 +366,7 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
         )
         if canonical.get("mode") == "baseline_only" and canonical.get("execution_status") == "succeeded":
             status = "neutral"
-    benchmark = paths[0].with_name("tier3-benchmark.md")
+    benchmark = result_path.with_name("tier3-benchmark.md")
     markdown = (
         benchmark.read_text() if benchmark.is_file() and benchmark.resolve() == benchmark else f"# Tier 3: {status}\n"
     )
