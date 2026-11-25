@@ -451,13 +451,22 @@ def test_runner_fresh_reused_and_incompatible(
     }
     fresh = runner.run_harbor_eval(skill, ["opencode"], **kwargs)
     assert "error" not in fresh, fresh
-    reused = runner.run_harbor_eval(
-        skill,
-        ["opencode"],
-        reuse_baseline=fresh["run_id"],
-        max_attempts_total=1,
-        **kwargs,
-    )
+    # Each Studio job has an isolated results root. Read the original path-bound
+    # evidence and run only the new with-skill arm.
+    from skillevaluator.tier3.retained_sources import authorized_sources
+
+    source = Path(fresh["run_dir"])
+    with authorized_sources({"reuse_baseline": source, "compare_to": source}):
+        reused = runner.run_harbor_eval(
+            skill,
+            ["opencode"],
+            reuse_baseline=source.name,
+            compare_to=source.name,
+            max_attempts_total=1,
+            **{**kwargs, "output_dir": tmp_path / "other-job"},
+        )
+    assert reused["prior_version_comparison"]["source_run_id"] == source.name
+    assert reused["prior_version_comparison"]["status"] == "available"
     assert "error" not in reused, reused
     assert launched == [True, False]
     assert reused["baseline"]["mode"] == "reused"
@@ -470,7 +479,14 @@ def test_runner_fresh_reused_and_incompatible(
         ]
         == fresh["run_id"]
     )
-    incompatible = runner.run_harbor_eval(skill, ["opencode"], reuse_baseline=fresh["run_id"], n_attempts=3, **kwargs)
+    with authorized_sources({"reuse_baseline": source}):
+        incompatible = runner.run_harbor_eval(
+            skill,
+            ["opencode"],
+            reuse_baseline=source.name,
+            n_attempts=3,
+            **{**kwargs, "output_dir": tmp_path / "third-job"},
+        )
     assert incompatible["error"]
     assert "attempt" in str(incompatible["error"])
     assert launched == [True, False]
@@ -502,7 +518,7 @@ def test_runner_fresh_reused_and_incompatible(
     assert any("failed" in reason for reason in baseline_store.baseline_eligibility(source, ["opencode"], identity)[0])
     fallback = baseline_store.select_baseline(tmp_path / "results", "latest", ["opencode"], identity)
     assert fallback["mode"] == "fresh"
-    assert {candidate["run_id"] for candidate in fallback["rejected_candidates"]} == {fresh["run_id"], reused["run_id"]}
+    assert {candidate["run_id"] for candidate in fallback["rejected_candidates"]} == {fresh["run_id"]}
     reward.unlink()
     assert baseline_store.baseline_eligibility(source, ["opencode"], identity)[0]
 

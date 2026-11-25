@@ -2,61 +2,769 @@
   {
     "key": "tier3 [workflow]",
     "status": "partial",
-    "equivalent": "Direct workflow stages the pinned skill, preserves generated cases on replay and retains native evidence. Generated Harbor tasks on Docker/Kata only.",
+    "equivalent": "Project-pinned generated Harbor tasks on Docker/Kata. Native tasks and host-specific execution are unavailable.",
     "evidence": "tests/studio/test_live.py::test_direct_workflow_retains_evidence_and_reruns_original_profile"
+  },
+  {
+    "key": "tier3 [workflow]:skill_path",
+    "status": "partial",
+    "equivalent": "Pinned project skill only; arbitrary host paths are unavailable.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:agents",
+    "status": "partial",
+    "equivalent": "Explicit built-in agents or provider default; only agents supported by the configured provider and sandbox.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:env_mode",
+    "status": "partial",
+    "equivalent": "Operator-managed Docker or Kata only; no local host or cloud environment.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:backend",
+    "status": "partial",
+    "equivalent": "Generated Harbor tasks only; NeMo Gym is unavailable.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:environment_kwarg",
+    "status": "partial",
+    "equivalent": "Empty only: no arbitrary environment constructor arguments.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:autopilot",
+    "status": "implemented",
+    "equivalent": "Prepare missing cases explicitly on evaluate/legacy evaluate; direct Tier 3 already prepares missing cases.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:skip_baseline",
+    "status": "implemented",
+    "equivalent": "With-skill-only selection omits the baseline.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:reuse_baseline",
+    "status": "partial",
+    "equivalent": "Explicit completed project/skill run only, revalidated at replay and by the engine; no latest fallback.",
+    "evidence": "tests/studio/test_live.py::test_project_retained_selection_and_provenance"
+  },
+  {
+    "key": "tier3 [workflow]:compare_to",
+    "status": "partial",
+    "equivalent": "Compare the with-skill arm of an explicit completed project/skill run; no latest lookup.",
+    "evidence": "tests/studio/test_live.py::test_project_retained_selection_and_provenance"
+  },
+  {
+    "key": "tier3 [workflow]:skip_with_skill",
+    "status": "implemented",
+    "equivalent": "Baseline-only selection omits the with-skill arm.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
   },
   {
     "key": "tier3 [workflow]:n_attempts",
     "status": "implemented",
-    "equivalent": "Attempts per case; blank inherits the pinned run policy.",
-    "evidence": "tests/studio/test_live.py::test_direct_workflow_retains_evidence_and_reruns_original_profile"
+    "equivalent": "Attempts per case.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:max_agent_tokens",
+    "status": "implemented",
+    "equivalent": "Maximum measured agent tokens.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:max_judge_calls",
+    "status": "implemented",
+    "equivalent": "Judge call budget, including explicit zero.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
   },
   {
     "key": "tier3 [workflow]:max_attempts_total",
     "status": "implemented",
-    "equivalent": "Maximum logical attempts across arms; blank inherits the engine limit.",
-    "evidence": "tests/studio/test_live.py::test_direct_workflow_retains_evidence_and_reruns_original_profile"
+    "equivalent": "Maximum total logical attempts.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:max_cost_usd",
+    "status": "implemented",
+    "equivalent": "USD budget paired with a committed price file.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:price_file",
+    "status": "partial",
+    "equivalent": "Read the selected file from the pinned project commit; no host price paths.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:pass_threshold",
+    "status": "implemented",
+    "equivalent": "Attempt pass threshold.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:stop_on_pass",
+    "status": "implemented",
+    "equivalent": "Three-state stop policy; explicit false is passed to the engine.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:n_concurrent",
+    "status": "implemented",
+    "equivalent": "Concurrent cases per agent.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:max_agents",
+    "status": "implemented",
+    "equivalent": "Concurrent agents.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:max_cases",
+    "status": "implemented",
+    "equivalent": "Maximum cases.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:model",
+    "status": "implemented",
+    "equivalent": "Global agent model independent of the frozen judge model.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:agent_model",
+    "status": "implemented",
+    "equivalent": "One typed override per selected agent, emitted as repeated AGENT=MODEL options.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:custom_dockerfile_mode",
+    "status": "partial",
+    "equivalent": "Generated Dockerfile only: no repository Dockerfile preserve/rebase control.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:skill_workspace_mode",
+    "status": "partial",
+    "equivalent": "Always isolated; the group workspace is unavailable.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:include_skills",
+    "status": "partial",
+    "equivalent": "No additional workspace skills; project runs cannot import arbitrary host directories.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:copy_repo",
+    "status": "partial",
+    "equivalent": "Disabled: the worker stages a bounded projection rather than the entire repository.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:grading_mode",
+    "status": "implemented",
+    "equivalent": "Engine grading mode; pinned custom grader staged for the task sandbox.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:results_dir",
+    "status": "partial",
+    "equivalent": "Per-job managed artifact directory only, not an author-selected host path.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:agent_runtime_preflight",
+    "status": "implemented",
+    "equivalent": "Three-state preflight; omitted and enabled have distinct engine settings.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:tolerate_baseline_timeouts",
+    "status": "implemented",
+    "equivalent": "Three-state tolerance for baseline timeouts.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:timeout_multiplier",
+    "status": "implemented",
+    "equivalent": "Trial timeout multiplier.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:override_cpus",
+    "status": "implemented",
+    "equivalent": "CPUs per trial.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:override_memory_mb",
+    "status": "implemented",
+    "equivalent": "MiB of memory per trial.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:override_storage_mb",
+    "status": "implemented",
+    "equivalent": "MiB of storage per trial.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:evaluated_source_repository",
+    "status": "partial",
+    "equivalent": "Derived only for a canonical owner/repo project remote path; no author provenance override.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
   },
   {
     "key": "tier3 [workflow]:evaluated_source_revision",
-    "status": "implemented",
-    "equivalent": "Pass the full pinned SHA to the engine and carry it into the exported canonical evaluation.",
-    "evidence": "tests/studio/test_live.py::test_direct_workflow_retains_evidence_and_reruns_original_profile"
+    "status": "partial",
+    "equivalent": "Pinned project commit only; cannot substitute an arbitrary digest.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:evaluator_container_revision",
+    "status": "partial",
+    "equivalent": "Immutable operator-configured evaluator image digest or build SHA; absent unless configured.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:progress",
+    "status": "partial",
+    "equivalent": "Native terminal progress is off; Studio records job status. Other presentation modes are unavailable.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:progress_interval",
+    "status": "partial",
+    "equivalent": "Engine interval omitted; Studio job progress does not expose terminal heartbeat timing.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 [workflow]:verbose",
+    "status": "partial",
+    "equivalent": "No terminal verbosity control; the worker saves structured evidence instead.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
   },
   {
     "key": "tier3 evaluate",
     "status": "partial",
-    "equivalent": "Evaluate a selected dataset with Harbor; require existing cases by default. Native tasks, other backends and reused comparison arms remain.",
+    "equivalent": "Project-pinned generated Harbor tasks on Docker/Kata. Native tasks and host-specific execution are unavailable.",
     "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
   },
   {
-    "key": "tier3 evaluate:grading_mode",
-    "status": "implemented",
-    "equivalent": "Select native grading mode; custom grader file comes from the pinned skill and runs in the task sandbox.",
+    "key": "tier3 evaluate:skill_path",
+    "status": "partial",
+    "equivalent": "Pinned project skill only; arbitrary host paths are unavailable.",
     "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
   },
   {
     "key": "tier3 evaluate:agents",
-    "status": "implemented",
-    "equivalent": "Select named built-in agents or leave empty for the saved provider's default.",
-    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
-  },
-  {
-    "key": "tier3 evaluate:agent_model",
     "status": "partial",
-    "equivalent": "One typed model override per selected agent; multiple models per agent remain.",
+    "equivalent": "Explicit built-in agents or provider default; only agents supported by the configured provider and sandbox.",
     "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
   },
   {
-    "key": "tier3 evaluate:override_memory_mb",
+    "key": "tier3 evaluate:env_mode",
+    "status": "partial",
+    "equivalent": "Operator-managed Docker or Kata only; no local host or cloud environment.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:backend",
+    "status": "partial",
+    "equivalent": "Generated Harbor tasks only; NeMo Gym is unavailable.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:environment_kwarg",
+    "status": "partial",
+    "equivalent": "Empty only: no arbitrary environment constructor arguments.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:autopilot",
     "status": "implemented",
-    "equivalent": "Memory per trial in MiB.",
+    "equivalent": "Prepare missing cases explicitly on evaluate/legacy evaluate; direct Tier 3 already prepares missing cases.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:skip_baseline",
+    "status": "implemented",
+    "equivalent": "With-skill-only selection omits the baseline.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:reuse_baseline",
+    "status": "partial",
+    "equivalent": "Explicit completed project/skill run only, revalidated at replay and by the engine; no latest fallback.",
+    "evidence": "tests/studio/test_live.py::test_project_retained_selection_and_provenance"
+  },
+  {
+    "key": "tier3 evaluate:compare_to",
+    "status": "partial",
+    "equivalent": "Compare the with-skill arm of an explicit completed project/skill run; no latest lookup.",
+    "evidence": "tests/studio/test_live.py::test_project_retained_selection_and_provenance"
+  },
+  {
+    "key": "tier3 evaluate:skip_with_skill",
+    "status": "implemented",
+    "equivalent": "Baseline-only selection omits the with-skill arm.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:n_attempts",
+    "status": "implemented",
+    "equivalent": "Attempts per case.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:max_agent_tokens",
+    "status": "implemented",
+    "equivalent": "Maximum measured agent tokens.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:max_judge_calls",
+    "status": "implemented",
+    "equivalent": "Judge call budget, including explicit zero.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:max_attempts_total",
+    "status": "implemented",
+    "equivalent": "Maximum total logical attempts.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:max_cost_usd",
+    "status": "implemented",
+    "equivalent": "USD budget paired with a committed price file.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:price_file",
+    "status": "partial",
+    "equivalent": "Read the selected file from the pinned project commit; no host price paths.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:pass_threshold",
+    "status": "implemented",
+    "equivalent": "Attempt pass threshold.",
     "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
   },
   {
     "key": "tier3 evaluate:stop_on_pass",
     "status": "implemented",
-    "equivalent": "Use run policy, yes or no. Explicit no is distinct from omitting the switch.",
+    "equivalent": "Three-state stop policy; explicit false is passed to the engine.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:n_concurrent",
+    "status": "implemented",
+    "equivalent": "Concurrent cases per agent.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:max_agents",
+    "status": "implemented",
+    "equivalent": "Concurrent agents.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:max_cases",
+    "status": "implemented",
+    "equivalent": "Maximum cases.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:model",
+    "status": "implemented",
+    "equivalent": "Global agent model independent of the frozen judge model.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:agent_model",
+    "status": "implemented",
+    "equivalent": "One typed override per selected agent, emitted as repeated AGENT=MODEL options.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:custom_dockerfile_mode",
+    "status": "partial",
+    "equivalent": "Generated Dockerfile only: no repository Dockerfile preserve/rebase control.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:skill_workspace_mode",
+    "status": "partial",
+    "equivalent": "Always isolated; the group workspace is unavailable.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:include_skills",
+    "status": "partial",
+    "equivalent": "No additional workspace skills; project runs cannot import arbitrary host directories.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:copy_repo",
+    "status": "partial",
+    "equivalent": "Disabled: the worker stages a bounded projection rather than the entire repository.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:grading_mode",
+    "status": "implemented",
+    "equivalent": "Engine grading mode; pinned custom grader staged for the task sandbox.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:results_dir",
+    "status": "partial",
+    "equivalent": "Per-job managed artifact directory only, not an author-selected host path.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:harbor_keep_jobs",
+    "status": "implemented",
+    "equivalent": "Opt in to keeping sandbox jobs for private trajectory review.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:agent_runtime_preflight",
+    "status": "implemented",
+    "equivalent": "Three-state preflight; omitted and enabled have distinct engine settings.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:tolerate_baseline_timeouts",
+    "status": "implemented",
+    "equivalent": "Three-state tolerance for baseline timeouts.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:timeout_multiplier",
+    "status": "implemented",
+    "equivalent": "Trial timeout multiplier.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:override_cpus",
+    "status": "implemented",
+    "equivalent": "CPUs per trial.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:override_memory_mb",
+    "status": "implemented",
+    "equivalent": "MiB of memory per trial.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:override_storage_mb",
+    "status": "implemented",
+    "equivalent": "MiB of storage per trial.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:evaluated_source_repository",
+    "status": "partial",
+    "equivalent": "Derived only for a canonical owner/repo project remote path; no author provenance override.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:evaluated_source_revision",
+    "status": "partial",
+    "equivalent": "Pinned project commit only; cannot substitute an arbitrary digest.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:evaluator_container_revision",
+    "status": "partial",
+    "equivalent": "Immutable operator-configured evaluator image digest or build SHA; absent unless configured.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:progress",
+    "status": "partial",
+    "equivalent": "Native terminal progress is off; Studio records job status. Other presentation modes are unavailable.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:progress_interval",
+    "status": "partial",
+    "equivalent": "Engine interval omitted; Studio job progress does not expose terminal heartbeat timing.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:verbose",
+    "status": "partial",
+    "equivalent": "No terminal verbosity control; the worker saves structured evidence instead.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate",
+    "status": "partial",
+    "equivalent": "Project-pinned generated Harbor tasks on Docker/Kata. Native tasks and host-specific execution are unavailable.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:skill_path",
+    "status": "partial",
+    "equivalent": "Pinned project skill only; arbitrary host paths are unavailable.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:agents",
+    "status": "partial",
+    "equivalent": "Explicit built-in agents or provider default; only agents supported by the configured provider and sandbox.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:env_mode",
+    "status": "partial",
+    "equivalent": "Operator-managed Docker or Kata only; no local host or cloud environment.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:backend",
+    "status": "partial",
+    "equivalent": "Generated Harbor tasks only; NeMo Gym is unavailable.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:environment_kwarg",
+    "status": "partial",
+    "equivalent": "Empty only: no arbitrary environment constructor arguments.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:autopilot",
+    "status": "implemented",
+    "equivalent": "Prepare missing cases explicitly on evaluate/legacy evaluate; direct Tier 3 already prepares missing cases.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:skip_baseline",
+    "status": "implemented",
+    "equivalent": "With-skill-only selection omits the baseline.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:reuse_baseline",
+    "status": "partial",
+    "equivalent": "Explicit completed project/skill run only, revalidated at replay and by the engine; no latest fallback.",
+    "evidence": "tests/studio/test_live.py::test_project_retained_selection_and_provenance"
+  },
+  {
+    "key": "evaluate:compare_to",
+    "status": "partial",
+    "equivalent": "Compare the with-skill arm of an explicit completed project/skill run; no latest lookup.",
+    "evidence": "tests/studio/test_live.py::test_project_retained_selection_and_provenance"
+  },
+  {
+    "key": "evaluate:skip_with_skill",
+    "status": "implemented",
+    "equivalent": "Baseline-only selection omits the with-skill arm.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:n_attempts",
+    "status": "implemented",
+    "equivalent": "Attempts per case.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:max_agent_tokens",
+    "status": "implemented",
+    "equivalent": "Maximum measured agent tokens.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:max_judge_calls",
+    "status": "implemented",
+    "equivalent": "Judge call budget, including explicit zero.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:max_attempts_total",
+    "status": "implemented",
+    "equivalent": "Maximum total logical attempts.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:max_cost_usd",
+    "status": "implemented",
+    "equivalent": "USD budget paired with a committed price file.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:price_file",
+    "status": "partial",
+    "equivalent": "Read the selected file from the pinned project commit; no host price paths.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:pass_threshold",
+    "status": "implemented",
+    "equivalent": "Attempt pass threshold.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:stop_on_pass",
+    "status": "implemented",
+    "equivalent": "Three-state stop policy; explicit false is passed to the engine.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:n_concurrent",
+    "status": "implemented",
+    "equivalent": "Concurrent cases per agent.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:max_agents",
+    "status": "implemented",
+    "equivalent": "Concurrent agents.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:max_cases",
+    "status": "implemented",
+    "equivalent": "Maximum cases.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:model",
+    "status": "implemented",
+    "equivalent": "Global agent model independent of the frozen judge model.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:agent_model",
+    "status": "implemented",
+    "equivalent": "One typed override per selected agent, emitted as repeated AGENT=MODEL options.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:custom_dockerfile_mode",
+    "status": "partial",
+    "equivalent": "Generated Dockerfile only: no repository Dockerfile preserve/rebase control.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:skill_workspace_mode",
+    "status": "partial",
+    "equivalent": "Always isolated; the group workspace is unavailable.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:include_skills",
+    "status": "partial",
+    "equivalent": "No additional workspace skills; project runs cannot import arbitrary host directories.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:copy_repo",
+    "status": "partial",
+    "equivalent": "Disabled: the worker stages a bounded projection rather than the entire repository.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:grading_mode",
+    "status": "implemented",
+    "equivalent": "Engine grading mode; pinned custom grader staged for the task sandbox.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:results_dir",
+    "status": "partial",
+    "equivalent": "Per-job managed artifact directory only, not an author-selected host path.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:harbor_keep_jobs",
+    "status": "implemented",
+    "equivalent": "Opt in to keeping sandbox jobs for private trajectory review.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:agent_runtime_preflight",
+    "status": "implemented",
+    "equivalent": "Three-state preflight; omitted and enabled have distinct engine settings.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:tolerate_baseline_timeouts",
+    "status": "implemented",
+    "equivalent": "Three-state tolerance for baseline timeouts.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:timeout_multiplier",
+    "status": "implemented",
+    "equivalent": "Trial timeout multiplier.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:override_cpus",
+    "status": "implemented",
+    "equivalent": "CPUs per trial.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:override_memory_mb",
+    "status": "implemented",
+    "equivalent": "MiB of memory per trial.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:override_storage_mb",
+    "status": "implemented",
+    "equivalent": "MiB of storage per trial.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:evaluated_source_repository",
+    "status": "partial",
+    "equivalent": "Derived only for a canonical owner/repo project remote path; no author provenance override.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:evaluated_source_revision",
+    "status": "partial",
+    "equivalent": "Pinned project commit only; cannot substitute an arbitrary digest.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:evaluator_container_revision",
+    "status": "partial",
+    "equivalent": "Immutable operator-configured evaluator image digest or build SHA; absent unless configured.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:progress",
+    "status": "partial",
+    "equivalent": "Native terminal progress is off; Studio records job status. Other presentation modes are unavailable.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:progress_interval",
+    "status": "partial",
+    "equivalent": "Engine interval omitted; Studio job progress does not expose terminal heartbeat timing.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "evaluate:verbose",
+    "status": "partial",
+    "equivalent": "No terminal verbosity control; the worker saves structured evidence instead.",
     "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
   }
 ]
