@@ -29,6 +29,57 @@ def open_draft(page, base, private_remote):
     connect(page, *private_remote, skill="skills/triage")
     page.get_by_role("link", name="Datasets").click()
     page.get_by_role("button", name="Open draft").click()
+    page.wait_for_url("**/datasets?draft=*")
+
+
+def publish(page):
+    page.get_by_role("button", name="Commit and push").click()
+    playwright.expect(page.get_by_role("status")).to_contain_text("Pushed")
+
+
+def test_resumed_draft_has_versioned_scoped_conflict_view(page, tmp_path, private_remote):
+    with running(tmp_path / "volume") as base:
+        open_draft(page, base, private_remote)
+        endpoint = page.url.replace(base, base + "/api/v1", 1)
+        response = page.request.get(endpoint)
+        assert response.ok
+        draft = response.json()["draft"]
+        assert draft["path"] == "evals/evals.json"
+        stale = page.request.post(endpoint, multipart={"draft": draft["token"], "version": "-1", "action": "delete"})
+        assert stale.status == 409
+        assert stale.json()["detail"]["code"] == "conflict"
+        assert page.request.get(endpoint.split("?")[0] + "?draft=unknown").status == 404
+
+
+def test_edit_prompt_preserves_structured_expectations_and_conflicting_draft(page, tmp_path, private_remote):
+    case = {
+        "id": 37,
+        "prompt": "Route incident",
+        "expected_output": {"queue": "escalation", "priority": 2},
+        "assertions": [{"field": "queue", "equals": "escalation"}],
+        "metadata": {"labels": ["critical"]},
+    }
+    seed_skill(tmp_path, {"evals/evals.json": json.dumps({"skill_name": "triage", "evals": [case]})})
+    with running(tmp_path / "volume") as base:
+        open_draft(page, base, private_remote)
+        other = page.context.browser.new_page()
+        other.goto(page.url)
+        other.get_by_text("Discard working copy").click()
+        page.get_by_text("Edit case 37").click()
+        edit = page.locator("article").filter(has=page.get_by_role("heading", name="37"))
+        playwright.expect(edit.get_by_text("Structured assertions preserved")).to_be_visible()
+        assert edit.get_by_label("Expected output").count() == 0
+        edit.get_by_label("Prompt", exact=True).fill("Route critical incident")
+        edit.get_by_role("button", name="Update case").click()
+        playwright.expect(edit.locator("p").first).to_have_text("Route critical incident")
+        other.get_by_role("button", name="Discard private draft").click()
+        playwright.expect(other.locator("main").get_by_role("alert")).to_contain_text("changed in another form")
+        playwright.expect(other.get_by_text("Route critical incident", exact=True).first).to_be_visible()
+        publish(page)
+        saved = subprocess.check_output(
+            ["git", "show", "main:skills/triage/evals/evals.json"], cwd=tmp_path / "server/handbook.git"
+        )
+        assert json.loads(saved)["evals"] == [{**case, "prompt": "Route critical incident"}]
 
 
 def test_guided_full_replacement_and_retained_refinement(page, tmp_path, private_remote):
@@ -74,10 +125,10 @@ def test_guided_full_replacement_and_retained_refinement(page, tmp_path, private
             page.get_by_label("Overwrite existing cases").set_checked(force)
             page.get_by_role("button", name="Generate preview").click()
             if not force:
-                playwright.expect(page.get_by_role("alert")).to_contain_text("already exists")
+                playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("already exists")
         playwright.expect(page.get_by_role("status")).to_contain_text("Generated 4")
         page.get_by_role("button", name="Use generated cases").click()
-        page.get_by_role("button", name="Commit and push").click()
+        publish(page)
         saved = json.loads(
             subprocess.check_output(
                 ["git", "show", "main:skills/triage/evals/evals.json"], cwd=tmp_path / "server/handbook.git"
@@ -169,9 +220,10 @@ def test_collect_then_refine_only_the_pinned_case(page, tmp_path, private_remote
         )
         page.goto(base + settings.removesuffix("/providers") + "/datasets")
         page.get_by_role("button", name="Open draft").click()
+        page.wait_for_url("**/datasets?draft=*")
         draft = page.url
         page.get_by_role("button", name="Collect trajectory").click(timeout=1500)
-        playwright.expect(page.get_by_role("alert")).to_contain_text("consent")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("consent")
         assert not calls
         page.get_by_label("Allow one paid sandbox trial").check()
         page.get_by_role("button", name="Collect trajectory").click()
@@ -184,7 +236,7 @@ def test_collect_then_refine_only_the_pinned_case(page, tmp_path, private_remote
         trials = next((tmp_path / "volume/artifacts").rglob("trials"))
         (trials / "urgent/foreign.log").symlink_to(cases)
         page.get_by_role("button", name="Preview collected refinement").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("linked sandbox evidence")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("linked sandbox evidence")
         assert len(calls) == 1
 
 
@@ -204,8 +256,7 @@ def test_author_cases_and_publish_only_after_preview(page, tmp_path, private_rem
         page.get_by_role("button", name="Preview changes").click()
         playwright.expect(page.get_by_label("Change preview")).to_contain_text("+")
         assert subprocess.check_output(["git", "rev-list", "--count", "main"], cwd=remote).strip() == b"1"
-        page.get_by_role("button", name="Commit and push").click()
-        playwright.expect(page.get_by_role("status")).to_contain_text("Pushed")
+        publish(page)
         saved = json.loads(subprocess.check_output(["git", "show", "main:skills/triage/evals/evals.json"], cwd=remote))
         assert saved["evals"] == [
             {
@@ -261,7 +312,7 @@ def test_review_export_before_publishing_redacted_fixtures(page, tmp_path, priva
         page.get_by_role("button", name="Preview acceptance").click()
         playwright.expect(page.get_by_role("status")).to_contain_text("1 addition")
         page.get_by_role("button", name="Stage accepted cases").click()
-        page.get_by_role("button", name="Commit and push").click()
+        publish(page)
         saved = json.loads(subprocess.check_output(["git", "show", "main:skills/triage/evals/evals.json"], cwd=remote))
         (case,) = saved["evals"]
         assert case["trace_source"]["decision"] == "accept"
@@ -291,7 +342,7 @@ def test_replace_trace_review_and_explicit_native_acceptance(page, tmp_path, pri
 
         upload("Original case")
         upload("Replacement")
-        playwright.expect(page.get_by_role("alert")).to_contain_text("already exists")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("already exists")
         upload("Replacement", force=True, dry=True)
         playwright.expect(page.get_by_label("Import preview")).to_contain_text("Replacement")
         playwright.expect(page.get_by_role("heading", name="Original case")).to_be_visible()
@@ -299,16 +350,16 @@ def test_replace_trace_review_and_explicit_native_acceptance(page, tmp_path, pri
         page.get_by_label("Review decision").select_option("accept_observed")
         page.get_by_label("Allow acceptance for native Harbor tasks").check()
         page.get_by_role("button", name="Stage accepted cases").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("requires success")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("requires success")
         upload("Replacement", force=True)
         page.get_by_label("Review decision").select_option("accept_observed")
         page.get_by_role("button", name="Stage accepted cases").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("allow-native-harbor")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("allow-native-harbor")
         playwright.expect(page.get_by_label("Review decision")).to_have_value("pending")
         page.get_by_label("Review decision").select_option("accept_observed")
         page.get_by_label("Allow acceptance for native Harbor tasks").check()
         page.get_by_role("button", name="Stage accepted cases").click()
-        page.get_by_role("button", name="Commit and push").click()
+        publish(page)
         saved = json.loads(
             subprocess.check_output(
                 ["git", "show", "main:skills/triage/evals/evals.json"], cwd=tmp_path / "server/handbook.git"
@@ -340,7 +391,7 @@ def test_create_named_dataset_then_edit_and_delete(page, tmp_path, private_remot
         page.get_by_text("Edit case one", exact=True).click()
         page.get_by_label("Expected output", exact=True).first.fill("Route A")
         page.get_by_role("button", name="Update case").click()
-        page.get_by_role("button", name="Commit and push").click()
+        publish(page)
         path = "main:skills/triage/evals/datasets/routing.json"
         (case,) = json.loads(subprocess.check_output(["git", "show", path], cwd=remote))["evals"]
         assert case["files"] == [] and case["expected_output"] == "Route A"
@@ -350,7 +401,7 @@ def test_create_named_dataset_then_edit_and_delete(page, tmp_path, private_remot
         page.get_by_role("button", name="Switch dataset").click()
         page.get_by_text("Delete dataset", exact=True).click()
         page.get_by_role("button", name="Stage dataset deletion").click()
-        page.get_by_role("button", name="Commit and push").click()
+        publish(page)
         assert subprocess.run(["git", "cat-file", "-e", path], cwd=remote).returncode != 0
 
 
@@ -392,7 +443,7 @@ def test_migrate_legacy_then_review_routing_without_losing_authored_fields(page,
         page.get_by_text("Edit case 42", exact=True).click()
         page.get_by_label("Should this skill trigger?").first.select_option("no", timeout=1500)
         page.get_by_role("button", name="Update case").click()
-        page.get_by_role("button", name="Commit and push").click()
+        publish(page)
         path = tmp_path / dest.split("/")[-1]
         path.write_bytes(subprocess.check_output(["git", "show", f"main:skills/triage/{dest}"], cwd=remote))
         assert yaml.safe_load(path.read_bytes())["skill_name"] == "dispatch"
@@ -420,7 +471,7 @@ def test_stale_publish_keeps_reviewable_draft_at_its_original_revision(page, tmp
         publish_from_seed(tmp_path, "main", "# Collaborator\n")
         with page.expect_response(lambda r: r.request.method == "POST" and r.status == 409):
             page.get_by_role("button", name="Commit and push").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("remote branch changed")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("remote branch changed")
         page.goto(page.url)
         playwright.expect(page.get_by_role("heading", name="retained")).to_be_visible(timeout=1500)
 
@@ -435,7 +486,7 @@ def test_invalid_case_keeps_author_input_for_correction(page, tmp_path, private_
         page.get_by_label("Prompt", exact=True).fill("A carefully authored question")
         page.get_by_label("Expected output", exact=True).fill("Expected response")
         page.get_by_role("button", name="Add case").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("case id")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("case id")
         playwright.expect(page.get_by_label("Prompt", exact=True)).to_have_value(
             "A carefully authored question", timeout=1500
         )
