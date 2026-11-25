@@ -166,6 +166,24 @@ def _parse_origin(value: str) -> tuple[str, str, str]:
         p in {".", ".."} for p in name.split("/")
     ):
         raise git.SetupError("The origin does not identify a supported project path.")
+    # A relative GitLab installation root is not part of the project namespace.
+    # Derive it only from an explicitly scoped same-origin API v4 override.
+    api = os.environ.get("SKILLEVALUATOR_GITLAB_API_URL") if host != "github.com" else None
+    if api:
+        parsed = urlsplit(api.rstrip("/"))
+        prefix = parsed.path.removesuffix("/api/v4").strip("/")
+        if (
+            parsed.scheme == "https"
+            and parsed.netloc.lower() == urlsplit(origin).netloc.lower()
+            and not parsed.query
+            and not parsed.fragment
+            and parsed.path.endswith("/api/v4")
+            and prefix
+            and name.startswith(prefix + "/")
+            and "/" in name[len(prefix) + 1 :]
+        ):
+            origin += "/" + prefix
+            name = name[len(prefix) + 1 :]
     return host, origin, name
 
 
@@ -357,7 +375,7 @@ class Client:
         if (
             parsed.scheme != "https"
             or parsed.netloc != urlsplit(self.origin).netloc
-            or not parsed.path.startswith("/" + self.name + "/")
+            or not parsed.path.startswith(urlsplit(self.origin).path + "/" + self.name + "/")
         ):
             raise git.SetupError("The branch was created, but its PR/MR URL needs manual inspection.")
         return url
@@ -978,6 +996,12 @@ def inspect(wizard, repo, platform="auto", tiers=None):
         validate_tiers(tiers)
     platform, origin, name = remote(repo, platform)
     client = Client(wizard, platform, origin, name)
+    return inspect_client(wizard, client)
+
+
+def inspect_client(wizard, client, *, admission=None):
+    """Describe CI using a repository-scoped host transport."""
+    platform, origin, name = client.platform, client.origin, client.name
     info = client.info()
     branch = info["default_branch"]
     scan_path, feedback_path = (SCAN, FEEDBACK) if platform == "github" else (GL_SCAN, GL_FEEDBACK)
@@ -1028,7 +1052,9 @@ def inspect(wizard, repo, platform="auto", tiers=None):
             markup=False,
         )
     if platform == "gitlab":
-        _print_gitlab_admission_prerequisite(wizard, gitlab_admission_prerequisite(origin, online=True))
+        _print_gitlab_admission_prerequisite(
+            wizard, admission if admission is not None else gitlab_admission_prerequisite(origin, online=True)
+        )
     if scan is not None and feedback is not None and platform == "github" and not problem and not feedback_problem:
         pins = trusted_blobs(feedback_inputs.get("trusted-caller-blobs"))
         wizard.console.print(

@@ -1,0 +1,24 @@
+{% extends 'base.html' %}{% block title %}Advanced CI setup{% endblock %}{% block content %}
+<a href="{{ url_for('repository_ci',project_id=project.id) }}">Repository CI</a><h1>Advanced CI setup</h1>
+<p>{{ project.remote }} · {{ project.branch }} at {{ project.revision }}</p>
+{% if notice %}<pre role="status">{{ notice }}</pre>{% endif %}{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+<form method="post"><input type="hidden" name="branch" value="{{ project.branch }}"><input type="hidden" name="revision" value="{{ project.revision }}">
+{% macro select(key,title,values) %}<label>{{title}} <select name="{{key}}" aria-label="{{title}}">{% for v in values %}<option value="{{v}}" {% if form[key]==v %}selected{% endif %}>{{v or 'Automatic'}}</option>{% endfor %}</select></label>{% endmacro %}
+{% macro field(key,title,type='text') %}<label>{{title}} <input type="{{type}}" name="{{key}}" value="{{form[key]}}"></label>{% endmacro %}
+{% macro flag(key,title) %}<label><input type="checkbox" name="{{key}}" value="true" {% if form[key] %}checked{% endif %}> {{title}}</label>{% endmacro %}
+{{select('platform','Host platform',['auto','github','gitlab'])}}{{select('tiers','Evaluation tiers',['one','all'])}}
+<p>Tier 1 alone requires GitHub. All tiers use a bundled pinned release. The deprecated Tier 3 required option has no effect. Tier 1 blocks; Tiers 2 and 3 are advisory and require CI credentials, protected runners and datasets.</p>
+<button name="action" value="status">Read live status</button>
+<p>Discovered roots: {% for r in roots %}<code>{{r.root}}</code> {% endfor %} · Leave blank for CLI defaults.</p>
+<label>Scan roots (one per line)<textarea name="paths">{{form.paths}}</textarea></label>
+{{field('default_branch','Default branch override')}}{{field('score','Minimum score','number')}}{{select('scope','Scan scope',['auto','all'])}}{{select('channel','Release channel',['pinned','stable'])}}
+{{select('release','Pinned release descriptor',releases)}}{{select('full','Hosted reports (GitHub Tier 1)',['auto','hosted','checks'])}}<p>Auto follows the CLI: hosted Pages for Tier 1; retained artifacts and feedback for all tiers.</p>{{field('report_url','GitHub Pages report URL')}}
+<fieldset><legend>All-tier configuration</legend>
+{{select('env_mode','Execution environment',['docker','local'])}}{{select('provider','Chat provider',['openai','anthropic','nv_build','openai-compatible'])}}{{select('embedding_provider','Embedding provider',['','openai','nv_build','openai-compatible'])}}
+{{flag('tier1_llm','Protected Tier 1 LLM checks')}}{{select('tier1_provider','Tier 1 provider',['','openai','anthropic','nv_build'])}}{{select('tier3_provider','Tier 3 provider',['','openai','anthropic','nv_build','openai-compatible'])}}
+{% for k,title in [('model','Chat model'),('embedding_model','Embedding model'),('base_url','Chat base URL'),('embedding_base_url','Embedding base URL'),('tier1_model','Tier 1 model'),('tier3_model','Tier 3 model'),('tier3_base_url','Tier 3 base URL'),('agents','Native agents (comma separated)'),('runner','Runner label'),('environment','Protected environment name'),('gateway_secret','Gateway secret name (not its value)')] %}{{field(k,title)}}{% endfor %}
+<label>Agent model overrides (one AGENT=MODEL per line)<textarea name="agent_model">{{form.agent_model}}</textarea></label>
+{{field('n_attempts','Attempts','number')}}{{field('n_concurrent','Concurrency','number')}}{{field('timeout_minutes','Timeout minutes','number')}}{{flag('benchmark_pr','Publish benchmark update PR (GitHub only)')}}
+</fieldset><p>Save commits the files only. PR/MR requires a host token with API and workflow write access. GitHub Tier 1 PR setup requires admin access and may enable Actions, Pages, report history and a deployment environment. Private reports require verified private Pages. GitLab feedback needs a protected default branch, protected environment and scoped SKILLEVALUATOR_GITLAB_TOKEN. Before GitLab 18.4 or when the version is unknown, configure SKILLEVALUATOR_GITLAB_READ_TOKEN (Reporter/read_api).</p>
+{{select('mode','Publication mode',['preview','save','pr'])}}<button name="action" value="review">Review files</button>
+{% if result %}<h2>Review {{form.mode}} setup</h2><pre>{{result.plan|tojson(indent=2)}}</pre>{% for path,text in result.files.items() %}<h3>{{path}}</h3><pre aria-label="{{path}}">{{text}}</pre>{% endfor %}<input type="hidden" name="approval" value="{{digest}}">{% if result.manual_merge %}<p role="alert">An existing GitLab pipeline requires a manual merge.</p><pre>{{ result.manual_merge }}</pre>{% elif form.mode!='preview' %}<button name="action" value="apply">Apply reviewed setup</button>{% endif %}<button name="action" value="receipt">Download reviewed plan</button>{% endif %}</form>{% endblock %}
