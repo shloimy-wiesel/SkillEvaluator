@@ -32,3 +32,17 @@ model discovery; it does not purchase a provider trial.
 Draft snapshots support up to 4096 regular files / 64 MiB, with no symlinks
 or submodules inside the selected skill. Generation and validation use a
 separate interpreter; chat credentials are supplied only for model generation.
+
+### HTTP contract
+
+`/projects/{id}/datasets` serves the React document. Its JSON view lives at
+`GET /api/v1/projects/{id}/datasets`, with the same `draft` or `pushed`
+query. Submit actions to `POST` at that API path as multipart form data
+(including `export` for trace uploads). `open` takes the project's branch
+and revision. Subsequent actions take the private draft token and version.
+
+An action returns the updated view or a same-origin `location` for a new
+draft, collection run, discard or publication. A `409` includes the current
+draft and `detail: {code, message}` so a stale tab can review the latest
+state. A validation failure returns `422`; an unknown project or draft
+returns `404`.
