@@ -59,6 +59,8 @@ redirect after a successful save. Do not introduce template-level secrets.
 
 ## Run the browser journey
 
+See [RUNS.md](RUNS.md) for the queue, evaluator adapter, rerun and artifact contracts.
+
 ```sh
 pip install pytest playwright==1.65.2
 playwright install chromium    # or use an installed google-chrome on PATH
