@@ -3,5 +3,5 @@ import pytest
 
 @pytest.fixture
 def api_handler():
-    """Optional API responses on the authenticated disposable Git host."""
+    """Optional protocol endpoint on the private HTTPS Git fixture."""
     return []

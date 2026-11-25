@@ -178,7 +178,6 @@ def test_read_gitlab_pipeline_and_create_review_requests(
     page, private_remote, api_handler, tmp_path, monkeypatch, transport
 ):
     import json
-    import sys
     from types import SimpleNamespace
     from urllib.parse import urlencode
     from urllib.request import Request, urlopen
@@ -226,9 +225,7 @@ def test_read_gitlab_pipeline_and_create_review_requests(
         root=root, namespace="group/nested/handbook", web_url=url.removesuffix(".git"), request=request
     )
     if transport == "contract":
-        monkeypatch.setitem(
-            sys.modules, "studio.gitlab", SimpleNamespace(instance=lambda _ws, p: lab if p.remote == url else None)
-        )
+        monkeypatch.setattr("studio.ci_adapter.configured_instance", lambda _ws, p: lab if p.remote == url else None)
     else:
         pytest.importorskip(
             "studio.gitlab", reason="Requires the persistent instance settings and CA transport from #18"

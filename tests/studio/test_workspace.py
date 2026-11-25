@@ -54,13 +54,7 @@ def before_push():
 
 
 @pytest.fixture
-def api_handler():
-    return []
-
-
-@pytest.fixture
-def private_remote(tmp_path, loopback_tls, monkeypatch, before_push, request):
-    api = request.getfixturevalue("api_handler")
+def private_remote(tmp_path, loopback_tls, monkeypatch, before_push, api_handler):
     origin = tmp_path / "server"
     origin.mkdir()
     seed = tmp_path / "seed"
@@ -83,7 +77,7 @@ def private_remote(tmp_path, loopback_tls, monkeypatch, before_push, request):
 
     class Handler(SimpleHTTPRequestHandler):
         def do_GET(self):
-            if api and api[0](self):
+            if api_handler and api_handler[0](self):
                 return
             if self.headers.get("Authorization") == f"Basic {expected}":
                 path, _, query = self.path.partition("?")
