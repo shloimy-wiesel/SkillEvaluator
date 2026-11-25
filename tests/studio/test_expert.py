@@ -376,12 +376,28 @@ def test_root_folds_harbor_arm_evidence_with_pinned_options(tmp_path, monkeypatc
     shutil.copytree(Path(__file__).resolve().parents[1] / "fixtures/skills/lookup-code", skill)
     out = tmp_path / "reports"
     ctx = JobContext(tmp_path, skill, "a" * 40, None, None, "project", "run", out)
+    (tmp_path / "prices.json").write_text('{"fixture-model":{"input_per_mtok":1,"output_per_mtok":2}}')
     options = ExpertOptions(
         action="validate",
         tiers="1,3",
         checks=("unicode",),
         agents=("codex",),
         n_attempts=2,
+        n_concurrent=3,
+        max_agents=1,
+        max_cases=2,
+        pass_threshold=0.7,
+        timeout_multiplier=1.5,
+        stop_on_pass=False,
+        skip_baseline=True,
+        agent_runtime_preflight=False,
+        tolerate_baseline_timeouts=False,
+        max_agent_tokens=1024,
+        max_judge_calls=0,
+        max_cost_usd=1.25,
+        price_file="prices.json",
+        grading_mode="default",
+        model="fallback-model",
         max_attempts_total=4,
         codex_model="fixture-model",
         env_mode="kata",
@@ -401,6 +417,28 @@ def test_root_folds_harbor_arm_evidence_with_pinned_options(tmp_path, monkeypatc
                 request.evaluated_source,
             )
         )
+        assert (request.agents, request.model, request.n_concurrent, request.max_agents, request.max_cases) == (
+            "codex",
+            "fallback-model",
+            3,
+            1,
+            2,
+        )
+        assert (
+            request.pass_threshold,
+            request.timeout_multiplier,
+            request.stop_on_pass,
+            request.skip_baseline,
+            request.agent_runtime_preflight,
+            request.tolerate_baseline_timeouts,
+        ) == (0.7, 1.5, False, True, False, False)
+        assert (
+            request.max_agent_tokens,
+            request.max_judge_calls,
+            request.max_cost_usd,
+            request.price_file,
+            request.grading_mode,
+        ) == (1024, 0, 1.25, tmp_path / "prices.json", "default")
         run = request.results_dir / skill.name / "20260101_120000"
         arm = run / "codex/with-skill"
         arm.mkdir(parents=True)
