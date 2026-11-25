@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 
 from .comparison_evidence import retained_evidence
+from .diff_preview import MAX_DIFF_LINES, MAX_PREVIEW_BYTES
 from .frontend_routes import document
 from .result_routes import route_pair
 from .retained import mask_strings, scrubber
@@ -16,7 +17,6 @@ from .workspace import WorkspaceError
 
 pages, api = route_pair("/projects/{project_id}/compare")
 SHA = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
-MAX_DIFF_LINES = 2000
 
 
 def saved_refs(ws, project):
@@ -43,7 +43,7 @@ def preview(ws, project, mode, oid):
     if mode not in (b"100644", b"100755"):
         return "Linked file or submodule • content not displayed"
     blob = oid.decode("ascii")
-    if int(ws.git(project, ["cat-file", "-s", blob])) > 32 * 1024:
+    if int(ws.git(project, ["cat-file", "-s", blob])) > MAX_PREVIEW_BYTES:
         return "Large file • preview limit 32 KiB"
     data = ws.git(project, ["cat-file", "blob", blob], raw=True)
     try:
