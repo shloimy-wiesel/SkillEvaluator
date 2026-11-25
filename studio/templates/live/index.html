@@ -2,8 +2,11 @@
 <p><a href="{{ url_for('project', project_id=project.id) }}">{{ project.name }}</a> / Evaluation</p>
 <h1>Live Tier 3</h1>
 {% if error %}<p role="alert">{{ error }}</p>{% endif %}
-<p>Configure <a href="{{ url_for('provider_settings', project_id=project.id) }}">the chat provider</a> and an operator-managed Docker sandbox before starting paid Harbor trials.</p>
+<p>Configure <a href="{{ url_for('provider_settings', project_id=project.id) }}">the chat provider</a> and an operator-managed Docker sandbox before starting paid trials.</p>
 <form method="post"><label>Commit SHA<input name="sha" value="{{ project.revision }}" required></label>
+<label>Sandbox profile<select name="sandbox_profile"><option value="generated">Generated Harbor tasks</option>{% for key,label,reason in profiles %}<option value="{{ key }}" {% if selected == key %}selected{% endif %} {% if reason %}disabled{% endif %}>{{ label }}{% if reason %} — {{ reason }}{% endif %}</option>{% endfor %}</select></label>
+<p>Native Harbor requires the stock single-step task scaffold. Gym requires the optional pinned Gym worker, Docker and a Codex Responses-compatible provider. Both use the reviewed cases at this commit.</p>
+<label><input type="checkbox" name="reviewed_inputs"> I reviewed the pinned task inputs and consent to running them in the selected paid sandbox</label>
 <label>Workflow<select name="workflow"><option value="evaluate">Evaluate existing cases</option><option value="alias">Evaluate existing cases (legacy evaluate alias)</option><option value="direct">Direct Tier 3: prepare a missing dataset</option></select></label>
 <label>Dataset path (repository-relative; blank discovers the pinned skill dataset)<input name="dataset"></label>
 <label>Environment<select name="env_mode"><option>docker</option><option>kata</option></select></label>

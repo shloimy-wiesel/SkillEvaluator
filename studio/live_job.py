@@ -25,6 +25,7 @@ from .jobs import JobContext, JobDefinition, Outcome
 from .native_location import bounded_directory, native_directory
 from .provider_snapshots import exposes_credential, seal, unseal
 from .providers import worker_environment
+from .sandbox_profiles import Profile, authorize, stage_native
 from .worker_deadline import bounded_worker, run_evaluator
 from .workspace import WorkspaceError
 
@@ -35,6 +36,8 @@ Model = Annotated[str, Field(pattern=r"^[a-zA-Z0-9_.:/@+-]{1,256}$")]
 
 
 class Controls(BaseModel):
+    sandbox_profile: Profile = "generated"
+    reviewed_inputs: bool = False
     harbor_keep_jobs: bool = False
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
     workflow: Literal["evaluate", "direct", "alias"] = "evaluate"
@@ -123,16 +126,19 @@ def operator_revision():
     return revision
 
 
-def snapshot(workspace, project_id, controls):
+def snapshot(workspace, project_id, controls, sha=None):
+    project = workspace.get(project_id)
+    authorize(project_id, project.folder, sha or project.revision, controls)
     env = worker_environment(workspace, project_id, "chat")
     config = resolve_llm_provider(env)
     if config.provider == "bedrock":
         raise WorkspaceError("Choose a key-backed chat provider for Studio live evaluations.")
+    if controls.sandbox_profile == "gym-docker" and config.provider not in {"openai", "openai-compatible"}:
+        raise WorkspaceError("The Codex Gym profile requires a Responses-compatible OpenAI endpoint.")
     env["SKILL_EVAL_LLM_MODEL"] = config.model
     profile_id = uuid4().hex
     private = workspace.data_dir / "live-profiles" / project_id
     private.mkdir(parents=True, mode=0o700, exist_ok=True)
-    project = workspace.get(project_id)
     repository = urlsplit(project.remote).path.strip("/").removesuffix(".git")
     identity = normalized_evaluated_source({"repository": repository}) or {}
     options = LiveOptions(
@@ -175,6 +181,8 @@ def retained_sources(workspace, project_id, folder, options):
             saved.judge_model,
         ):
             raise WorkspaceError("The selected prior run used a different provider, endpoint or judge model.")
+        if options.sandbox_profile != saved.sandbox_profile:
+            raise WorkspaceError("Prior run used a different sandbox profile.")
         if options.evaluator_revision != saved.evaluator_revision:
             raise WorkspaceError("Prior run used a different evaluator revision.")
         root = workspace.data_dir / "artifacts" / project_id / run_id / "tier3"
@@ -222,9 +230,43 @@ def sandbox_preflight(cwd, env):
             raise WorkspaceError(message) from exc
 
 
+PINNED_GYM = Path("/opt/studio-gym/bin/gym")
+
+
 @bounded_worker
-def invoke_engine(args, cwd, env, *, retained=None):
-    sandbox_preflight(cwd, env)
+def invoke_engine(args, cwd, env, *, retained=None, gym_skill=None, codex_model=None):
+    if gym_skill is not None:
+        if not PINNED_GYM.is_file():
+            raise WorkspaceError("Install the pinned NeMo Gym runtime in the optional Studio worker image.")
+        env = {**env, "SKILL_EVAL_NEMO_GYM_BIN": str(PINNED_GYM)}
+        # Run the installed CLI from trusted cwd, never from the staged repository.
+        doctor = ["tier3", "doctor", "--backend", "nemo-gym", "--env-mode", "docker", "--agents", "codex"]
+        if codex_model:
+            doctor += ["--agent-model", f"codex={codex_model}"]
+        command = [sys.executable, "-I", "-c", "from skillevaluator.cli import cli; cli()"]
+        for check, message in [
+            (doctor, "Gym doctor failed: check the pinned CLI, Docker daemon and policy endpoint."),
+            (
+                ["tier3", "validate", str(gym_skill), "--strict"],
+                "The reviewed dataset did not pass strict Tier 3 validation.",
+            ),
+        ]:
+            try:
+                probe = run_evaluator(
+                    command + check,
+                    cwd=cwd,
+                    env=env,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    limit=180,
+                    sandbox=False,
+                )
+                probe.check_returncode()
+            except (OSError, subprocess.SubprocessError) as exc:
+                raise WorkspaceError(message) from exc
+    else:
+        sandbox_preflight(cwd, env)
     launch = ["from skillevaluator.cli import cli; cli()"]
     if retained:
         launch = [
@@ -246,17 +288,30 @@ def invoke_engine(args, cwd, env, *, retained=None):
 
 
 def check_stage_policy(source, options):
-    """Only generated Harbor tasks; no repository-authored launchers or native environments."""
+    """Allow generated tasks or the explicitly selected single-step native profile."""
     from skillevaluator.tier3.evals_config import load_evals_config
 
-    if any((source / "evals" / name).exists() for name in ("environment", "harbor")):
+    native = getattr(options, "sandbox_profile", "generated") == "native-docker"
+    if (source / "evals/environment").exists() or (not native and (source / "evals/harbor").exists()):
         raise WorkspaceError("This preset needs a dataset and a generated task environment.")
     config, config_path = load_evals_config(source)
     effective_mode = options.grading_mode or config.get("grading", {}).get("mode", "default")
     if effective_mode != "default" and not options.sandbox_grader_consent:
         raise WorkspaceError("Repository grading requires explicit sandbox consent.")
+    if getattr(options, "sandbox_profile", None) == "gym-docker":
+        from skillevaluator.tier3.nemo_gym.backend import nemo_gym_config_errors
+
+        if errors := nemo_gym_config_errors(
+            source,
+            stop_on_pass=options.stop_on_pass,
+            agent_runtime_preflight=options.agent_runtime_preflight,
+            run_options=options.model_dump(),
+        ):
+            raise WorkspaceError("; ".join(errors))
+    if native and config.get("harbor", {}).get("task_source") != "native_harbor":
+        raise WorkspaceError("Native tasks require explicit harbor.task_source: native_harbor in the pinned config.")
     if (
-        config.get("harbor", {}).get("task_source") == "native_harbor"
+        (not native and config.get("harbor", {}).get("task_source") == "native_harbor")
         or set(config) - {"harbor", "schema_version", "grading"}
         or set(config.get("harbor", {}))
         - {
@@ -303,6 +358,8 @@ def stage(ctx, base, options):
     skill = stage_skill(source, base, {"eval", "evals"})
     evals = skill / "evals"
     evals.mkdir()
+    if options.sandbox_profile == "native-docker":
+        stage_native(source / "evals/harbor", evals / "harbor")
     if config_path:
         shutil.copyfile(config_path, evals / config_path.name)
     for name in ("grader.py", "grader.sh"):
@@ -341,6 +398,7 @@ def redact_file(path, secrets):
 @bounded_worker
 def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
     workspace = ctx.workspace
+    authorize(ctx.project_id, ctx.skill.relative_to(ctx.root).as_posix(), ctx.revision, options)
     if options.evaluator_revision != operator_revision():
         raise WorkspaceError("The worker evaluator revision changed; queue a new run.")
     profile = workspace.data_dir / "live-profiles" / ctx.project_id / options.profile_id
@@ -366,7 +424,7 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
             *({"direct": ["tier3"], "alias": ["evaluate"], "evaluate": ["tier3", "evaluate"]}[options.workflow]),
             str(skill),
             "--backend",
-            "harbor",
+            "nemo-gym" if options.sandbox_profile == "gym-docker" else "harbor",
             "--env-mode",
             options.env_mode,
             "--skill-workspace-mode",
@@ -385,8 +443,9 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
             args += ["--evaluated-source-repository", options.source_repository]
         if options.evaluator_revision:
             args += ["--evaluator-container-revision", options.evaluator_revision]
-        if options.agents:
-            args += ["--agents", ",".join(options.agents)]
+        agents = ("codex",) if options.sandbox_profile == "gym-docker" else options.agents
+        if agents:
+            args += ["--agents", ",".join(agents)]
         for agent, model in options.model_overrides():
             args += ["--agent-model", f"{agent}={model}"]
         if options.grading_mode:
@@ -434,9 +493,12 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
             PYTHON_DOTENV_DISABLED="1",
             SKILLEVALUATOR_OUTPUT_PROVENANCE_KEY_FILE=str(workspace.data_dir / "tier3-output.key"),
         )
-        ctx.progress("Checking sandbox prerequisites and running Harbor trials")
+        ctx.progress(f"Checking sandbox prerequisites and running {options.sandbox_profile} trials")
         try:
-            code = invoke_engine(args, base, env, **({"retained": retained} if retained else {}))
+            if options.sandbox_profile == "gym-docker":
+                code = invoke_engine(args, base, env, gym_skill=skill, codex_model=options.codex_model or options.model)
+            else:
+                code = invoke_engine(args, base, env, **({"retained": retained} if retained else {}))
         finally:
             for path in output.rglob("*"):
                 if not path.is_symlink() and path.is_file():
@@ -461,18 +523,36 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
     from skillevaluator.tier3.harbor.run_budget import budget_fully_denied
 
     payload = json.loads(result_path.read_text())
+    identity = normalized_evaluated_source(
+        {
+            "commit": ctx.revision,
+            "repository": options.source_repository,
+            "evaluator_container_revision": options.evaluator_revision,
+        }
+    )
+    if options.sandbox_profile != "generated":
+        config_path = result_path.with_name("run_config.json")
+        try:
+            if config_path.resolve(strict=True) != config_path:
+                raise ValueError
+            config = json.loads(config_path.read_text())
+            gym = options.sandbox_profile == "gym-docker"
+            valid = (
+                config["evaluated_source"] == identity
+                and payload["run_id"] == result_path.parent.name
+                and config["task_source"] == ("evals_json" if gym else "native_harbor")
+                and (payload.get("execution_backend") or {}).get("name", "harbor") == ("nemo-gym" if gym else "harbor")
+            )
+        except (ValueError, OSError, TypeError, AttributeError, KeyError):
+            valid = False
+        if not valid:
+            raise WorkspaceError("Canonical evidence does not match the pinned source and sandbox profile.")
     result = agent_eval_result_from_directory(
         ctx.skill,
         result_path.parent,
         env_mode=options.env_mode,
         engine_result=payload,
-        evaluated_source=normalized_evaluated_source(
-            {
-                "commit": ctx.revision,
-                "repository": options.source_repository,
-                "evaluator_container_revision": options.evaluator_revision,
-            }
-        ),
+        evaluated_source=identity,
         use_llm_judge=False,
     )
     canonical = result.metadata["agent_eval"] if result else {}

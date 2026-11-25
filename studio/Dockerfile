@@ -20,4 +20,15 @@ COPY --from=docker-tools /usr/local/libexec/docker/cli-plugins/ /usr/local/libex
 RUN pip install --no-cache-dir '.[tier3]' -r studio/requirements.txt && docker compose version && harbor --version
 USER studio
 
+# Optional Gym CLI stays in its own Python environment; never install at job time.
+FROM live AS live-gym
+USER root
+ENV UV_PYTHON_INSTALL_DIR=/opt/studio-python
+RUN pip install --no-cache-dir uv==0.13.4 && \
+    uv venv --python 3.13.14 /opt/studio-gym && \
+    uv pip install --python /opt/studio-gym/bin/python \
+      'nemo-gym @ git+https://github.com/NVIDIA-NeMo/Gym@792fa142f58277aecff05d402061d647e9a92acf' && \
+    /opt/studio-gym/bin/gym eval run --help >/dev/null
+USER studio
+
 FROM studio-base AS standard
