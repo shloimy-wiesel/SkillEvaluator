@@ -31,3 +31,13 @@ def native_directory(root):
     if result.resolve(strict=True) != result or not result.is_file():
         raise ValueError("No canonical native result")
     return candidate
+
+
+def scoped_run_directory(root, skill):
+    """Resolve one flat or skill-nested reservation, including unfinished history."""
+    if root.resolve(strict=True) != root:
+        raise ValueError("Linked artifact directory")
+    candidate = _single_directory(root)
+    if candidate.name == skill and not (candidate / "run_config.json").exists():
+        return _single_directory(candidate)
+    return candidate

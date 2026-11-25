@@ -110,3 +110,25 @@ def test_latest_completed_selects_earlier_eligible_different_revision(tmp_path, 
     assert compare("a" * 32, "latest")["status"] == "unavailable"
     assert compare("d" * 32, "b" * 32)["status"] == "unavailable"
     assert compare("d" * 32, "c" * 32)["identical_skill"]
+
+
+@pytest.mark.parametrize(
+    ("nested", "damage", "status"), [(False, "missing", "incomplete"), (True, "malformed", "corrupt")]
+)
+def test_history_explains_unfinished_native_results_without_a_change(
+    tmp_path, evaluation, monkeypatch, *, nested, damage, status
+):
+    from studio.comparison_evidence import retained_catalog
+
+    project, run = "1" * 32, "a" * 32
+    monkeypatch.setenv("SKILLEVALUATOR_OUTPUT_PROVENANCE_KEY_FILE", str(tmp_path / "tier3-output.key"))
+    root = tmp_path / "artifacts" / project / run / "tier3"
+    path = Path(evaluation(output_dir=root / "demo" if nested else root)["run_dir"]) / "result.json"
+    if damage == "missing":
+        path.unlink()
+    else:
+        path.write_text("{")
+    args = tmp_path, project, [(run, "a" * 40)], "demo"
+    (row,) = retained_catalog(*args, action="history")["rows"]
+    assert row["status"] == status and row["lift_delta"] is None and row["lift_reasons"]
+    assert retained_catalog(*args, action="compare", current="latest", prior="latest")["status"] == "unavailable"

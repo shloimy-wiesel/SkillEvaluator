@@ -13,11 +13,11 @@ from skillevaluator.tier3.version_comparison import compare_versions, select_pri
 
 # Isolated Python omits the script directory; import only trusted Studio code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from native_location import native_directory
+from native_location import scoped_run_directory
 
 
-def bounded_directory(root):
-    directory = native_directory(root)
+def bounded_directory(root, skill):
+    directory = scoped_run_directory(root, skill)
     entries = 0
     pending = [directory]
     total = 0
@@ -58,13 +58,15 @@ def validate_agents(result, config):
 
 
 def scoped_directory(root, sha, skill):
-    directory = bounded_directory(root)
-    if directory.parent != root and directory.parent.name != skill:
-        raise ValueError("Different skill in results directory")
+    directory = bounded_directory(root, skill)
     if directory not in history_directories(directory.parent):
         raise ValueError("Unrecognized native directory")
     config = json.loads((directory / "run_config.json").read_bytes())
-    validate_agents(json.loads((directory / "result.json").read_bytes()), config)
+    try:
+        result = json.loads((directory / "result.json").read_bytes())
+    except (FileNotFoundError, ValueError):
+        result = {}  # Native history explains incomplete/corrupt runs; completion selection excludes them.
+    validate_agents(result, config)
     if config.get("evaluated_source", {}).get("commit") != sha:
         raise ValueError("Different source revision")
     return directory

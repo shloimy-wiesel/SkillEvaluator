@@ -10,8 +10,8 @@
 {% for run in choices %}<option value="{{ run.id }}" {% if run.id == value %}selected{% endif %}>{{ run.created }} · {{ run.id }}</option>{% endfor %}</select>{% endfor %}
 <button>Inspect results</button></form>
 <h2>Baseline lift trend</h2>
-<table><thead><tr>{% for title in ['Native run','Agent','Segment','With skill','Without skill','Lift','Lift change'] %}<th>{{ title }}</th>{% endfor %}</tr></thead><tbody>
-{% for row in trend.rows %}<tr>{% for value in [row.run_id,row.agent,row.segment,row.with_skill_score,row.without_skill_score,row.lift_delta,row.lift_change] %}<td>{{ value if value is not none else 'Not measured' }}</td>{% endfor %}</tr>{% else %}<tr><td colspan="7">No matching retained rows.</td></tr>{% endfor %}</tbody></table>
+<table><thead><tr>{% for title in ['Native run','Agent','Segment','With skill','Without skill','Lift','Lift change','Evidence'] %}<th>{{ title }}</th>{% endfor %}</tr></thead><tbody>
+{% for row in trend.rows %}<tr>{% for value in [row.run_id,row.agent,row.segment,row.with_skill_score,row.without_skill_score,row.lift_delta,row.lift_change] %}<td>{{ value if value is not none else 'Not measured' }}</td>{% endfor %}<td>{{ row.status }}{% if row.lift_reasons %}<details><summary>Lift unavailable</summary><ul>{% for reason in row.lift_reasons %}<li>{{ reason }}</li>{% endfor %}</ul></details>{% endif %}</td></tr>{% else %}<tr><td colspan="8">No matching retained rows.</td></tr>{% endfor %}</tbody></table>
 {% for fmt,label in [('json','JSON'),('csv','CSV'),('md','Markdown')] %}<a href="{{ request.url.include_query_params(download=fmt) }}">History {{ label }}</a> {% endfor %}
 <h2>Version comparison</h2><p>{{ comparison.status }}{% if comparison.source_studio_run %} · Prior evaluation {{ comparison.source_studio_run }}{% endif %}</p>
 {% for reason in comparison.reasons %}<p>{{ reason }}</p>{% endfor %}
