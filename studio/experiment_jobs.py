@@ -20,6 +20,7 @@ from skillevaluator.tier3.evals_config import encode_environment_kwarg
 from . import live_job
 from .jobs import JobDefinition, Outcome
 from .live_job import Agent, Controls, Model, Positive
+from .provider_snapshots import exposes_credential, seal, unseal
 from .providers import worker_environment
 from .workspace import WorkspaceError
 
@@ -93,26 +94,29 @@ def freeze(workspace, project_id, role, controls, option_type):
         config = resolver(env)
     except ValueError as exc:
         raise WorkspaceError(f"Configure a project {role} provider first.") from exc
-    if not config.api_key or config.api_key in controls.model_dump_json():
+    if not config.api_key:
         raise WorkspaceError("Use a key-backed provider and keep credentials out of experiment settings.")
     prefix = "SKILL_EVAL_EMBEDDING_" if role == "embeddings" else "SKILL_EVAL_LLM_"
     env[prefix + "MODEL"] = config.model
     ident = uuid4().hex
     folder = profile_dir(workspace, project_id)
     folder.mkdir(mode=0o700, exist_ok=True, parents=True)
-    (folder / ident).write_bytes(workspace.cipher.encrypt(json.dumps(env).encode()))
-    return option_type(
+    options = option_type(
         **controls.model_dump(),
         profile_id=ident,
         provider=config.provider,
         profile_model=config.model,
         endpoint=config.base_url or "",
     )
+    if exposes_credential(options, config.api_key):
+        raise WorkspaceError("Use a key-backed provider and keep credentials out of experiment settings.")
+    (folder / ident).write_bytes(seal(workspace, env))
+    return options
 
 
 def environment(ctx, options, base):
     path = profile_dir(ctx.workspace, ctx.project_id) / options.profile_id
-    creds = json.loads(ctx.workspace.cipher.decrypt(path.read_bytes()))
+    creds = unseal(ctx.workspace, path.read_bytes())
     home = base / "home"
     home.mkdir()
     return {

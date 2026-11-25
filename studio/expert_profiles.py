@@ -1,12 +1,12 @@
 """Snapshot only the provider roles needed by a selected check."""
 
-import json
 from contextlib import closing
 from importlib.util import find_spec
 from uuid import uuid4
 
 from skillevaluator.provider_config import resolve_embedding_provider, resolve_llm_provider
 
+from .provider_snapshots import exposes_credential, seal, unseal
 from .providers import database, load, worker_environment
 from .workspace import WorkspaceError
 
@@ -39,7 +39,7 @@ def freeze_role(workspace, project_id, options, role):
 
     profile = FrozenProfile(id=uuid4().hex, provider=config.provider, model=config.model, endpoint=config.base_url)
     frozen = options.model_copy(update={role: profile})
-    if config.api_key and config.api_key in frozen.model_dump_json():
+    if exposes_credential(frozen, config.api_key):
         raise WorkspaceError("Keep credentials out of public check settings.")
     if options.live:
         env["SKILL_EVAL_LLM_MODEL" if role == "chat" else "SKILL_EVAL_EMBEDDING_MODEL"] = config.model
@@ -49,7 +49,7 @@ def freeze_role(workspace, project_id, options, role):
                    (project TEXT, id TEXT, profile BLOB NOT NULL, PRIMARY KEY(project,id))""")
         db.execute(
             "INSERT INTO expert_profiles VALUES(?,?,?)",
-            (project_id, profile.id, workspace.cipher.encrypt(json.dumps(env).encode())),
+            (project_id, profile.id, seal(workspace, env)),
         )
     return frozen
 
@@ -63,4 +63,4 @@ def environment(ctx, profile):
         ).fetchone()
     if not row:
         raise WorkspaceError("The frozen provider profile is unavailable.")
-    return json.loads(ctx.workspace.cipher.decrypt(row[0]))
+    return unseal(ctx.workspace, row[0])

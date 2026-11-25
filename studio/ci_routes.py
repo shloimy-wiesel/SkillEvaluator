@@ -10,6 +10,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from .ci_adapter import review_branch
+from .ci_receipts import feedback, published
 from .editing import Conflict, branches, commit_changes, project_lock, read_file, require_base
 from .workspace import WorkspaceError
 
@@ -31,14 +32,17 @@ def is_gitlab(p):
 
 def page(request, p, status=200, **context):
     return request.app.state.templates.TemplateResponse(
-        request=request, name="ci.html", context={"project": p, "gitlab": is_gitlab(p), **context}, status_code=status
+        request=request,
+        name="ci/index.html",
+        context={"project": p, "gitlab": is_gitlab(p), **context},
+        status_code=status,
     )
 
 
 @router.get("", name="repository_ci")
 def landing(request: Request, project_id: str):
     _, p = project(request, project_id)
-    return page(request, p, gitlab=is_gitlab(p))
+    return page(request, p, **feedback(request, p, "repository_ci"))
 
 
 class ReviewForm(BaseModel):
@@ -98,7 +102,7 @@ def operate(request: Request, project_id: str, form: Annotated[SetupForm, Form()
             if form.approval != digest:
                 raise WorkspaceError("Review the generated workflow before publishing.")
             commit_changes(ws, p, {ci.SCAN: workflow.encode()}, "Set up Tier 1 skill checks", repo_root=True)
-            return page(request, ws.get(p.id), notice="Published the reviewed workflow.")
+            return published(request, p, "repository_ci", "Published the reviewed workflow.")
     except WorkspaceError as exc:
         return page(request, p, 409 if isinstance(exc, Conflict) else 422, error=str(exc))
 
@@ -177,7 +181,7 @@ def demo(request: Request, project_id: str, form: Annotated[DemoForm, Form()]):
                 url = review_branch(
                     ws, p, {target: draft}, demo_branch, "Exercise automatic skill review feedback", repo_root=True
                 )
-                return page(request, p, notice="Review request: " + url, compare=url)
+                return published(request, p, "repository_ci", "Review request: " + url, compare=url)
             if is_gitlab(p):
                 raise WorkspaceError("Choose the reviewed merge request action on GitLab.")
             commit_changes(
@@ -186,8 +190,12 @@ def demo(request: Request, project_id: str, form: Annotated[DemoForm, Form()]):
             compare = (
                 f"{p.remote.rstrip('/').removesuffix('.git')}/compare/{quote(branch, safe='')}...{demo_branch}?expand=1"
             )
-            return page(
-                request, p, notice="Demo branch published. Confirm the pull request on your Git host.", compare=compare
+            return published(
+                request,
+                p,
+                "repository_ci",
+                "Demo branch published. Confirm the pull request on your Git host.",
+                compare,
             )
     except WorkspaceError as exc:
         return page(request, p, 409 if isinstance(exc, Conflict) else 422, error=str(exc))

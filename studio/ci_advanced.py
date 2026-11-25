@@ -12,6 +12,7 @@ from pydantic import Field
 from skillevaluator import ci_onboarding as ci
 
 from .ci_adapter import review_branch, worker
+from .ci_receipts import feedback, published
 from .ci_routes import ReviewForm, project
 from .editing import Conflict, branches, commit_changes, project_lock, require_base
 from .workspace import WorkspaceError
@@ -128,7 +129,7 @@ def descriptors(ws):
 def view(request, p, form=None, status=200, **ctx):
     return request.app.state.templates.TemplateResponse(
         request=request,
-        name="ci_advanced.html",
+        name="ci/advanced.html",
         context=dict(
             project=p,
             releases=["", *descriptors(request.app.state.workspace)],
@@ -143,7 +144,7 @@ def view(request, p, form=None, status=200, **ctx):
 def advanced(request: Request, project_id: str):
     ws, p = project(request, project_id)
     try:
-        return view(request, p, roots=ci.git_helpers.discover(ws.checkout(p)))
+        return view(request, p, roots=ci.git_helpers.discover(ws.checkout(p)), **feedback(request, p, "advanced_ci"))
     except ci.SetupError as exc:
         return view(request, p, error=str(exc), status=422)
 
@@ -192,7 +193,7 @@ def advanced_action(request: Request, project_id: str, form: Annotated[Options, 
                     raise WorkspaceError("Open the default branch before PR setup.")
                 if form.tiers == "all":
                     if not result["files"]:
-                        return view(request, p, form, notice="All-tier workflows already configured.")
+                        return published(request, p, "advanced_ci", "All-tier workflows already configured.")
                     url = review_branch(
                         ws,
                         p,
@@ -201,9 +202,9 @@ def advanced_action(request: Request, project_id: str, form: Annotated[Options, 
                         "Set up all-tier skill checks",
                         repo_root=True,
                     )
-                    return view(request, p, form, notice=url)
+                    return published(request, p, "advanced_ci", url)
                 result = worker(ws, p, "publish", args=args, mode=form.mode, reviewed=result, release=release)
-                return view(request, p, form, notice=result["notice"])
+                return published(request, p, "advanced_ci", result["notice"])
             if result["files"]:
                 commit_changes(
                     ws,
@@ -212,6 +213,6 @@ def advanced_action(request: Request, project_id: str, form: Annotated[Options, 
                     "Set up reviewed skill evaluation CI",
                     repo_root=True,
                 )
-            return view(request, ws.get(p.id), notice="Reviewed setup saved. Host settings were not changed.")
+            return published(request, p, "advanced_ci", "Reviewed setup saved. Host settings were not changed.")
     except (WorkspaceError, ci.SetupError) as exc:
         return view(request, p, form, status=409 if isinstance(exc, Conflict) else 422, error=str(exc))

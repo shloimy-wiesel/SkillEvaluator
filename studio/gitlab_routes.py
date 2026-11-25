@@ -19,7 +19,7 @@ def settings(request, project_id):
 def render(request, project, lab, **context):
     return request.app.state.templates.TemplateResponse(
         request=request,
-        name="gitlab.html",
+        name="gitlab/index.html",
         context={"project": project, "lab": lab, **context},
         status_code=422 if "error" in context else 200,
     )
