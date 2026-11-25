@@ -30,6 +30,7 @@
 {% for finding in result.findings %}<p><b>{{ finding.severity }}</b> {{ finding.message }}<br>{{ finding.file_path }}
 {% if finding.suggestion %}<br>{{ finding.suggestion }}{% endif %}</p>{% endfor %}</section>{% endfor %}
 {% if run.kind == 'expert-check-v1' %}
+{% if report.studio_dataset %}<p>{{ report.studio_dataset }}</p>{% endif %}
 {% if report.terminal %}<details><summary>Evaluator output</summary><pre>{{ report.terminal }}</pre></details>{% endif %}
 {% for name,label in report.native.items() %}
 <a href="{{ url_for('expert_artifact', project_id=project.id, run_id=run.id, name=name) }}">Download native {{ label }}</a>
