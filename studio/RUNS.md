@@ -163,14 +163,20 @@ reported by root validation alongside earlier tiers. The native root reporters
 write the requested formats and compulsory benchmark with the pinned revision;
 partial arm evidence is retained when the engine can authenticate the run.
 
-For static validation choose **Target directory** at the loaded commit.
-Select a collection for native catalog discovery, an optional catalog root
-containing the target, and **Catalog workers** (1–4; parallel runs require
-keyless Tier 1). The result retains the
-catalog summary and each member’s requested files. Linked or submodule-containing
-directories cannot be selected. Root validation also accepts rules, workflows
-and plugins; direct Tier 1 requires one skill. Alternate targets require Tier 3
-to be off. Explicit tiers override the full, live and autopilot shortcuts.
+Choose **Target directory** at the loaded commit to validate a single skill or
+a catalog. Catalog validation is one job: it retains the native catalog gate,
+member reports, and grouped Tier 3 results. When JSON reports are enabled the
+scoreboard shows each member’s Tier 3 evidence status separately from its gate.
+Generated starter replay uses the full member path, including groups with the
+same skill name. **Catalog workers** allows 1–4 concurrent members for Tier 3
+and keyless Tier 1. Each member uses the frozen chat and embedding roles in its
+own worker context. Trial caps apply **per member**: for example, a maximum of
+four attempts per member across three skills admits at most twelve attempts.
+The job shares one wall-clock deadline and sandbox ownership ledger.
+
+Linked or submodule-containing targets cannot be selected. Static validation
+also accepts rules, workflows and plugins; direct Tier 1 requires one skill.
+Explicit tiers override the full, live and autopilot shortcuts.
 
 **Managed harness profiles** selects the packaged Claude Code, Codex and
 OpenCode rules. For root validation include the harness check. For provenance
