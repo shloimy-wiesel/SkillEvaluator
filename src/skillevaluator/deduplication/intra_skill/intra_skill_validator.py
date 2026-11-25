@@ -174,7 +174,12 @@ class IntraSkillValidator(ValidatorBase):
         _max_scalar_comparisons: int | None = None,
         _max_total_prompt_chars: int | None = None,
         _aggregate_budget: ContextWorkBudget | None = None,
+        *,
+        embedding_client: EmbeddingClient | None = None,
+        chat_client: LLMClient | None = None,
     ) -> None:
+        self._embedding_client = embedding_client
+        self._chat_client = chat_client
         self._threshold = threshold
         self._aggregate_budget = _aggregate_budget
         # None defers to provider resolution (SKILL_EVAL_EMBEDDING_MODEL);
@@ -308,7 +313,7 @@ class IntraSkillValidator(ValidatorBase):
         # Step 3: Batch embed all chunks
         logger.info("Embedding %d chunk(s) via the configured public provider...", len(all_chunks))
         try:
-            client = EmbeddingClient(model=self._embedding_model)
+            client = self._embedding_client or EmbeddingClient(model=self._embedding_model)
             texts = [c.text for c in all_chunks]
 
             vector_dimension: int | None = budget.vector_dimension if budget else None
@@ -408,7 +413,9 @@ class IntraSkillValidator(ValidatorBase):
         # Step 5: LLM analysis for each cluster (concurrent)
         logger.info("Running LLM analysis on %d cluster(s) concurrently...", len(clusters))
         try:
-            llm = LLMClient(model=self._llm_model, reasoning_effort=CONTENT_DEDUP_LLM_REASONING_EFFORT)
+            llm = self._chat_client or LLMClient(
+                model=self._llm_model, reasoning_effort=CONTENT_DEDUP_LLM_REASONING_EFFORT
+            )
             config = llm._resolved_config()
             provider, model = safe_llm_labels(config.provider, config.model)
         except LLMClientError:

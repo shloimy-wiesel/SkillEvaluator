@@ -116,6 +116,7 @@ class EmbeddingClient:
         *,
         max_retries: int | None = None,
         http_client: Any = None,
+        provider_config: ProviderConfig | None = None,
         timeout: float | None = None,
     ) -> None:
         self._model = model
@@ -130,7 +131,7 @@ class EmbeddingClient:
         self._http_client = http_client if http_client is not None else embedding_transport.get()
         self._timeout = timeout
         self._client: Any = None
-        self._provider_config: ProviderConfig | None = None
+        self._provider_config = provider_config
 
     @property
     def model(self) -> str:

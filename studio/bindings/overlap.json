@@ -1,0 +1,386 @@
+[
+  {
+    "key": "tier2 [workflow]",
+    "status": "implemented",
+    "equivalent": "Review intra-skill overlap and an optional compatible catalog; a missing catalog is skipped.",
+    "evidence": "tests/studio/test_overlap.py::test_author_runs_direct_tier2_and_inspects_skipped_catalog"
+  },
+  {
+    "key": "tier2 [workflow]:skill_path",
+    "status": "implemented",
+    "equivalent": "Connected skill folder at the selected full SHA.",
+    "evidence": "tests/studio/test_overlap.py::test_author_runs_direct_tier2_and_inspects_skipped_catalog"
+  },
+  {
+    "key": "tier2 [workflow]:catalog",
+    "status": "implemented",
+    "equivalent": "Comparison catalog selects an immutable project JSON file.",
+    "evidence": "tests/studio/test_overlap.py::test_direct_catalog_and_thresholds_change_the_two_engine_stages"
+  },
+  {
+    "key": "tier2 [workflow]:threshold",
+    "status": "implemented",
+    "equivalent": "Intra-skill clustering threshold.",
+    "evidence": "tests/studio/test_overlap.py::test_direct_catalog_and_thresholds_change_the_two_engine_stages"
+  },
+  {
+    "key": "tier2 [workflow]:similarity_threshold",
+    "status": "implemented",
+    "equivalent": "Independent threshold for catalog matches.",
+    "evidence": "tests/studio/test_overlap.py::test_direct_catalog_and_thresholds_change_the_two_engine_stages"
+  },
+  {
+    "key": "tier2 [workflow]:full_body",
+    "status": "implemented",
+    "equivalent": "Full-body mode; catalog mode must match.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 [workflow]:report_formats",
+    "status": "implemented",
+    "equivalent": "Multi-select native files; cli maps to browser summary, github to annotation text.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 [workflow]:output_dir",
+    "status": "implemented",
+    "equivalent": "Private run files with project-scoped downloads.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 context-optimization-check",
+    "status": "implemented",
+    "equivalent": "Review intra-skill overlap with independent chat and embedding profiles.",
+    "evidence": "tests/studio/test_overlap.py::test_scoped_catalog_preflight_and_incomplete_redirect"
+  },
+  {
+    "key": "tier2 context-optimization-check:skill_path",
+    "status": "implemented",
+    "equivalent": "Connected skill folder at the selected full SHA.",
+    "evidence": "tests/studio/test_overlap.py::test_scoped_catalog_preflight_and_incomplete_redirect"
+  },
+  {
+    "key": "tier2 context-optimization-check:threshold",
+    "status": "implemented",
+    "equivalent": "Intra-skill clustering threshold.",
+    "evidence": "tests/studio/test_overlap.py::test_direct_catalog_and_thresholds_change_the_two_engine_stages"
+  },
+  {
+    "key": "tier2 context-optimization-check:model",
+    "status": "implemented",
+    "equivalent": "Embedding model override with saved embedding endpoint and credential.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "tier2 context-optimization-check:llm_model",
+    "status": "implemented",
+    "equivalent": "Chat model override with saved chat endpoint and credential.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "tier2 context-optimization-check:report_formats",
+    "status": "implemented",
+    "equivalent": "Multi-select native files; cli maps to browser summary, github to annotation text.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 context-optimization-check:output_dir",
+    "status": "implemented",
+    "equivalent": "Private run files with project-scoped downloads.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 dedup-scan",
+    "status": "implemented",
+    "equivalent": "Review intra-skill overlap with independent chat and embedding profiles.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "tier2 dedup-scan:skill_path",
+    "status": "implemented",
+    "equivalent": "Connected skill folder at the selected full SHA.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "tier2 dedup-scan:threshold",
+    "status": "implemented",
+    "equivalent": "Intra-skill clustering threshold.",
+    "evidence": "tests/studio/test_overlap.py::test_direct_catalog_and_thresholds_change_the_two_engine_stages"
+  },
+  {
+    "key": "tier2 dedup-scan:llm_model",
+    "status": "implemented",
+    "equivalent": "Chat model override with saved chat endpoint and credential.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "tier2 dedup-scan:model",
+    "status": "implemented",
+    "equivalent": "Embedding model override with saved embedding endpoint and credential.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "tier2 dedup-scan:report_formats",
+    "status": "implemented",
+    "equivalent": "Multi-select native files; cli maps to browser summary, github to annotation text.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 dedup-scan:output_dir",
+    "status": "implemented",
+    "equivalent": "Private run files with project-scoped downloads.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 similarity-check",
+    "status": "implemented",
+    "equivalent": "Compare a selected collection or a skill against a pinned JSON catalog.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 similarity-check:content_path",
+    "status": "implemented",
+    "equivalent": "Collection directory from the pinned tree, defaulting to the selected skill.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 similarity-check:content_type",
+    "status": "implemented",
+    "equivalent": "Select skill, rules or workflow manifests from a mixed collection; auto delegates detection to the engine.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 similarity-check:threshold",
+    "status": "implemented",
+    "equivalent": "Similarity threshold.",
+    "evidence": "tests/studio/test_overlap.py::test_direct_catalog_and_thresholds_change_the_two_engine_stages"
+  },
+  {
+    "key": "tier2 similarity-check:full_body",
+    "status": "implemented",
+    "equivalent": "Full-body mode; catalog mode must match.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 similarity-check:model",
+    "status": "implemented",
+    "equivalent": "Embedding model override with saved embedding endpoint and credential.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "tier2 similarity-check:max_entries",
+    "status": "implemented",
+    "equivalent": "Collection manifest limit; over-limit runs retain diagnostics.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 similarity-check:max_scalar_comparisons",
+    "status": "implemented",
+    "equivalent": "Scalar comparison budget; over-budget runs retain diagnostics.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 similarity-check:catalog",
+    "status": "implemented",
+    "equivalent": "Comparison catalog selects an immutable project JSON file.",
+    "evidence": "tests/studio/test_overlap.py::test_direct_catalog_and_thresholds_change_the_two_engine_stages"
+  },
+  {
+    "key": "tier2 similarity-check:save_catalog",
+    "status": "implemented",
+    "equivalent": "Write catalog.json in the private run files for download.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 similarity-check:cache",
+    "status": "implemented",
+    "equivalent": "Deprecated cache spelling maps to Comparison catalog.",
+    "evidence": "tests/studio/test_overlap.py::test_direct_catalog_and_thresholds_change_the_two_engine_stages"
+  },
+  {
+    "key": "tier2 similarity-check:save_cache",
+    "status": "implemented",
+    "equivalent": "Deprecated save-cache spelling maps to Save catalog.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 similarity-check:report_formats",
+    "status": "implemented",
+    "equivalent": "Multi-select native files; cli maps to browser summary, github to annotation text.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "tier2 similarity-check:output_dir",
+    "status": "implemented",
+    "equivalent": "Private run files with project-scoped downloads.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "context-optimization-check",
+    "status": "implemented",
+    "equivalent": "Review intra-skill overlap with independent chat and embedding profiles.",
+    "evidence": "tests/studio/test_overlap.py::test_scoped_catalog_preflight_and_incomplete_redirect"
+  },
+  {
+    "key": "context-optimization-check:skill_path",
+    "status": "implemented",
+    "equivalent": "Connected skill folder at the selected full SHA.",
+    "evidence": "tests/studio/test_overlap.py::test_scoped_catalog_preflight_and_incomplete_redirect"
+  },
+  {
+    "key": "context-optimization-check:threshold",
+    "status": "implemented",
+    "equivalent": "Intra-skill clustering threshold.",
+    "evidence": "tests/studio/test_overlap.py::test_direct_catalog_and_thresholds_change_the_two_engine_stages"
+  },
+  {
+    "key": "context-optimization-check:model",
+    "status": "implemented",
+    "equivalent": "Embedding model override with saved embedding endpoint and credential.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "context-optimization-check:llm_model",
+    "status": "implemented",
+    "equivalent": "Chat model override with saved chat endpoint and credential.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "context-optimization-check:report_formats",
+    "status": "implemented",
+    "equivalent": "Multi-select native files; cli maps to browser summary, github to annotation text.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "context-optimization-check:output_dir",
+    "status": "implemented",
+    "equivalent": "Private run files with project-scoped downloads.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "dedup-scan",
+    "status": "implemented",
+    "equivalent": "Review intra-skill overlap with independent chat and embedding profiles.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "dedup-scan:skill_path",
+    "status": "implemented",
+    "equivalent": "Connected skill folder at the selected full SHA.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "dedup-scan:threshold",
+    "status": "implemented",
+    "equivalent": "Intra-skill clustering threshold.",
+    "evidence": "tests/studio/test_overlap.py::test_direct_catalog_and_thresholds_change_the_two_engine_stages"
+  },
+  {
+    "key": "dedup-scan:llm_model",
+    "status": "implemented",
+    "equivalent": "Chat model override with saved chat endpoint and credential.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "dedup-scan:model",
+    "status": "implemented",
+    "equivalent": "Embedding model override with saved embedding endpoint and credential.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "dedup-scan:report_formats",
+    "status": "implemented",
+    "equivalent": "Multi-select native files; cli maps to browser summary, github to annotation text.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "dedup-scan:output_dir",
+    "status": "implemented",
+    "equivalent": "Private run files with project-scoped downloads.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "similarity-check",
+    "status": "implemented",
+    "equivalent": "Compare a selected collection or a skill against a pinned JSON catalog.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "similarity-check:content_path",
+    "status": "implemented",
+    "equivalent": "Collection directory from the pinned tree, defaulting to the selected skill.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "similarity-check:content_type",
+    "status": "implemented",
+    "equivalent": "Select skill, rules or workflow manifests from a mixed collection; auto delegates detection to the engine.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "similarity-check:threshold",
+    "status": "implemented",
+    "equivalent": "Similarity threshold.",
+    "evidence": "tests/studio/test_overlap.py::test_direct_catalog_and_thresholds_change_the_two_engine_stages"
+  },
+  {
+    "key": "similarity-check:full_body",
+    "status": "implemented",
+    "equivalent": "Full-body mode; catalog mode must match.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "similarity-check:model",
+    "status": "implemented",
+    "equivalent": "Embedding model override with saved embedding endpoint and credential.",
+    "evidence": "tests/studio/test_overlap.py::test_adapter_runs_with_frozen_role_specific_models_and_credentials"
+  },
+  {
+    "key": "similarity-check:max_entries",
+    "status": "implemented",
+    "equivalent": "Collection manifest limit; over-limit runs retain diagnostics.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "similarity-check:max_scalar_comparisons",
+    "status": "implemented",
+    "equivalent": "Scalar comparison budget; over-budget runs retain diagnostics.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "similarity-check:catalog",
+    "status": "implemented",
+    "equivalent": "Comparison catalog selects an immutable project JSON file.",
+    "evidence": "tests/studio/test_overlap.py::test_direct_catalog_and_thresholds_change_the_two_engine_stages"
+  },
+  {
+    "key": "similarity-check:save_catalog",
+    "status": "implemented",
+    "equivalent": "Write catalog.json in the private run files for download.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "similarity-check:cache",
+    "status": "implemented",
+    "equivalent": "Deprecated cache spelling maps to Comparison catalog.",
+    "evidence": "tests/studio/test_overlap.py::test_direct_catalog_and_thresholds_change_the_two_engine_stages"
+  },
+  {
+    "key": "similarity-check:save_cache",
+    "status": "implemented",
+    "equivalent": "Deprecated save-cache spelling maps to Save catalog.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "similarity-check:report_formats",
+    "status": "implemented",
+    "equivalent": "Multi-select native files; cli maps to browser summary, github to annotation text.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  },
+  {
+    "key": "similarity-check:output_dir",
+    "status": "implemented",
+    "equivalent": "Private run files with project-scoped downloads.",
+    "evidence": "tests/studio/test_overlap.py::test_author_builds_catalog_from_pinned_collection_and_selects_artifacts"
+  }
+]
