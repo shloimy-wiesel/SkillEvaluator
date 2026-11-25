@@ -14,12 +14,16 @@
 <details><summary>Trial settings and budgets</summary>
 <p>Blank limits use the pinned run policy and engine defaults. The paid workload scales with cases × agents × attempts × arms.</p>
 <label>Agent model override<input name="model"></label>
+{% for key,label in [('codex_model','Codex'),('opencode_model','OpenCode'),('claude_code_model','Claude Code')] %}
+<label>{{ label }} model override<input name="{{ key }}"></label>{% endfor %}
 {% for key,label,min,step in [
 ('n_attempts','Attempts per case',1,1),('max_attempts_total','Maximum total attempts',0,1),
 ('n_concurrent','Concurrent cases per agent',1,1),('max_agents','Concurrent agents',1,1),
 ('max_cases','Maximum cases',1,1),('pass_threshold','Pass threshold',0,'any'),
 ('timeout_multiplier','Timeout multiplier',0,'any'),('max_agent_tokens','Maximum measured agent tokens',0,1),
-('max_judge_calls','Maximum judge calls',0,1),('max_cost_usd','Maximum agent cost (USD)',0,'any')] %}
+('max_judge_calls','Maximum judge calls',0,1),('max_cost_usd','Maximum agent cost (USD)',0,'any'),
+('override_cpus','CPUs per trial',1,1),('override_memory_mb','Memory per trial (MiB)',1,1),
+('override_storage_mb','Storage per trial (MiB)',1,1)] %}
 <label>{{ label }}<input type="number" min="{{ min }}" step="{{ step }}" name="{{ key }}"></label>{% endfor %}
 <label>Model price file (repository-relative; required for USD budget)<input name="price_file"></label>
 {% for key,label in [('stop_on_pass','Stop remaining attempts after a pass'),('agent_runtime_preflight','Run a paid agent preflight'),('tolerate_baseline_timeouts','Tolerate baseline timeouts')] %}

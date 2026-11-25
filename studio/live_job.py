@@ -35,6 +35,9 @@ class Controls(BaseModel):
     arms: Literal["paired", "skill", "baseline"] = "paired"
     agents: tuple[Agent, ...] = ()
     model: Model | None = None
+    codex_model: Model | None = None
+    opencode_model: Model | None = None
+    claude_code_model: Model | None = None
     dataset: str | None = None
     price_file: str | None = None
     n_attempts: Positive | None = None
@@ -47,6 +50,9 @@ class Controls(BaseModel):
     max_cost_usd: Annotated[float, Field(ge=0)] | None = None
     pass_threshold: Annotated[float, Field(ge=0, le=1)] | None = None
     timeout_multiplier: Annotated[float, Field(gt=0)] | None = None
+    override_cpus: Positive | None = None
+    override_memory_mb: Positive | None = None
+    override_storage_mb: Positive | None = None
     stop_on_pass: bool | None = None
     agent_runtime_preflight: bool | None = None
     tolerate_baseline_timeouts: bool | None = None
@@ -68,7 +74,21 @@ class Controls(BaseModel):
             raise ValueError("The USD budget requires a project price file.")
         if self.stop_on_pass and self.n_attempts == 1:
             raise ValueError("Stop on pass needs multiple attempts.")
+        for agent, _ in self.model_overrides():
+            if agent not in self.agents:
+                raise ValueError("Select each agent with a model override.")
         return self
+
+    def model_overrides(self):
+        return [
+            (agent, model)
+            for agent, model in (
+                ("codex", self.codex_model),
+                ("opencode", self.opencode_model),
+                ("claude-code", self.claude_code_model),
+            )
+            if model
+        ]
 
 
 class LiveOptions(Controls):
@@ -167,6 +187,16 @@ def stage(ctx, base, options):
     shutil.copytree(
         source, skill, ignore=lambda root, _names: {".git", "eval", "evals"} if Path(root) == source else {".git"}
     )
+    # Bind linked-file discovery to this input projection even when the Studio
+    # volume itself is nested in an unrelated developer checkout.
+    subprocess.run(
+        ["git", "init", "--quiet", "--template=", str(skill.parent)],
+        env={"PATH": "/usr/bin:/bin", "HOME": str(base), "GIT_CONFIG_NOSYSTEM": "1"},
+        cwd=base,
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     evals = skill / "evals"
     evals.mkdir()
     if config_path:
@@ -244,6 +274,8 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
         ]
         if options.agents:
             args += ["--agents", ",".join(options.agents)]
+        for agent, model in options.model_overrides():
+            args += ["--agent-model", f"{agent}={model}"]
         if options.grading_mode:
             args += ["--grading-mode", options.grading_mode]
         for name in (
@@ -258,6 +290,9 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
             "max_cost_usd",
             "pass_threshold",
             "timeout_multiplier",
+            "override_cpus",
+            "override_memory_mb",
+            "override_storage_mb",
         ):
             if (value := getattr(options, name)) is not None:
                 args += ["--" + name.replace("_", "-"), str(value)]

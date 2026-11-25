@@ -20,6 +20,7 @@ def test_live_requires_project_chat_profile(page, private_remote, tmp_path):
 
 def test_direct_workflow_retains_evidence_and_reruns_original_profile(page, private_remote, tmp_path, monkeypatch):
     import json
+    import subprocess
     from pathlib import Path
 
     from studio import live_job
@@ -35,6 +36,9 @@ def test_direct_workflow_retains_evidence_and_reruns_original_profile(page, priv
         assert env["SKILL_EVAL_LLM_API_KEY"] == "chat-secret"
         assert "GITHUB_TOKEN" not in env
         assert (Path(args[1]) / "SKILL.md").read_text() == "# Triage\n"
+        from skillevaluator.utils.path_security import resolve_repo_context_root
+
+        assert resolve_repo_context_root(Path(args[1])) == Path(args[1]).parent
         generated = Path(args[1]) / "evals/evals.json"
         if len(calls) == 1:
             assert not generated.exists()
@@ -64,6 +68,8 @@ def test_direct_workflow_retains_evidence_and_reruns_original_profile(page, priv
 
     monkeypatch.setattr(live_job, "invoke_engine", engine)
     monkeypatch.setenv("GITHUB_TOKEN", "ambient-secret")
+    # Local development may place STUDIO_DATA_DIR below an unrelated Git repository.
+    subprocess.run(["git", "init", "-q", tmp_path / "volume"], check=True)
     with running(tmp_path / "volume") as base:
         settings = open_settings(page, base, private_remote)
         panel = page.get_by_role("region", name="Chat", exact=True)
@@ -122,6 +128,9 @@ def test_evaluate_selected_project_dataset_and_container_grader(page, private_re
         assert (skill / "evals/grader.py").is_file()
         assert args[args.index("--grading-mode") + 1] == "custom_only"
         assert args[args.index("--agents") + 1] == "opencode"
+        assert args[args.index("--agent-model") + 1] == "opencode=openai/trial"
+        assert args[args.index("--override-memory-mb") + 1] == "2048"
+        assert "--no-stop-on-pass" in args
         native = Path(args[args.index("--results-dir") + 1]) / "20260101_130000"
         native.mkdir(parents=True)
         (native / "result.json").write_text(
@@ -141,6 +150,10 @@ def test_evaluate_selected_project_dataset_and_container_grader(page, private_re
         page.get_by_label("Dataset path").fill("bench.json")
         page.get_by_label("Grading mode").select_option("custom_only", timeout=2000)
         page.get_by_label("opencode", exact=True).check()
+        page.get_by_text("Trial settings and budgets").click()
+        page.get_by_label("OpenCode model override", exact=True).fill("openai/trial", timeout=2000)
+        page.get_by_label("Memory per trial (MiB)").fill("2048")
+        page.get_by_label("Stop remaining attempts after a pass").select_option("false")
         page.get_by_role("button", name="Queue live evaluation").click()
         playwright.expect(page.get_by_role("status")).to_contain_text("incomplete")
         playwright.expect(page.get_by_text("agent unavailable", exact=True)).to_be_visible()
