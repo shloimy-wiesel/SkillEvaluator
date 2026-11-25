@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
-from .live_job import LIVE, Controls, snapshot
+from .live_job import COMPLETED, LIVE, Controls, snapshot
 from .runs import project_for
 from .workspace import WorkspaceError
 
@@ -15,7 +15,15 @@ def render(request, project, error=None):
     return request.app.state.templates.TemplateResponse(
         request=request,
         name="live/index.html",
-        context={"project": project, "error": error},
+        context={
+            "project": project,
+            "error": error,
+            "prior": [
+                row
+                for row in request.app.state.jobs.history(project.id)
+                if row["kind"] == LIVE.kind and row["status"] in COMPLETED and row["folder"] == project.folder
+            ],
+        },
         status_code=422 if error else 200,
     )
 

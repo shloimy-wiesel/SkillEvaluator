@@ -221,3 +221,31 @@ In `artifacts/<project>/<run>/`, the native files are `decoys.json`,
 or `observations/external_metrics.{json,md}`. Rerun reuses the original Git
 commit, options and encrypted provider snapshot. A provider call or sandbox
 trial runs again and can incur charges; reopening an export does not.
+
+### Live comparison sources and provenance
+
+Direct Tier 3, Tier 3 evaluate and the legacy `evaluate` alias use the same
+project-scoped selectors. Choose a completed Studio job for this skill, not
+`latest`, a native timestamp or a host path. Baseline reuse requires paired
+arms; version comparison requires a with-skill arm. The engine validates the
+original retained run in place, including dataset identity, model resolution,
+score and attempt policy and complete reward coverage. An incompatible explicit
+selection fails instead of silently starting a new paid baseline. Interrupted
+jobs cannot supply either arm. Replays keep the selected Studio job IDs.
+
+Select one model per agent: selecting two overrides produces two `--agent-model`
+arguments; the engine rejects duplicate overrides for the same agent. Provider
+and endpoint must match the saved source job. Studio supplies the pinned SHA
+and, for a canonical `owner/repo` remote path, its repository name. Operators
+can configure `STUDIO_EVALUATOR_CONTAINER_REVISION` with a digest-pinned image
+reference or full Git SHA. This is an operator assertion, not image discovery.
+Changing it requires a fresh submission, including when replaying a saved job.
+
+See `python -m studio.option_audit` for each exact option and its evidence.
+Parser/browser checks use the live image contract without paid trials; the
+engine tests collect fixture trial rewards and compare the real retained arms.
+Only the optional runtime check requires Harbor, Docker/Compose and a running
+daemon. Actual trials also require the configured provider, authorized agent
+runtimes and the selected sandbox. Raw jobs, arbitrary environment kwargs,
+custom Dockerfiles, group/copy-repo workspaces and terminal presentation
+settings are outside the generated-task preset.
