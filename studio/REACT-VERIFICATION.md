@@ -11,7 +11,8 @@ that partial features have acquired new capabilities.
 | Immutable history across container replacement | `087eaa3` | New standard image on both sides. Chromium authored a branch and dataset, configured separate private provider profiles, queued keyless evaluation at A, saved B and replaced the container. Original run and findings still identified A; editing opened B and another project could not read the run. Passed in 14.78 s. |
 | Live runtime and private inference | `087eaa3` | Five opt-in checks passed in 81.47 s, including an actual Docker/Harbor/OpenCode trial and private TLS fixture inference/judge, native preflight and CA validation. Gym used the rollout fixture rather than the vendor executable. |
 | Live image | `087eaa3` | Production `live` target built; the exported workspace loaded from disk and the installed Docker Compose and Harbor versions were v2.40.3 and 0.25.0. |
-| Real GitLab | `3454930` | Private GitLab CE: reviewed CI publication produced a successful runner job; a separate branch edit/push produced a merge request. |
+| Frozen dataset content | `4db547b` test against `087eaa3` standard image | The editor reopened dataset B (“Route a routine ticket to the help desk”); the original JSON export still quoted the exact A prompt (“Route an urgent ticket marked ⚠️”). Passed in 16.90 s. |
+| Real GitLab | `087eaa3` | Two tests passed in 18.71 s on a fresh private GitLab CE 18.11.3 with a custom port, installation prefix, nested groups and separate credentials. Reviewed CI publication produced a successful Runner 18.11.0 job; a separate branch edit/push produced a merge request. |
 | Small screens | `64f47b3` | Real Chromium at 320, 375 and 1440 px; no page overflow or off-origin requests on the library, overview and provider views. [Desktop](../docs/studio/screenshots/project-desktop.png) · [Phone](../docs/studio/screenshots/projects-phone.png). |
 
 ## Reproduce
