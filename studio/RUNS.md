@@ -224,8 +224,13 @@ Successful experiment actions are **neutral**, not passing publication gates.
   count (default one). `overall` requires custom-only grading. A complete
   interaction can be positive, negative or zero; missing comparable evidence
   is incomplete, not zero. Studio uses the live generated-task input policy
-  and supports Docker or Kata; backend kwargs, native environments, host
-  execution and raw Harbor job retention are not supported.
+  and supports Docker or Kata. Docker accepts no backend options. For Kata,
+  select an installed Kata runtime preset and optionally enter one DNS IP
+  address per line. Leave both blank for engine defaults. Other backend
+  kwargs, native task bundles and host execution are not available.
+  Select **Keep Harbor jobs** to retain the native job files in the private
+  run volume; the Markdown export lists directories actually produced,
+  including on incomplete runs. Retention does not imply a measured outcome.
 - **Import observations** accepts the engine's external-metrics JSON contract
   at a pinned project path. The JSON and Markdown preserve declared provenance,
   matched coverage and custom scores. SkillEvaluator did not execute the tests,

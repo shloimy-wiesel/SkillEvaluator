@@ -68,7 +68,7 @@
   {
     "key": "tier3 interact",
     "status": "partial",
-    "equivalent": "CLI-backed fixed-suite experiment on Docker/Kata, verified at the sandbox invocation boundary with retained incomplete evidence. No host backend, native tasks, backend kwargs or raw jobs.",
+    "equivalent": "CLI-backed fixed-suite experiment on Docker/Kata, including typed Kata controls and optional job retention. Browser coverage substitutes the sandbox invocation; no host backend, native tasks or paid trial qualification.",
     "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
   },
   {
@@ -99,6 +99,18 @@
     "key": "tier3 interact:env_mode",
     "status": "partial",
     "equivalent": "Docker or Kata only; rejects host execution.",
+    "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
+  },
+  {
+    "key": "tier3 interact:environment_kwarg",
+    "status": "partial",
+    "equivalent": "Typed Kata runtime presets and literal DNS IPs; Docker accepts no kwargs. Other backend constructors and host settings are unavailable.",
+    "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
+  },
+  {
+    "key": "tier3 interact:harbor_keep_jobs",
+    "status": "implemented",
+    "equivalent": "Request native retention per configuration; list actual private job directories alongside the unchanged incomplete or measured report. Unchecked preserves CLI defaults.",
     "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
   },
   {
