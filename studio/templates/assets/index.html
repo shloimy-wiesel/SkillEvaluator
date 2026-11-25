@@ -15,7 +15,8 @@
 {% endfor %}
 {% if diff %}<h2>Review branch changes</h2><pre aria-label="Change preview">{{ diff }}</pre>
 <form method="post" action="{{ request.url_for('asset_scaffold',project_id=project.id) }}">{% for key,value in draft.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}<button name="action" value="save">Commit and push</button></form>{% endif %}
-<h2>Validate the shipped grader</h2><p>Check independently labelled evidence without inference, or qualify the shipped verifier against it.</p>
+<h2>Validate the shipped grader</h2><p>Check independently labelled evidence without inference, or qualify the shipped verifier against it.
+To evaluate your skill with an authored grader, <a href="{{ url_for('live_index', project_id=project.id) }}">open Live Tier 3</a> and allow the repository grader in the sandbox.</p>
 <form method="post" action="{{ url_for('qualify_grader',project_id=project.id) }}">
 <input type="hidden" name="branch" value="{{ project.branch }}"><input type="hidden" name="revision" value="{{ project.revision }}">
 <label for="suite">Suite</label><select id="suite" name="suite"><option value="">Bundled reference suite</option>{% for f in files if f.split('/')[-1]=='suite.json' %}<option>{{ f }}</option>{% endfor %}</select>

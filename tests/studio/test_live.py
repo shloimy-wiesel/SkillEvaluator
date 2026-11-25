@@ -18,6 +18,32 @@ def test_live_requires_project_chat_profile(page, private_remote, tmp_path):
         playwright.expect(page.get_by_role("alert")).to_contain_text("chat provider")
 
 
+def test_inherited_custom_mode_needs_consent_and_available_sandbox(page, private_remote, tmp_path, monkeypatch):
+    from test_datasets import seed_skill
+
+    monkeypatch.delenv("STUDIO_LIVE_ENABLED", raising=False)
+    seed_skill(
+        tmp_path,
+        {
+            "evals/config.yml": "schema_version: 1\ngrading:\n  mode: custom_only\n",
+            "evals/grader.py": "raise AssertionError('must never execute on Studio')",
+            "evals/evals.json": '{"skill_name":"triage","evals":[]}',
+        },
+    )
+    with running(tmp_path / "volume") as base:
+        settings = open_settings(page, base, private_remote)
+        save_profile(
+            page.get_by_role("region", name="Chat", exact=True), "https://chat.example/v1", "test", "private-key"
+        )
+        for consent in (False, True):
+            page.goto(base + settings.removesuffix("/providers") + "/live")
+            page.get_by_label("Allow the repository grader in the sandbox").set_checked(consent)
+            page.get_by_role("button", name="Queue live evaluation").click()
+            playwright.expect(page.get_by_role("status")).to_contain_text(
+                "runtime is disabled" if consent else "consent", timeout=8000
+            )
+
+
 def test_direct_workflow_retains_evidence_and_reruns_original_profile(page, private_remote, tmp_path, monkeypatch):
     import json
     import subprocess
@@ -237,11 +263,16 @@ def test_evaluate_selected_project_dataset_and_container_grader(
         }.items():
             rejected = page.request.post(page.url, form={"sha": sha, "workflow": workflow, key: value})
             assert rejected.status == 422, key
+        page.get_by_label("Dataset path").fill("bench.json")
+        page.get_by_label("Grading mode").select_option("custom_only", timeout=2000)
+        page.get_by_role("button", name="Queue live evaluation").click()
+        playwright.expect(page.get_by_role("alert")).to_contain_text("consent")
         page.get_by_label("Workflow").select_option(workflow)
         page.get_by_label("Environment").select_option("kata")
         page.get_by_label("Comparison arms").select_option("baseline" if baseline_only else "skill")
         page.get_by_label("Dataset path").fill("bench.json")
-        page.get_by_label("Grading mode").select_option("custom_only", timeout=2000)
+        page.get_by_label("Grading mode").select_option("custom_only")
+        page.get_by_label("Allow the repository grader in the sandbox").check()
         page.get_by_label("codex", exact=True).check()
         page.get_by_label("opencode", exact=True).check()
         page.get_by_text("Trial settings and budgets").click()

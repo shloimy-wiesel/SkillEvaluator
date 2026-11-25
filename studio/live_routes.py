@@ -40,6 +40,8 @@ async def queue(request: Request, project_id: str):
     data = {k: v for k, v in form.items() if k not in {"sha", "agents"} and v != ""}
     try:
         controls = Controls.model_validate({**data, "agents": form.getlist("agents")})
+        if controls.grading_mode not in (None, "default") and not controls.sandbox_grader_consent:
+            raise WorkspaceError("Repository grading requires explicit sandbox consent.")
         options = snapshot(request.app.state.workspace, project_id, controls)
         run_id = request.app.state.jobs.enqueue(project, form.get("sha", ""), LIVE, options)
     except ValidationError:

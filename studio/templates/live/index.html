@@ -8,6 +8,7 @@
 <label>Dataset path (repository-relative; blank discovers the pinned skill dataset)<input name="dataset"></label>
 <label>Environment<select name="env_mode"><option>docker</option><option>kata</option></select></label>
 <label>Grading mode<select name="grading_mode"><option value="">Use run policy (otherwise standard)</option><option value="default">Standard</option><option value="default_plus_custom">Standard and sandboxed custom grader</option><option value="custom_only">Sandboxed custom grader only</option></select></label>
+<label><input type="checkbox" name="sandbox_grader_consent"> Allow the repository grader in the sandbox</label>
 <fieldset><legend>Agents · leave unchecked for the provider default</legend>
 {% for agent in ['codex','opencode','claude-code'] %}<label><input type="checkbox" name="agents" value="{{ agent }}">{{ agent }}</label>{% endfor %}</fieldset>
 <label>Comparison arms<select name="arms"><option value="paired">With and without skill</option><option value="skill">With skill only</option><option value="baseline">Baseline only</option></select></label>
