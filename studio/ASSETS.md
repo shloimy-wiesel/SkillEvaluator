@@ -15,6 +15,8 @@ Both qualification actions support split (default `assessment`), repeated case I
 
 Live rate gates compare measured rates to their limits (strictly greater fails). The JSON receipt names `threshold_failures`. With split `all`, the engine gates assessment metrics; rates without a denominator do not fail a maximum. An operator’s `SSL_CERT_FILE` can supply a private CA for an HTTPS judge.
 
+Mount the judge CA bundle read-only and set `SSL_CERT_FILE` in Studio’s environment to its path (relative paths resolve from Studio’s working directory). The qualifier uses this bundle to verify TLS. Configure the final provider endpoint: authenticated verifier HTTP calls reject redirects.
+
 To run an authored grader, use **Live Tier 3** with a generated task environment, a custom grading mode and **Allow the repository grader in the sandbox**. This also applies to custom grading selected by a pinned run policy. This evaluates the skill with that grader; the qualification command measures the shipped verifier.
 
 **Evaluation runs** retains the effective options, commit, engine exit code and JSON/Markdown exports. Instead of accepting `-o/--output` host paths, Studio allocates private run storage and offers the engine's attempt evidence as a ZIP. JSON export replaces `--json` terminal output. Profile changes to provider/model/endpoint require queueing a fresh run rather than silently replaying with different settings.

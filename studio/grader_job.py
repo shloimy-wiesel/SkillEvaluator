@@ -87,7 +87,7 @@ def evaluate(ctx, options):
                     raise WorkspaceError("Chat settings changed since this run was queued.")
                 env.update(current)
                 if ca := os.environ.get("SSL_CERT_FILE"):
-                    env["SSL_CERT_FILE"] = ca
+                    env["SSL_CERT_FILE"] = str(Path(ca).resolve())
             code, payload = invoke([*args, "--output", str(Path(temp) / "output")], temp, env, live=True)
             if "metrics" in payload:
                 from skillevaluator.tier3.grader_validation import gate_failures

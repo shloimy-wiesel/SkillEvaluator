@@ -78,6 +78,35 @@ def _http_error(body: str, *, code: int = 401, reason: str = "Unauthorized") -> 
     )
 
 
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+def test_verifier_reports_original_redirect(verifier_module, loopback_tls, monkeypatch, provider):
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from threading import Thread
+
+    class Moved(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self.send_response(302)
+            self.send_header("Location", "/moved")
+            self.end_headers()
+
+    context, ca = loopback_tls
+    monkeypatch.setenv("SSL_CERT_FILE", str(ca))
+    monkeypatch.setenv("SKILL_EVAL_LLM_PROVIDER", provider)
+    monkeypatch.setenv(provider.upper() + "_API_KEY", "dummy")
+    with ThreadingHTTPServer(("127.0.0.1", 0), Moved) as server:
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+        monkeypatch.setenv(provider.upper() + "_BASE_URL", f"https://127.0.0.1:{server.server_port}")
+        thread = Thread(target=server.serve_forever)
+        thread.start()
+        try:
+            content, error = verifier_module.call_public_llm("fixture", allow_model_fallback=False)
+            assert content is None and "HTTP 302" in error
+        finally:
+            server.shutdown()
+            thread.join()
+
+
 @pytest.mark.parametrize("module_fixture", ["source_judge", "verifier_module"])
 def test_http_error_formatter_redacts_every_configured_credential(
     module_fixture: str,
@@ -193,7 +222,7 @@ def test_generated_call_public_llm_redacts_http_error_body(
     def fail_request(*_args, **_kwargs):
         raise _http_error(f'{{"error":"credential echoed: {credential}"}}')
 
-    monkeypatch.setattr(verifier_module.urllib.request, "urlopen", fail_request)
+    monkeypatch.setattr(verifier_module, "_open_verifier_request", fail_request)
 
     content, error = verifier_module.call_public_llm("safe prompt", allow_model_fallback=False)
 
@@ -215,7 +244,7 @@ def test_generated_call_public_llm_redacts_generic_exception(
     def fail_request(*_args, **_kwargs):
         raise RuntimeError(f"transport included {credential} in diagnostics")
 
-    monkeypatch.setattr(verifier_module.urllib.request, "urlopen", fail_request)
+    monkeypatch.setattr(verifier_module, "_open_verifier_request", fail_request)
 
     content, error = verifier_module.call_public_llm("safe prompt")
 
@@ -240,7 +269,7 @@ def test_generated_provider_error_preserves_selected_judge_provenance(
         raise TimeoutError(f"request timed out with {credential}")
 
     monkeypatch.setattr(verifier_module.time, "sleep", lambda _s: None)
-    monkeypatch.setattr(verifier_module.urllib.request, "urlopen", time_out)
+    monkeypatch.setattr(verifier_module, "_open_verifier_request", time_out)
 
     content, error, provenance = verifier_module._call_public_llm_with_provenance(
         "safe prompt",
@@ -303,7 +332,7 @@ def test_generated_call_public_llm_preserves_fallback_detection_and_redacts_exha
             reason="Forbidden",
         )
 
-    monkeypatch.setattr(verifier_module.urllib.request, "urlopen", deny_model)
+    monkeypatch.setattr(verifier_module, "_open_verifier_request", deny_model)
 
     content, error = verifier_module.call_public_llm("safe prompt", model="primary-model")
 
@@ -325,7 +354,7 @@ def test_generated_call_public_llm_does_not_redact_successful_content(
     monkeypatch.setenv("SKILL_EVAL_LLM_PROVIDER", "openai")
     monkeypatch.setenv("OPENAI_API_KEY", credential)
     response = MockUrllibResponse({"choices": [{"message": {"content": f"model content: {credential}"}}]})
-    monkeypatch.setattr(verifier_module.urllib.request, "urlopen", lambda *_args, **_kwargs: response)
+    monkeypatch.setattr(verifier_module, "_open_verifier_request", lambda *_args, **_kwargs: response)
 
     content, error = verifier_module.call_public_llm("safe prompt")
 
@@ -467,7 +496,7 @@ def test_generated_call_public_llm_retries_transient_http_error_and_succeeds(
             raise _http_error(error_body, code=status_code, reason=reason)
         return MockUrllibResponse({"choices": [{"message": {"content": "judge success"}}]})
 
-    monkeypatch.setattr(verifier_module.urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(verifier_module, "_open_verifier_request", mock_urlopen)
 
     content, error = verifier_module.call_public_llm("safe prompt")
 
@@ -496,7 +525,7 @@ def test_generated_call_public_llm_exhausts_retries_on_persistent_429(
         calls += 1
         raise _http_error(f'{{"error": "rate limited with {credential}"}}', code=429, reason="Too Many Requests")
 
-    monkeypatch.setattr(verifier_module.urllib.request, "urlopen", fail_request)
+    monkeypatch.setattr(verifier_module, "_open_verifier_request", fail_request)
 
     content, error = verifier_module.call_public_llm("safe prompt", allow_model_fallback=False)
 
@@ -539,7 +568,7 @@ def test_generated_call_public_llm_respects_retry_after_header(
             raise err
         return MockUrllibResponse({"choices": [{"message": {"content": "finished"}}]})
 
-    monkeypatch.setattr(verifier_module.urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(verifier_module, "_open_verifier_request", mock_urlopen)
 
     content, error = verifier_module.call_public_llm("safe prompt")
 
@@ -568,7 +597,7 @@ def test_generated_call_public_llm_fails_fast_on_http_401(
         calls += 1
         raise _http_error('{"error": "invalid api key"}', code=401, reason="Unauthorized")
 
-    monkeypatch.setattr(verifier_module.urllib.request, "urlopen", fail_unauthorized)
+    monkeypatch.setattr(verifier_module, "_open_verifier_request", fail_unauthorized)
 
     content, error = verifier_module.call_public_llm("safe prompt", allow_model_fallback=False)
 
@@ -608,7 +637,7 @@ def test_generated_call_public_llm_fails_fast_if_retry_after_exceeds_max_delay(
         )
         raise err
 
-    monkeypatch.setattr(verifier_module.urllib.request, "urlopen", fail_request)
+    monkeypatch.setattr(verifier_module, "_open_verifier_request", fail_request)
 
     content, error = verifier_module.call_public_llm("safe prompt", allow_model_fallback=False)
 

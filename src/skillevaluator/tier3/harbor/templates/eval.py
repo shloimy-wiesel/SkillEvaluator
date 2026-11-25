@@ -1349,6 +1349,16 @@ def _is_vertex_openapi_url(request_url):
     return "/endpoints/openapi" in path
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *_args, **_kwargs):
+        return None
+
+
+def _open_verifier_request(request, *, timeout):
+    """Use the configured endpoint and CA; never redirect verifier credentials."""
+    return urllib.request.build_opener(_NoRedirect()).open(request, timeout=timeout)
+
+
 def _get_vertex_access_token(timeout_seconds=10.0):
     """Acquire or refresh a Google Cloud access token in-process for Vertex OpenAPI grading.
 
@@ -1377,7 +1387,7 @@ def _get_vertex_access_token(timeout_seconds=10.0):
             metadata_url,
             headers={"Metadata-Flavor": "Google"},
         )
-        with urllib.request.urlopen(req, timeout=min(timeout_seconds, 5.0)) as resp:  # nosec B310
+        with _open_verifier_request(req, timeout=min(timeout_seconds, 5.0)) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             token = data.get("access_token")
             if token and isinstance(token, str):
@@ -1813,7 +1823,7 @@ def _urlopen_with_retry(request, timeout=90):
         request_timeout = _remaining_judge_timeout(timeout)
         _spend_strict_judge_request()
         try:
-            with urllib.request.urlopen(request, timeout=request_timeout) as response:  # nosec B310
+            with _open_verifier_request(request, timeout=request_timeout) as response:
                 return response.read()
         except Exception as error:
             is_http = isinstance(error, urllib.error.HTTPError)

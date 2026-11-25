@@ -102,7 +102,7 @@ def replay(verifier, monkeypatch, outcomes):
             raise outcome
         return outcome
 
-    monkeypatch.setattr(verifier.urllib.request, "urlopen", open_request)
+    monkeypatch.setattr(verifier, "_open_verifier_request", open_request)
     return requested
 
 
@@ -156,7 +156,7 @@ def _anthropic_request(verifier, monkeypatch):
         body = {"content": [{"type": "text", "text": "Done"}], "stop_reason": "end_turn"}
         return io.BytesIO(json.dumps(body).encode())
 
-    monkeypatch.setattr(verifier.urllib.request, "urlopen", open_request)
+    monkeypatch.setattr(verifier, "_open_verifier_request", open_request)
     assert verifier._call_anthropic("prompt", "claude-opus-5-5", 4096, 0.0) == ("Done", None)
     return sent[0]
 
@@ -630,7 +630,7 @@ def test_strict_candidates_share_the_judge_time_budget(verifier, monkeypatch):
         clock.now += 100
         raise http_error()
 
-    monkeypatch.setattr(verifier.urllib.request, "urlopen", unavailable)
+    monkeypatch.setattr(verifier, "_open_verifier_request", unavailable)
     token = verifier._ACTIVE_JUDGE_DEADLINE.set(110.0)
     try:
         content, error = verifier.call_public_llm("prompt")
@@ -774,7 +774,7 @@ def test_strict_bedrock_throttling_moves_on_after_one_retry(verifier, monkeypatc
 def test_invalid_policy_fails_closed_before_any_request(verifier, monkeypatch, name, value):
     monkeypatch.setenv(name, value)
     monkeypatch.setattr(
-        verifier.urllib.request, "urlopen", lambda *_args, **_kwargs: pytest.fail("invalid policy sent a request")
+        verifier, "_open_verifier_request", lambda *_args, **_kwargs: pytest.fail("invalid policy sent a request")
     )
 
     content, error = verifier.call_public_llm("prompt")
@@ -798,7 +798,7 @@ def test_invalid_policy_keeps_the_ragas_goal_scorer_off(verifier, monkeypatch, n
         verifier, "_judge_goal_accuracy_ragas", lambda *_args: pytest.fail("RAGAS sent its own judge request")
     )
     monkeypatch.setattr(
-        verifier.urllib.request, "urlopen", lambda *_args, **_kwargs: pytest.fail("invalid policy sent a request")
+        verifier, "_open_verifier_request", lambda *_args, **_kwargs: pytest.fail("invalid policy sent a request")
     )
 
     result = verifier._call_required_judge("goal_accuracy", verifier.judge_goal_accuracy, "q", "truth", "e", "")

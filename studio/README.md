@@ -33,8 +33,14 @@ of a named volume must be writable by UID 10001. For an internal Git CA,
 mount its PEM trust bundle read-only and set `GIT_SSL_CAINFO` to its container path.
 
 The app has no built-in user authentication. Keep the loopback binding or
-serve it behind an authenticated TLS proxy for a trusted operator. The
-standard CLI and its original Dockerfile remain independently usable.
+serve it behind an authenticated TLS proxy for a trusted operator. By default
+Studio accepts the HTTP `Host` names `127.0.0.1`, `localhost`, and `[::1]`.
+For a proxy, set `STUDIO_TRUSTED_HOSTS=studio.example.org` on Studio (multiple
+exact names are comma-separated, without schemes, ports, or wildcards). Have
+the proxy preserve the public `Host` including its port and forward the HTTPS
+scheme; configure Uvicorn to trust proxy headers only from that proxy. Form
+submissions still require same-origin access. The standard CLI and its original
+Dockerfile remain independently usable.
 
 For local startup, extension points, and browser tests see [DEVELOPMENT.md](DEVELOPMENT.md).
 

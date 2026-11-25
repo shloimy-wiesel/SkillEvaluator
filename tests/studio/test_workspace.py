@@ -137,6 +137,21 @@ def connect(page, url, token, skill):
     page.get_by_role("button", name="Connect project").click()
 
 
+def test_studio_accepts_only_loopback_or_configured_proxy_hosts(page, tmp_path, monkeypatch):
+    with running(tmp_path / "volume") as base:
+        assert page.goto(base).status == 200
+        for host in ("localhost:8000", "[::1]:8000"):
+            assert page.request.get(base, headers={"Host": host}).status == 200
+        host = "studio.example.test"
+        headers = {"Host": host, "Origin": f"http://{host}"}
+        assert page.request.get(base, headers=headers).status == 400
+        assert page.request.post(base + "/projects", headers=headers).status == 400
+    monkeypatch.setenv("STUDIO_TRUSTED_HOSTS", "studio.example.test,studio.internal")
+    with running(tmp_path / "volume") as base:
+        assert page.request.get(base, headers={"Host": "studio.example.test:8443"}).status == 200
+        assert page.request.get(base, headers={"Host": "other.example.test"}).status == 400
+
+
 @pytest.fixture
 def deployment(tmp_path, private_remote):
     """Optionally run the same journey with real disposable Linux containers."""
