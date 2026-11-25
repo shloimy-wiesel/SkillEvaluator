@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block title %}Provider settings{% endblock %}{% block content %}
+<p class="eyebrow"><a href="{{ url_for('project', project_id=project.id) }}">{{ project.name }}</a> / Configuration</p>
+<h1>Provider settings</h1><p>Chat and embedding requests use separate profiles for this project.</p>
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+{% for role,title in [('chat','Chat'),('embeddings','Embeddings')] %}{% set p = profiles[role] %}
+<section class="panel" aria-labelledby="{{ role }}"><h2 id="{{ role }}">{{ title }}</h2>
+<form method="post" action="{{ url_for('provider_save',project_id=project.id,role=role) }}">
+<label for="provider-{{ role }}">Provider</label><select id="provider-{{ role }}" name="provider">{% for value in choices[role] %}<option {% if value == p.provider %}selected{% endif %}>{{ value }}</option>{% endfor %}</select>
+<label>Base URL <input name="base_url" type="url" value="{{ p.base_url }}" placeholder="https://gateway.example/v1"></label>
+<p>Private gateways require an HTTPS URL. Leave blank for the native provider default.</p>
+<label>Model <input name="model" value="{{ p.model }}" placeholder="Provider default"></label>
+<label>API key <input name="key" type="password" autocomplete="new-password"></label>
+<p>{{ 'Key stored' if p.has_key else 'No key stored' }}</p>
+<p>A blank key keeps the saved key only for the same provider and base URL. Bedrock uses the worker’s AWS identity.</p>
+<label><input type="checkbox" name="clear" value="true"> Remove stored key</label>
+<button>Save settings</button></form>
+<form method="post" action="{{ url_for('provider_check',project_id=project.id,role=role) }}"><button>Check readiness and discover models</button></form>
+{% if checked == role %}<p role="status">{{ notice }}</p>
+{% if models %}<ul aria-label="Discovered models">{% for model in models %}<li>{{ model }}</li>{% endfor %}</ul>{% endif %}{% endif %}
+</section>{% endfor %}
+{% endblock %}
