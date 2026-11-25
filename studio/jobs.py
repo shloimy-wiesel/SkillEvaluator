@@ -53,6 +53,7 @@ class JobDefinition[Options: BaseModel]:
     kind: str
     options: type[Options]
     evaluate: Callable[[JobContext, Options], Outcome]
+    public_options: tuple[str, ...] = ()
 
 
 class Jobs:

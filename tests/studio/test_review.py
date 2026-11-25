@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 import pytest
+from run_journey import rerun_saved_inputs
 from test_providers import open_settings, save_profile
 from test_workspace import playwright, running
 
@@ -147,7 +148,7 @@ def test_view_rebuilds_missing_native_html_without_mutating_run(page, retained):
 def test_select_report_sources_without_pairing_across_runs(page, retained):
     base, project, _ = retained
     first = page.url.rsplit("/", 1)[-1]
-    page.get_by_role("button", name="Rerun saved inputs").click()
+    rerun_saved_inputs(page)
     playwright.expect(page.get_by_role("status")).to_contain_text("neutral")
     second = page.url.rsplit("/", 1)[-1]
     page.goto(base + project + "/results")
@@ -175,6 +176,9 @@ def test_inspect_scoped_report_and_harbor_trajectory(page, retained):
     (native / "fake/summary.json").symlink_to(volume / "credential.key")
     (native / "fake/reward.json").hardlink_to(volume / "credential.key")
     page.get_by_role("link", name="Review artifacts and feedback").click(timeout=2000)
+    view = page.request.get(page.url.replace("/projects/", "/api/v1/projects/")).json()
+    assert set(view["run"]) == {"id", "folder", "sha"}
+    assert "private-value" not in json.dumps(view)
     assert "fake/" not in page.content() and "/linked/" not in page.content()
     page.get_by_role("link", name="report.html", exact=False).click()
     playwright.expect(page.get_by_label("Artifact preview")).to_contain_text("Native findings")
@@ -189,6 +193,11 @@ def test_inspect_scoped_report_and_harbor_trajectory(page, retained):
     path = urlsplit(href).path
     assert page.request.get(href.replace(path.split("/")[2], "other-project")).status == 404
     assert page.request.get(href.split("?")[0] + "?file=../../credential.key").status == 404
+    with page.expect_download() as download:
+        page.get_by_role("link", name="Download redacted text").click(timeout=2000)
+    assert download.value.path().read_text() == preview.inner_text()
+    assert download.value.suggested_filename == "trajectory.json.txt"
+    assert page.request.get(href.split("?")[0] + "?download=true&file=../../credential.key").status == 404
 
 
 def test_contextual_feedback_survives_reopen(page, retained, loopback_tls, monkeypatch):
@@ -241,7 +250,9 @@ def test_contextual_feedback_survives_reopen(page, retained, loopback_tls, monke
                 page.goto(reopened + path)
                 page.get_by_label("Question").fill("And opencode?")
                 page.get_by_role("button", name="Ask about this run").click()
-                assert page.get_by_label("Conversation").inner_text().count("Review triage-1.") == 2
+                playwright.expect(
+                    page.get_by_label("Conversation").get_by_text("Review triage-1.", exact=False)
+                ).to_have_count(2)
                 assert "chat-secret" not in page.content()
         finally:
             server.shutdown()
@@ -280,10 +291,12 @@ def test_dashboard_upload_is_project_scoped_bounded_json(page, retained, private
     from urllib.parse import parse_qs, urlsplit
 
     source = parse_qs(urlsplit(page.url).query)["run"][0]
+    uploaded_url = page.url
     other = open_settings(page, base, private_remote).removesuffix("/providers")
     assert page.request.get(base + other + "/results?run=" + source).status == 404
-    assert page.request.post(base + other + "/results/uploads/" + source + "/remove").status == 404
-    url = base + project + "/results/uploads"
+    denied = page.request.post(base + "/api/v1" + other + "/results/uploads/" + source + "/remove")
+    assert denied.status == 404 and denied.json()["detail"]["message"] == "Unknown imported report"
+    url = base + "/api/v1" + project + "/results/uploads"
     for data, status in [
         (b'{"path":"/etc/passwd"}', 422),
         (b"[" * 1500, 422),
@@ -297,13 +310,17 @@ def test_dashboard_upload_is_project_scoped_bounded_json(page, retained, private
     }
     assert page.request.post(url, data=expanded).status == 422
     assert page.request.post(base + "/projects/missing/results/uploads", data=doc).status == 404
+    page.goto(uploaded_url)
+    page.get_by_role("button", name="Remove " + source).click()
+    playwright.expect(table).to_contain_text("codex")
+    assert page.request.get(base + "/api/v1" + project + "/results?run=" + source).status == 404
 
 
 def test_latest_scoreable_summary_per_agent(page, retained):
     import shutil
 
     _, _, volume = retained
-    page.get_by_role("button", name="Rerun saved inputs").click()
+    rerun_saved_inputs(page)
     playwright.expect(page.get_by_role("status")).to_contain_text("neutral")
     latest = page.url.rsplit("/", 1)[-1]
     native = next((volume / "artifacts").glob(f"*/{latest}/tier3/triage/*/result.json")).parent
@@ -443,5 +460,7 @@ def test_rebuild_rejects_path_shaped_native_agent_keys(page, retained):
     doc["agents"]["../unrelated"] = {"agent": "malformed"}
     config.write_text(json.dumps(doc))
     page.get_by_role("link", name="Review artifacts and feedback").click()
-    response = page.request.get(page.url + "?report=true")
+    page.get_by_role("link", name="View report", exact=True).click()
+    playwright.expect(page.get_by_role("main").get_by_role("alert")).to_contain_text("Cannot rebuild")
+    response = page.request.get(page.url.replace("/projects/", "/api/v1/projects/"))
     assert response.status == 422 and not report.exists()

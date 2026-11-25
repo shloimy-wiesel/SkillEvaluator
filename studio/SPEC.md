@@ -30,7 +30,7 @@ Open a self-hosted browser workspace, pick a project and branch, edit the skill 
 
 ## Implementation Decisions
 
-- Server-rendered FastAPI/Jinja pages with progressive enhancement, keyboard-accessible forms and responsive layouts. No separate React build.
+- React owns the keyboard-accessible, responsive browser workspace. FastAPI serves the production export and the versioned same-origin API. [The migration spec](REACT-MIGRATION.md) supersedes the original choice of Jinja.
 - Git branches are editable versions. Freeze the commit SHA, selected dataset and effective non-secret run configuration before enqueueing. Use a detached workspace per run. Never force-push stale edits.
 - Git owns authored content. A persistent volume owns SQLite metadata, encrypted credentials, job state, and retained artifacts. An interrupted job must never be displayed as completed or silently retried at the user's expense.
 - Reuse the existing engine, validators and report contracts. Distinguish skipped, incomplete, failed and passed; missing measurements are not zero.

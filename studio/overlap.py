@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Annotated, Literal
 from uuid import uuid4
 
-from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import Form, HTTPException, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from skillevaluator.constants import (
@@ -22,14 +22,17 @@ from skillevaluator.constants import (
 )
 from skillevaluator.provider_config import resolve_embedding_provider, resolve_llm_provider
 
+from .frontend_routes import document
 from .jobs import JobDefinition, Outcome
 from .operator_env import operator_env
+from .project_api import failure
 from .provider_snapshots import exposes_credential, seal, unseal
 from .providers import MODEL, database, worker_environment
+from .run_routes import feature, queued, redirect, register
 from .runs import project_for
 from .workspace import WorkspaceError
 
-router = APIRouter(prefix="/projects/{project_id}/overlap")
+browser, api = feature("overlap")
 Format = Literal["cli", "json", "html", "markdown", "junit", "sarif", "github"]
 ARTIFACTS = {
     "catalog.json",
@@ -215,30 +218,32 @@ def choices(workspace, project, sha):
     return sorted(dirs - blocked), sorted(catalogs)
 
 
-@router.get("", name="overlap_form")
+@browser.get("", name="overlap_form")
+def form_page(request: Request, project_id: str):
+    project_for(request, project_id)
+    return document(request, "overlap.html")
+
+
+@api.get("")
 def index(request: Request, project_id: str, sha: str = ""):
     project = project_for(request, project_id)
     sha = sha or project.revision
     try:
         dirs, catalogs = choices(request.app.state.workspace, project, sha)
     except WorkspaceError as exc:
-        raise HTTPException(422, str(exc)) from exc
-    return request.app.state.templates.TemplateResponse(
-        request=request,
-        name="overlap/index.html",
-        context={
-            "project": project,
-            "sha": sha,
-            "dirs": dirs,
-            "catalogs": catalogs,
-            "entries": SIMILARITY_DEFAULT_MAX_ENTRIES,
-            "scalars": SIMILARITY_DEFAULT_MAX_SCALAR_COMPARISONS,
-        },
-    )
+        raise failure(422, "invalid_commit", str(exc)) from exc
+    return {
+        "project": project,
+        "sha": sha,
+        "dirs": dirs,
+        "catalogs": catalogs,
+        "entries": SIMILARITY_DEFAULT_MAX_ENTRIES,
+        "scalars": SIMILARITY_DEFAULT_MAX_SCALAR_COMPARISONS,
+    }
 
 
-@router.post("")
-def queue(request: Request, project_id: str, form: Annotated[Submission, Form()]):
+@api.post("", status_code=201)
+def start(request: Request, project_id: str, form: Submission):
     project = project_for(request, project_id)
     try:
         workspace = request.app.state.workspace
@@ -246,16 +251,16 @@ def queue(request: Request, project_id: str, form: Annotated[Submission, Form()]
         options = snapshot(workspace, project_id, **form.model_dump(exclude={"sha"}))
         run_id = request.app.state.jobs.enqueue(project, form.sha, OVERLAP, options)
     except WorkspaceError as exc:
-        return request.app.state.templates.TemplateResponse(
-            request=request,
-            name="overlap/index.html",
-            status_code=422,
-            context={"project": project, "sha": form.sha, "error": str(exc)},
-        )
-    return RedirectResponse(request.url_for("run_detail", project_id=project_id, run_id=run_id), 303)
+        raise failure(422, "invalid_inputs", str(exc)) from exc
+    return queued(request, project_id, run_id)
 
 
-@router.get("/{run_id}/files/{name}", name="overlap_artifact")
+@browser.post("")
+def queue(request: Request, project_id: str, form: Annotated[Submission, Form()]):
+    return redirect(start(request, project_id, form))
+
+
+@browser.get("/{run_id}/files/{name}", name="overlap_artifact")
 def artifact(request: Request, project_id: str, run_id: str, name: str):
     run = request.app.state.jobs.get(project_id, run_id)
     if (
@@ -266,9 +271,14 @@ def artifact(request: Request, project_id: str, run_id: str, name: str):
     ):
         raise HTTPException(404)
     path = request.app.state.workspace.data_dir / "artifacts" / project_id / run_id / name
+    if not path.is_file():
+        raise HTTPException(404)
     return FileResponse(
         path,
         filename=name,
         media_type="application/octet-stream",
         headers={"X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"},
     )
+
+
+router = register(browser, api)

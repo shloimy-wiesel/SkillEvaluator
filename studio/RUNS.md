@@ -8,6 +8,48 @@ too. Queue the checks, then close the tab if desired. Follow the SHA in run
 history to see progress, the frozen inputs, gate exit code, findings, and
 downloadable engine JSON and Markdown. A failing gate still produces reports.
 
+The React launchers load their inputs from `GET /api/v1/projects/{id}/runs`,
+`/live`, `/overlap` (optional `sha`), or `/installation` (optional `topic`),
+all relative to the same project. POST JSON to the corresponding endpoint to
+queue work; `201 {id, href}` links to the canonical status document. Repeated
+inputs (`agents`, `formats`, `paths`) are arrays. Omit blank budget and policy
+overrides; explicit `false` and `0` remain distinct from inherited values.
+`GET /api/v1/projects/{id}/runs/{run_id}` returns progress, frozen run metadata,
+display models and the retained report (null until saved). `run.options` is a
+JSON object with the author-facing settings saved for this run, including
+provider/model identities where applicable. Snapshot references and private
+provider connection details stay on the server. The status document
+polls while active. POST its `/rerun` subresource to enqueue a new run using
+the saved inputs. Downloads keep their existing, project-scoped attachment URLs.
+
+Installation inspection returns independent `version`, `help`, `changed`, and
+`configs` sections. If the CLI or Git is unavailable, `diagnostics` identifies
+the affected sections; successful sections remain available.
+
+### Verifying the browser and API
+
+Build `studio/frontend` first. From the repository root:
+
+```sh
+python -m pytest -q tests/studio/test_{react_runs,runs,live,overlap,installation,private_trial}.py
+```
+
+The Chromium tracer initially failed with `404` on the versioned run collection
+at baseline `8305e1b`. A second tracer caught a history row that remained
+`running` after the API returned `passed`. The suite checks draft preservation,
+progress, retries, findings and downloads. It uses an authenticated HTTPS Git
+fixture, separate chat/embedding profiles, a local inference fixture for
+overlap, and detached evaluator checkouts. The changed-file tests compare
+browser output with the installed evaluator. Live option tests inspect the
+actual adapter invocation; Docker, Gym and Harbor tests are opt-in.
+
+`test_author_reopens_run_from_before_skill_and_dataset_branch_advanced` uses
+two deployments on the same volume: it saves the skill, dataset and two
+write-only profiles, queues A, advances to B, then checks A's findings after
+replacement and rejects direct access from another project. Set
+`STUDIO_TEST_IMAGE` to a pinned image for the container variant (see
+[development](DEVELOPMENT.md)).
+
 **Scope:** this keyless Tier 1 preset runs the shipped schema and Unicode
 checks, together or individually, with the built-in `default` profile and
 `--no-llm`. Passing certifies only the selected checks, not a complete Tier 1

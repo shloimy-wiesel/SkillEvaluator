@@ -7,12 +7,15 @@ import yaml
 from test_workspace import before_push, connect, page, playwright, private_remote, running  # noqa: F401
 
 SCAN = ".github/workflows/skill-checks.yml"
+PREVIOUS_PIPELINE = 9007199254740993  # A valid GitLab ID beyond JavaScript's exact integer range.
 
 
 def publish(page, button):
+    previous = page.url
     with page.expect_response(lambda response: response.request.method == "POST") as posted:
         page.get_by_role("button", name=button).click()
-    assert posted.value.status == 303
+    assert posted.value.status == 200
+    page.wait_for_url(lambda url: url != previous and "?receipt=" in url)
     assert page.reload().request.method == "GET"
 
 
@@ -71,6 +74,8 @@ def test_review_checks_then_publish(page, github_remote, tmp_path):
         page.goto(base)
         connect(page, *github_remote, skill="skills/triage")
         page.get_by_role("link", name="Repository CI").click(timeout=1500)
+        view = page.request.get(page.url.replace("/projects/", "/api/v1/projects/"))
+        assert view.ok and view.json()["project"]["branch"] == "main"
         page.get_by_role("button", name="Check status").click()
         playwright.expect(page.get_by_role("status")).to_contain_text("Workflow absent on remote branch main")
         page.get_by_label("Minimum score").fill("83")
@@ -100,7 +105,7 @@ def test_review_demo_then_publish_separate_branch(page, github_remote, tmp_path)
         connect(page, *github_remote, skill="skills/triage")
         page.get_by_role("link", name="Repository CI").click()
         page.get_by_role("button", name="Review demo").click(timeout=1500)
-        playwright.expect(page.get_by_role("alert")).to_contain_text("Set up checks")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("Set up checks")
         page.get_by_role("button", name="Review setup").click()
         preview = yaml.safe_load(page.get_by_label("Generated workflow").inner_text())["jobs"]["skills"]
         assert preview["with"]["min-score"] == 70 and preview["with"]["scan-mode"] == "auto"
@@ -129,13 +134,14 @@ def test_changed_review_and_untrusted_workflow_fields_are_rejected(page, github_
         page.get_by_role("button", name="Review setup").click()
         page.get_by_label("Minimum score").fill("12")
         page.get_by_role("button", name="Publish reviewed workflow").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("Review the generated workflow")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("Review the generated workflow")
         page.get_by_role("button", name="Review setup").click()
         status = page.get_by_label("Minimum score").evaluate("""async input => {
           const data = new FormData(input.form);
           data.set('action', 'publish'); data.set('workflow', 'unreviewed workflow');
           data.set('repo', '/other/project');
-          return (await fetch(input.form.getAttribute('action'), {method:'POST', body:data})).status;
+          return (await fetch('/api/v1' + location.pathname, {method:'POST',
+            headers:{'Content-Type':'application/json'}, body:JSON.stringify(Object.fromEntries(data))})).status;
         }""")
         assert status == 422
         assert subprocess.run(["git", "cat-file", "-e", "main:" + SCAN], cwd=remote).returncode
@@ -150,6 +156,26 @@ def second_skill(tmp_path, remote):
         ["git", "-c", "user.name=a", "-c", "user.email=a@example.com", "commit", "-m", "other"], cwd=seed, check=True
     )
     subprocess.run(["git", "push", str(remote), "main"], cwd=seed, check=True)
+
+
+def test_live_status_remains_available_when_scan_roots_are_ambiguous(page, github_remote, tmp_path):
+    seed = tmp_path / "seed"
+    (seed / "SKILL.md").write_text("# Root skill\n")
+    subprocess.run(["git", "add", "SKILL.md"], cwd=seed, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=a", "-c", "user.email=a@example.com", "commit", "-m", "root skill"],
+        cwd=seed,
+        check=True,
+    )
+    subprocess.run(["git", "push", str(tmp_path / "server/handbook.git"), "main"], cwd=seed, check=True)
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *github_remote, skill="skills/triage")
+        page.get_by_role("link", name="Repository CI").click()
+        page.get_by_role("link", name="Advanced CI setup").click()
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("cannot be safely isolated")
+        page.get_by_role("button", name="Read live status").click(timeout=1500)
+        playwright.expect(page.get_by_role("status")).to_contain_text("Latest scan: failure")
 
 
 def test_gitlab_all_tier_review(page, private_remote, tmp_path):
@@ -173,7 +199,7 @@ def test_gitlab_all_tier_review(page, private_remote, tmp_path):
         preview = page.get_by_label(".gitlab-ci.yml", exact=True).inner_text()
         assert yaml.safe_load(preview)["variables"]["SKILL_EVAL_N_ATTEMPTS"] == "4"
         assert yaml.safe_load(preview)["variables"]["SKILL_EVAL_RUNNER"] == "protected-linux"
-        page.get_by_role("button", name="Apply reviewed setup").click()
+        publish(page, "Apply reviewed setup")
         assert subprocess.check_output(["git", "show", "main:.gitlab-ci.yml"], cwd=remote).decode() == preview
 
         page.get_by_role("link", name="Repository CI").click()
@@ -254,6 +280,7 @@ def gitlab_host(page, private_remote, api_handler, tmp_path, monkeypatch, *, req
             page.get_by_role("link", name="GitLab access").click()
             page.get_by_label("GitLab API token").fill(api_token)
             page.get_by_role("button", name="Save API token").click()
+            playwright.expect(page.get_by_role("status")).to_have_text("API token saved.")
             page.goto(detail)
 
     sha = subprocess.check_output(["git", "rev-parse", "main"], cwd=remote, text=True).strip()
@@ -261,7 +288,7 @@ def gitlab_host(page, private_remote, api_handler, tmp_path, monkeypatch, *, req
     host_api["GET", endpoint] = lambda _: (200, {"id": 9, "default_branch": "main"})
     host_api["GET", endpoint + f"/pipelines?ref=main&sha={sha}&per_page=20"] = lambda _: (
         200,
-        [pipeline, {**pipeline, "id": 16, "status": "failed"}],
+        [pipeline, {**pipeline, "id": PREVIOUS_PIPELINE, "status": "failed"}],
     )
     host_api["GET", endpoint + "/pipelines/17/jobs?per_page=50&page=1"] = lambda _: (
         200,
@@ -276,9 +303,9 @@ def gitlab_host(page, private_remote, api_handler, tmp_path, monkeypatch, *, req
             }
         ],
     )
-    host_api["GET", endpoint + "/pipelines/16/jobs?per_page=50&page=1"] = lambda _: (
+    host_api["GET", endpoint + f"/pipelines/{PREVIOUS_PIPELINE}/jobs?per_page=50&page=1"] = lambda _: (
         200,
-        [{"id": 22, "pipeline": {**pipeline, "id": 16}, "name": "previous attempt", "status": "failed"}],
+        [{"id": 22, "pipeline": {**pipeline, "id": PREVIOUS_PIPELINE}, "name": "previous attempt", "status": "failed"}],
     )
 
     with running(tmp_path / "volume") as base:
@@ -308,7 +335,7 @@ def test_selected_gitlab_pipeline_jobs(page, gitlab_host):
     playwright.expect(job.get_by_role("link")).to_have_attribute("href", host.lab.web_url + "/-/jobs/23")
     for private in ("private runner detail", "gitlab.com/untrusted", host.api_token, host.key):
         assert private not in page.content()
-    page.get_by_label("Pipeline for this revision").select_option("16")
+    page.get_by_label("Pipeline for this revision").select_option(str(PREVIOUS_PIPELINE), timeout=1500)
     page.get_by_role("button", name="Read live status").click()
     playwright.expect(page.get_by_role("row").filter(has_text="previous attempt")).to_contain_text("failed")
     playwright.expect(job).to_have_count(0)
@@ -316,7 +343,9 @@ def test_selected_gitlab_pipeline_jobs(page, gitlab_host):
     sha = host.pipeline["sha"]
     host.api["GET", host.endpoint + f"/pipelines?ref=main&sha={sha}&per_page=20"] = lambda _: (200, [host.pipeline])
     page.get_by_role("button", name="Read live status").click()
-    playwright.expect(page.get_by_role("alert")).to_contain_text("not available for this project and revision")
+    playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text(
+        "not available for this project and revision"
+    )
     playwright.expect(page.get_by_role("table", name="Pipeline jobs")).to_have_count(0)
 
 
@@ -435,8 +464,14 @@ def test_github_hosted_setup_review_and_receipt(page, github_remote, tmp_path):
         path = ".github/workflows/publish-skill-reports.yml"
         reviewed = page.get_by_label(path, exact=True).inner_text(timeout=5000)
         assert not marker.exists()
-        with page.expect_download() as event:
+        with (
+            page.expect_download() as event,
+            page.expect_response(lambda r: r.request.method == "POST") as receipt_post,
+        ):
             page.get_by_role("button", name="Download reviewed plan").click()
+        assert "/api/v1/projects/" in receipt_post.value.url
+        assert receipt_post.value.request.post_data_json["action"] == "receipt"
+        assert receipt_post.value.headers["content-disposition"] == 'attachment; filename="ci-plan.json"'
         receipt = json.loads(Path(event.value.path()).read_text())
         assert receipt["selected_roots"] == ["skills", "more-skills"] and receipt["requested_action"] == "pr"
         page.get_by_role("button", name="Apply reviewed setup").click()
@@ -530,7 +565,8 @@ def test_github_all_tier_routing_and_release_controls(page, github_remote, tmp_p
         )
         page.get_by_label("Tier 3 model", exact=True).fill("${{ secrets.OTHER }}")
         page.get_by_role("button", name="Apply reviewed setup").click()
-        assert "string_pattern_mismatch" in page.locator("body").inner_text()
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("Check the submitted fields")
+        assert page.get_by_label("Tier 3 model", exact=True).input_value() == "${{ secrets.OTHER }}"
 
 
 def test_existing_gitlab_pipeline_gets_manual_merge_preview(page, private_remote, tmp_path):
@@ -561,7 +597,7 @@ def test_existing_gitlab_pipeline_gets_manual_merge_preview(page, private_remote
         page.get_by_label("Evaluation tiers").select_option("all")
         page.get_by_role("button", name="Review files").click()
         assert "skill-evaluation" in page.get_by_label(".gitlab-ci.yml", exact=True).inner_text(timeout=1500)
-        playwright.expect(page.get_by_role("alert")).to_contain_text("manual merge")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("manual merge")
         assert not page.get_by_role("button", name="Apply reviewed setup").count()
         assert subprocess.check_output(["git", "show", "main:.gitlab-ci.yml"], cwd=remote).decode() == original
 
@@ -576,7 +612,7 @@ def test_private_pages_never_published_without_access_control(page, github_remot
         page.get_by_role("button", name="Review files").click()
         if page.get_by_role("button", name="Apply reviewed setup").count():
             page.get_by_role("button", name="Apply reviewed setup").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("private Pages", timeout=1000)
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("private Pages", timeout=1000)
         assert subprocess.run(
             ["git", "cat-file", "-e", "main:" + SCAN], cwd=tmp_path / "server/handbook.git"
         ).returncode

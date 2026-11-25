@@ -4,6 +4,24 @@ Open **Evaluation assets** on the project branch. Choose **Custom grader** or **
 
 The forms run the CLI's starter generators on a temporary copy of the committed skill manifest and `evals/` blobs. Neither preview nor push executes the generated graders, test scripts, or Dockerfiles. Studio accepts up to 16 MiB / 1024 regular files in `evals/`. An existing starter requires explicit overwrite. Force can remove the old grader language or replace an entire native case; review the deletions.
 
+If the changed files exceed 32 KiB on either side of the preview, or 2,000
+lines across both sides, **Preview** reports that it omitted the diff.
+**Commit and push** still publishes the complete starter and its file modes.
+
+### Project HTTP contract
+
+The React document remains at `/projects/{project_id}/assets`. Its JSON API root is `/api/v1/projects/{project_id}/assets`.
+
+| Request | Result |
+| --- | --- |
+| `GET` at the API root | Public project coordinates, branch and revision, plus committed skill-relative JSON filenames. |
+| `POST /scaffold` | Send `branch`, `revision`, `kind` (`grader` or `harbor`), `language`, `mode`, and optional `config`, `force`, `case_id`. `action: "preview"` returns `{diff}` without a write. `action: "save"` with the reviewed inputs returns `{revision}` after a successful push. |
+| `POST /qualify` | Send `branch`, `revision`, `action` (`check` or `qualify`) and the qualification controls described below. `cases` is an array of IDs. Omit unset rate gates or use `null`; zero is an active gate. Returns `202 {run_id}`; open `/projects/{project_id}/runs/{run_id}` for progress and exports. |
+
+Stale revisions return `409`; invalid input returns `422`. Both use `detail: {code, message}`. The evidence link remains a direct byte download at `/projects/{project_id}/assets/evidence/{run_id}`: it serves `grader-validation.zip` for a completed project-scoped run with attempt evidence, or `404` if unavailable.
+
+### Controls and defaults
+
 | Action | CLI equivalent and defaults |
 | --- | --- |
 | Custom grader | `init-custom-grader` (also under `tier3`). Skill = project folder. Python, `default_plus_custom`, no force. Clearing **Update evaluation configuration** sets `--no-config`. |
@@ -13,7 +31,9 @@ The forms run the CLI's starter generators on a temporary copy of the committed 
 
 Both qualification actions support split (default `assessment`), repeated case IDs, repeats (3), concurrency (1), attempt timeout (300 seconds), optional maximum false-pass, false-fail and unjudgeable rates, and a committed qualification-policy JSON. Studio caps repeats at 20, concurrency at 4, timeout at 600 seconds and job duration at one hour. The engine enforces gate/policy compatibility. A policy preflight can return a `not_run` receipt without a provider. A successful suite check alone does not establish grader reliability.
 
-Live rate gates compare measured rates to their limits (strictly greater fails). The JSON receipt names `threshold_failures`. With split `all`, the engine gates assessment metrics; rates without a denominator do not fail a maximum. An operator’s `SSL_CERT_FILE` can supply a private CA for an HTTPS judge.
+The run page shows the policy decision and its reasons. If coverage is insufficient before execution, the qualification run shows `not_run` and records zero attempts. For live rate gates the page names any exceeded gates; the JSON download contains the measurements and `threshold_failures`.
+
+Live rate gates compare measured rates to their limits (strictly greater fails). With split `all`, the engine gates assessment metrics; rates without a denominator do not fail a maximum. An operator’s `SSL_CERT_FILE` can supply a private CA for an HTTPS judge.
 
 Mount the judge CA bundle read-only and set `SSL_CERT_FILE` in Studio’s environment to its path (relative paths resolve from Studio’s working directory). The qualifier uses this bundle to verify TLS. Configure the final provider endpoint: authenticated verifier HTTP calls reject redirects.
 

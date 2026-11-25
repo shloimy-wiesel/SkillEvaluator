@@ -4,9 +4,29 @@ import hashlib
 import json
 import subprocess
 
+from run_journey import rerun_saved_inputs
 from test_workspace import connect, playwright, running
 
 pytest_plugins = ("test_workspace", "test_providers")
+
+
+def test_experiment_api_rejects_unscoped_inputs(page, private_remote, tmp_path):
+    with running(tmp_path / "volume") as base:
+        remote, token = private_remote
+        project = page.request.post(
+            base + "/api/v1/projects",
+            data={
+                "remote": remote,
+                "username": "author",
+                "token": token,
+                "folder": "skills/triage",
+            },
+        ).json()
+        url = base + f"/api/v1/projects/{project['id']}/experiments"
+        response = page.request.get(url)
+        assert response.ok and response.json()["folder"] == "skills/triage"
+        invalid = page.request.post(url + "/metrics", data={"sha": project["revision"], "source": "../secret.json"})
+        assert invalid.status == 422 and invalid.json()["detail"]["message"]
 
 
 def publish(tmp_path):
@@ -137,10 +157,10 @@ def test_select_decoys_retains_ranked_manifest_from_project_catalog(page, privat
                 page.get_by_label("Decoy count").fill("1")
                 page.get_by_label("Exclude paths").fill('old/embedding-"secret')
                 page.get_by_role("button", name="Select decoys").click()
-                playwright.expect(page.get_by_role("alert")).to_contain_text("keep credentials out")
-                page.get_by_label("Catalog JSON").fill("catalog.json")
-                page.get_by_label("Catalog root").fill("skills")
-                page.get_by_label("Decoy count").fill("1")
+                playwright.expect(page.get_by_role("main").get_by_role("alert")).to_contain_text("keep credentials out")
+                playwright.expect(page.get_by_label("Catalog JSON")).to_have_value("catalog.json")
+                playwright.expect(page.get_by_label("Catalog root")).to_have_value("skills")
+                playwright.expect(page.get_by_label("Decoy count")).to_have_value("1")
                 page.get_by_label("Exclude paths").fill("release\ntriage")
                 page.get_by_label("Embedding model override").fill("catalog-model")
                 page.get_by_role("button", name="Select decoys").click()
@@ -335,7 +355,7 @@ def test_interaction_rerun_reuses_defaults_and_original_profile(page, private_re
         page.goto(base + settings)
         save_profile(chat, "https://chat.example/v1", "replacement", "new-key")
         page.goto(prior)
-        page.get_by_role("button", name="Rerun saved inputs").click()
+        rerun_saved_inputs(page)
         playwright.expect(page.get_by_role("status")).to_contain_text("neutral")
         assert observed == [("original", "old-key")] * 2
         assert "old-key" not in page.content()

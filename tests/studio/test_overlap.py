@@ -27,6 +27,11 @@ def test_author_runs_direct_tier2_and_inspects_skipped_catalog(page, private_rem
         playwright.expect(page.get_by_text("catalog_comparison: skipped", exact=False)).to_be_visible(timeout=15000)
         report = page.request.get(page.get_by_role("link", name="Download JSON").get_attribute("href")).json()
         assert report["workflow"]["stages"]["catalog_comparison"]["status"] == "skipped"
+        options = page.request.get(page.url.replace(base, base + "/api/v1")).json()["run"]["options"]
+        assert "snapshot" not in options
+        for role in ("Chat", "Embeddings"):
+            frozen = options[role.lower()]
+            assert set(frozen) == {"model", "provider"} and frozen["model"] == role + "-model"
         playwright.expect(page.get_by_role("link", name="overlap.html", exact=True)).to_be_visible()
         assert "Chat-secret" not in page.content()
 
@@ -213,7 +218,8 @@ def test_scoped_catalog_preflight_and_incomplete_redirect(page, private_remote, 
         form = page.url
         sha = page.get_by_label("Commit SHA").input_value()
         for invalid in ("../broken.json", "/etc/passwd", "alias/SKILL.md"):
-            assert page.request.post(form, form={"sha": sha, "catalog": invalid}).status == 422
+            response = page.request.post(form.replace(base, base + "/api/v1"), data={"sha": sha, "catalog": invalid})
+            assert response.status == 422 and response.json()["detail"]["code"] == "invalid_inputs"
         page.get_by_label("Comparison catalog").select_option("broken.json")
         page.get_by_role("button", name="Queue overlap checks").click()
         playwright.expect(page.get_by_role("status")).to_contain_text("catalog", timeout=10000)

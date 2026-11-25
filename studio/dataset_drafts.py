@@ -3,7 +3,6 @@
 import json
 import re
 import shutil
-from difflib import unified_diff
 from pathlib import Path, PureWindowsPath
 from uuid import uuid4
 
@@ -12,6 +11,7 @@ import yaml
 from skillevaluator.tier3.case_ids import validate_case_ids
 from skillevaluator.tier3.dataset_utils import DATASET_EXTENSIONS, find_eval_file, parse_dataset_text
 
+from .diff_preview import file_diffs
 from .editing import read_file
 from .workspace import WorkspaceError
 
@@ -186,23 +186,17 @@ class Draft:
             validate_case_ids(item.get("id") for item in cases)
         self.write(doc)
 
+    def _staged_files(self):
+        for name in self.state["staged"]:
+            path = self.skill / name
+            yield name, path.read_bytes() if path.exists() else None
+
     def changes(self):
-        return {
-            name: (self.skill / name).read_bytes() if (self.skill / name).exists() else None
-            for name in self.state["staged"]
-        }
+        return dict(self._staged_files())
 
     def diff(self):
-        parts = []
-        for name, after in self.changes().items():
-            before = read_file(self.ws, self.project, name)
-            parts.extend(
-                unified_diff(
-                    (before or b"").decode().splitlines(),
-                    (after or b"").decode().splitlines(),
-                    fromfile=f"saved/{name}",
-                    tofile=f"draft/{name}",
-                    lineterm="",
-                )
-            )
-        return "\n".join(parts) or "No changes."
+        files = (
+            (name, read_file(self.ws, self.project, name) or b"", after or b"", "")
+            for name, after in self._staged_files()
+        )
+        return file_diffs(files) or "No changes."

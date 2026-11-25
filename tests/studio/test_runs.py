@@ -7,17 +7,26 @@ import subprocess
 import time
 import urllib.request
 
+from test_providers import save_profile
 from test_workspace import connect, playwright, running
 
 pytest_plugins = ("test_workspace",)
 
 
-def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, private_remote, deployment):
+def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, private_remote, deployment, tmp_path):
+    from test_datasets import seed_skill
+
     expect = playwright.expect
     branch = "author/triage"
     fixed = "---\nname: triage\ndescription: Sort incoming requests.\n---\n# Triage\n"
     revision_a_text = fixed.replace("description:", "description: Draft wording.\ndescription:")
     finding = "Duplicate frontmatter key 'description'"
+    # The variation selector makes the keyless Unicode check quote the evaluated prompt.
+    prompt_a = "Route an urgent ticket marked \u26a0\ufe0f"
+    prompt_b = "Route a routine ticket to the help desk"
+    # Studio discovers this supported dataset path; unlike evals/, it is also scanned by Tier 1.
+    dataset_path = "eval/dataset.json"
+    seed_skill(tmp_path, {dataset_path: '{"skill_name":"triage","evals":[]}'})
 
     def overview():
         page.get_by_role("navigation", name="Breadcrumb").get_by_role("link", name="handbook").click()
@@ -40,13 +49,14 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         expect(page.get_by_role("heading", name=f"Edit {branch}")).to_be_visible()
         page.get_by_label("SKILL.md").fill(revision_a_text)
         press("Save and push")
+        expect(page.get_by_role("status")).to_contain_text("Pushed revision")
         overview()
         skill_sha = checkout_sha()
 
         link("Datasets").click()
         press("Open draft")
         page.get_by_label("Case ID").fill("route-ticket")
-        page.get_by_label("Prompt", exact=True).fill("Route an urgent ticket")
+        page.get_by_label("Prompt", exact=True).fill(prompt_a)
         page.get_by_label("Expected output", exact=True).fill("Urgent queue")
         press("Add case")
         press("Commit and push")
@@ -54,9 +64,16 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         overview()
         sha_a = checkout_sha()
         assert re.fullmatch(r"[0-9a-f]{40}", sha_a) and sha_a != skill_sha
+        link("Provider settings").click()
+        roles = ("Chat", "Embeddings")
+        for role in roles:
+            panel = page.get_by_role("region", name=role, exact=True)
+            save_profile(panel, f"https://{role.lower()}.private/v1", f"{role}-fixture", f"{role}-secret")
+            expect(panel.get_by_text("Key stored", exact=True)).to_be_visible()
+        overview()
         link("Evaluation runs").click()
         expect(page.get_by_label("Commit SHA")).to_have_value(sha_a)
-        page.get_by_label("Static checks").select_option(label="Schema only")
+        page.get_by_label("Static checks").select_option(label="Schema and Unicode")
         press("Queue static checks")
         expect(page.get_by_role("heading", name="tier1-static")).to_be_visible()
         original_run = page.url.removeprefix(first)
@@ -65,6 +82,18 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         link("Edit skill").click()
         page.get_by_label("SKILL.md").fill(fixed)
         press("Save and push")
+        expect(page.get_by_role("status")).to_contain_text("Pushed revision")
+        overview()
+        link("Datasets").click()
+        press("Open draft")
+        case = page.locator("article").filter(has=page.get_by_role("heading", name="route-ticket", exact=True))
+        case.get_by_text("Edit case route-ticket").click()
+        expect(case.get_by_label("Prompt", exact=True)).to_have_value(prompt_a)
+        case.get_by_label("Prompt", exact=True).fill(prompt_b)
+        case.get_by_role("button", name="Update case").click()
+        expect(case.locator("p").first).to_have_text(prompt_b)
+        press("Commit and push")
+        expect(page.get_by_role("status")).to_contain_text(f"Pushed dataset changes to {branch}")
         overview()
         sha_b = checkout_sha()
         assert sha_b != sha_a
@@ -76,12 +105,26 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         page.goto(second)
         link("handbook").click()
         assert checkout_sha() == sha_b
+        link("Provider settings").click()
+        profile_response = page.request.get(page.url.replace(second, second + "/api/v1"))
+        assert profile_response.ok
+        for role in roles:
+            panel = page.get_by_role("region", name=role, exact=True)
+            expect(panel.get_by_label("Model", exact=True)).to_have_value(f"{role}-fixture")
+            expect(panel.get_by_label("Base URL")).to_have_value(f"https://{role.lower()}.private/v1")
+            expect(panel.get_by_text("Key stored", exact=True)).to_be_visible()
+            expect(panel.get_by_label("API key")).to_have_value("")
+            assert f"{role}-secret" not in page.content()
+            assert f"{role}-secret" not in profile_response.text()
+            public_profile = profile_response.json()["profiles"][role.lower()]
+            assert public_profile["has_key"] and "key" not in public_profile
+        overview()
         link("Edit skill").click()
         expect(page.get_by_label("SKILL.md")).to_have_value(fixed)
         overview()
         link("Datasets").click()
         press("Open draft")
-        expect(page.get_by_role("heading", name="route-ticket")).to_be_visible()
+        expect(case.locator("p").first).to_have_text(prompt_b)
         overview()
         link("Run history").click()
         expect(page.get_by_label("Commit SHA")).to_have_value(sha_b)
@@ -90,6 +133,15 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         expect(page.get_by_text("Commit", exact=True).locator("+ dd")).to_have_text(sha_a)
         expect(page.get_by_role("status")).to_contain_text("failed")
         expect(page.get_by_text(finding, exact=False)).to_be_visible()
+        report = page.request.get(link("Download JSON").get_attribute("href"))
+        assert report.ok
+        evaluated_lines = [
+            item["line_content"]
+            for result in report.json()["results"]
+            for item in result["findings"]
+            if item["file_path"] == dataset_path and item["category"] == "UNICODE"
+        ]
+        assert any(prompt_a in line for line in evaluated_lines)
 
         # A separate connection to the very same remote must not inherit this history.
         page.get_by_role("navigation", name="Workspace").get_by_role("link", name="Projects").click()
@@ -98,6 +150,9 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         link("Run history").click()
         expect(page.get_by_text("No runs yet.")).to_be_visible()
         expect(link(sha_a)).to_have_count(0)
+        foreign_detail = page.url.split("#")[0] + "/" + original_run.rsplit("/", 1)[1]
+        assert page.request.get(foreign_detail).status == 404
+        assert page.request.get(foreign_detail.replace(second, second + "/api/v1")).status == 404
 
 
 def test_failed_gate_and_exports_survive_reopening_at_exact_commit(page, private_remote, tmp_path):
@@ -152,6 +207,7 @@ def slow_app(volume, port):
 
     class Trial(BaseModel):
         trials: int
+        worker_reference: str = "worker-only-fixture"
 
     def evaluate(ctx, options):
         ctx.progress(f"Evaluating {options.trials} trials")
@@ -162,7 +218,7 @@ def slow_app(volume, port):
         (ctx.artifacts / "notes.md").write_text(notes)
         return Outcome("passed", 0, '{"results":[]}', notes)
 
-    definition = JobDefinition("trial-fixture", Trial, evaluate)
+    definition = JobDefinition("trial-fixture", Trial, evaluate, public_options=("trials",))
     router = APIRouter()
 
     @router.post("/projects/{project_id}/trial")
@@ -239,6 +295,7 @@ def test_interrupted_job_requires_explicit_rerun_with_saved_inputs(page, private
         playwright.expect(page.get_by_role("status")).to_contain_text("passed")
         assert page.url != base + path
         playwright.expect(page.get_by_text('{"trials":7}', exact=True)).to_be_visible()
+        assert "worker-only-fixture" not in page.content()
         assert (
             page.request.get(page.get_by_role("link", name="Download Markdown").get_attribute("href")).text()
             == "# Triage\n"

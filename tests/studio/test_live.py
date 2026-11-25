@@ -3,6 +3,7 @@
 import os
 
 import pytest
+from run_journey import rerun_saved_inputs
 from test_providers import open_settings, save_profile
 from test_workspace import connect, playwright, running
 
@@ -15,7 +16,7 @@ def test_live_requires_project_chat_profile(page, private_remote, tmp_path):
         connect(page, *private_remote, skill="skills/triage")
         page.get_by_role("link", name="Live Tier 3").click(timeout=2000)
         page.get_by_role("button", name="Queue live evaluation").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("chat provider")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("chat provider")
 
 
 def test_inherited_custom_mode_needs_consent_and_available_sandbox(page, private_remote, tmp_path, monkeypatch):
@@ -121,8 +122,14 @@ def test_direct_workflow_retains_evidence_and_reruns_original_profile(page, priv
         original = page.url
         page.goto(base + settings)
         save_profile(panel, "https://chat.example/v1", "model-two", "replacement")
+        status = page.request.get(original.replace(base, base + "/api/v1")).json()
+        config = status["run"]["options"]
+        assert isinstance(config, dict)
+        assert config["judge_model"] == "model-one" and config["n_attempts"] == 3
+        for private in ("profile_id", "chat.example", "chat-secret", "ambient-secret"):
+            assert private not in str(status)
         page.goto(original)
-        page.get_by_role("button", name="Rerun saved inputs").click()
+        rerun_saved_inputs(page)
         playwright.expect(page.get_by_role("status")).to_contain_text("neutral")
         assert len(calls) == 2
         assert "chat-secret" not in page.content()
@@ -232,7 +239,13 @@ def test_evaluate_selected_project_dataset_and_container_grader(
         native.mkdir(parents=True)
         (native / "result.json").write_text(
             json.dumps(
-                {"execution_status": "failed", "execution_errors": ["agent unavailable", env["SKILL_EVAL_LLM_API_KEY"]]}
+                {
+                    "execution_status": "failed",
+                    "execution_errors": [
+                        {"message": "agent unavailable", "code": "worker_transport_failure"},
+                        env["SKILL_EVAL_LLM_API_KEY"],
+                    ],
+                }
             )
         )
         return 1
@@ -261,12 +274,15 @@ def test_evaluate_selected_project_dataset_and_container_grader(
             "verbose": "true",
             "evaluator_revision": "forged",
         }.items():
-            rejected = page.request.post(page.url, form={"sha": sha, "workflow": workflow, key: value})
+            rejected = page.request.post(
+                page.url.replace(base, base + "/api/v1"), data={"sha": sha, "workflow": workflow, key: value}
+            )
             assert rejected.status == 422, key
+            assert rejected.json()["detail"]["code"] == "invalid_request"
         page.get_by_label("Dataset path").fill("bench.json")
         page.get_by_label("Grading mode").select_option("custom_only", timeout=2000)
         page.get_by_role("button", name="Queue live evaluation").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("consent")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("consent")
         page.get_by_label("Workflow").select_option(workflow)
         page.get_by_label("Environment").select_option("kata")
         page.get_by_label("Comparison arms").select_option("baseline" if baseline_only else "skill")
@@ -307,6 +323,7 @@ def test_evaluate_selected_project_dataset_and_container_grader(
         page.get_by_role("button", name="Queue live evaluation").click()
         playwright.expect(page.get_by_role("status")).to_contain_text("incomplete")
         playwright.expect(page.get_by_text("agent unavailable", exact=True)).to_be_visible()
+        assert "worker_transport_failure" not in page.content()
         playwright.expect(
             page.get_by_text("opencode: openai/trial · differs from saved chat", exact=True)
         ).to_be_visible()
@@ -433,6 +450,13 @@ def test_project_retained_selection_and_provenance(page, private_remote, tmp_pat
 
 def test_operator_sandbox_profile_needs_review_and_enabled_worker(page, private_remote, tmp_path, monkeypatch):
     import json
+    import subprocess
+
+    from test_datasets import seed_skill
+
+    approved = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tmp_path / "seed", text=True).strip()
+    seed_skill(tmp_path, {"notes.md": "Later project revision"})
+    monkeypatch.setattr("studio.live_job.PINNED_GYM", tmp_path / "absent-gym")
 
     with running(tmp_path / "volume") as base:
         settings = open_settings(page, base, private_remote)
@@ -443,18 +467,42 @@ def test_operator_sandbox_profile_needs_review_and_enabled_worker(page, private_
         profile = page.get_by_label("Sandbox profile")
         playwright.expect(profile).to_have_count(1, timeout=2000)
         assert profile.locator("option:enabled").count() == 1
-        approval = {"project": settings.split("/")[2], "folder": "skills/triage", "sha": sha, "profile": "gym-docker"}
+        assert sha != approved
+        approval = {
+            "project": settings.split("/")[2],
+            "folder": "skills/triage",
+            "sha": approved,
+            "profile": "gym-docker",
+        }
         monkeypatch.setenv("STUDIO_SANDBOX_APPROVALS", json.dumps([approval]))
         monkeypatch.setenv("STUDIO_LIVE_ENABLED", "1")
         monkeypatch.setenv("STUDIO_EVALUATOR_CONTAINER_REVISION", "a" * 40)
         page.reload()
+        gym = profile.locator('option[value="gym-docker"]')
+        playwright.expect(gym).to_be_disabled()
+        page.get_by_label("Commit SHA").fill(approved)
+        playwright.expect(gym).to_be_enabled()
         profile.select_option("gym-docker")
         page.get_by_role("button", name="Queue live evaluation").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("review")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("review")
         page.get_by_label("I reviewed the pinned task inputs").check()
-        page.get_by_label("Commit SHA").fill("b" * 40)
+        page.get_by_label("Commit SHA").fill(sha)
+        playwright.expect(gym).to_be_disabled()
+        playwright.expect(profile).to_have_value("generated")
+        playwright.expect(page.get_by_label("I reviewed the pinned task inputs")).not_to_be_checked()
+        rejected = page.request.post(
+            url.replace(base, base + "/api/v1"),
+            data={"sha": sha, "sandbox_profile": "gym-docker", "reviewed_inputs": True},
+        )
+        assert rejected.status == 422 and "approved" in rejected.text()
+        page.get_by_label("Commit SHA").fill(approved)
+        profile.select_option("gym-docker")
+        page.get_by_label("I reviewed the pinned task inputs").check()
         page.get_by_role("button", name="Queue live evaluation").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("approved")
+        page.wait_for_url("**/runs/*")
+        saved = page.request.get(page.url.replace(base, base + "/api/v1")).json()["run"]
+        assert saved["sha"] == approved
+        assert saved["options"]["sandbox_profile"] == "gym-docker"
 
 
 def test_native_profile_stages_reviewed_scaffold_with_the_engine(tmp_path):

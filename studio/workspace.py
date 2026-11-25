@@ -133,6 +133,16 @@ class Workspace:
             or any(ord(c) <= 32 for c in remote)
         ):
             raise WorkspaceError("Enter an HTTPS repository URL without embedded credentials.")
+        tree = re.match(r"^(/[^/]+/[^/]+)/tree/", parts.path) if parts.hostname.lower() == "github.com" else None
+        if "/-/tree/" in parts.path or tree:
+            suggestion = (
+                f"Use the HTTPS clone URL https://github.com{tree[1]}.git"
+                if tree
+                else ("Copy the HTTPS clone URL from the repository's Code menu")
+            )
+            raise WorkspaceError(
+                f"This is a folder browsing link. {suggestion}, then enter the individual skill folder containing SKILL.md."
+            )
         name = parts.path.rstrip("/").split("/")[-1].removesuffix(".git")
         if not name:
             raise WorkspaceError("Include the repository name in its URL.")

@@ -23,10 +23,12 @@ def connect_with_tokens(page, base, config):
     page.get_by_label("Git username").fill(config["username"])
     page.get_by_label("Access token").fill(config["git_token"])
     page.get_by_role("button", name="Connect project").click()
+    playwright.expect(page.get_by_text("Project overview", exact=True)).to_be_visible()
     detail = page.url
     page.get_by_role("link", name="GitLab access").click()
     page.get_by_label("GitLab API token").fill(config["api_token"])
     page.get_by_role("button", name="Save API token").click()
+    playwright.expect(page.get_by_role("status")).to_have_text("API token saved.")
     return detail
 
 

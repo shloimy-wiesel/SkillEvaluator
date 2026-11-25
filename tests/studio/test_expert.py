@@ -1,11 +1,35 @@
 import os
 
 import pytest
+from run_journey import rerun_saved_inputs
 from test_workspace import connect, playwright, running
 
 pytest_plugins = ("test_workspace",)
 
 ALL_REPORTS = ["cli", "json", "html", "markdown", "sarif", "junit", "github"]
+
+
+def test_alias_view_and_scoped_validation(page, private_remote, tmp_path):
+    with running(tmp_path / "volume") as base:
+        remote, token = private_remote
+        project = page.request.post(
+            base + "/api/v1/projects",
+            data={"remote": remote, "username": "author", "token": token, "folder": "skills/triage"},
+        ).json()
+        path = f"/projects/{project['id']}/expert/tier1-quality-check"
+        response = page.request.get(base + "/api/v1" + path)
+        assert response.ok
+        assert response.json()["sha"] == project["revision"]
+        invalid = page.request.post(base + "/api/v1" + path, data={"sha": project["revision"], "workers": 2})
+        assert invalid.status == 422 and invalid.json()["detail"]["message"]
+        unknown = base + path.replace("tier1-quality-check", "unknown-check")
+        assert page.request.get(unknown).status == 404
+        assert page.request.get(unknown.replace("/projects/", "/api/v1/projects/")).status == 404
+        page.goto(base + path + "?sha=invalid")
+        playwright.expect(page.get_by_role("main").get_by_role("alert")).to_contain_text("full commit SHA")
+        page.get_by_label("Commit SHA").fill(project["revision"])
+        page.get_by_role("button", name="Load commit files").click()
+        playwright.expect(page.get_by_label("Minimum score")).to_be_visible()
 
 
 def assert_native_bundle(page, expected):
@@ -66,7 +90,12 @@ def test_parallel_catalog_reports_each_child_at_selected_commit(page, private_re
         assert {s["name"] for s in summary["skills"]} == {"triage", "second"}
         for s in summary["skills"]:
             leaf = page.get_by_role("link", name=f"Download native JSON · {s['name']}", exact=True)
-            assert "SKILL.md must have YAML frontmatter" in page.request.get(leaf.get_attribute("href")).text()
+            href = leaf.get_attribute("href")
+            artifact = page.request.get(href)
+            assert "SKILL.md must have YAML frontmatter" in artifact.text()
+            assert artifact.headers["content-type"] == "application/octet-stream"
+            assert "attachment" in artifact.headers["content-disposition"]
+            assert page.request.get(href + ".missing").status == 404
         assert "2 workers" in page.locator("body").text_content()
 
 
@@ -118,7 +147,7 @@ def test_live_catalog_retains_scoped_starters_and_leaf_gates(page, private_remot
                 note = "Reused saved starter" if replay else "Generated and saved starter"
                 playwright.expect(page.get_by_text(f"{member['name']}: {note}", exact=True)).to_be_visible()
             if not replay:
-                page.get_by_role("button", name="Rerun saved inputs").click()
+                rerun_saved_inputs(page)
         assert not marker.exists()
 
 
@@ -168,7 +197,7 @@ def test_root_rejects_unmanaged_runtime_inputs_before_queue(page, private_remote
             response = page.request.post(page.url, form={"sha": sha, **fields})
             assert response.status == 422
         page.goto(page.url.split("/expert/")[0] + "/runs")
-        assert page.get_by_text("No runs yet.", exact=False).count() == 1
+        playwright.expect(page.get_by_text("No runs yet.", exact=True)).to_be_visible()
 
 
 @pytest.mark.parametrize("action", ["validate", "security-scan", "tier1-security-scan"])
@@ -347,8 +376,11 @@ def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, l
             run = page.url
             page.goto(project + "/providers")
             save_profile(chat, endpoint, "new-model", "new-secret")
+            config = page.request.get(run.replace(base, base + "/api/v1")).json()["run"]["options"]
+            assert "snapshot_id" not in config
+            assert set(config["chat"]) == {"provider", "model"} and config["chat"]["model"] == "frozen-model"
             page.goto(run)
-            page.get_by_role("button", name="Rerun saved inputs").click()
+            rerun_saved_inputs(page)
             playwright.expect(page.get_by_role("status")).to_contain_text("failed", timeout=30000)
             assert seen == [("/v1/chat/completions", "frozen-model", "Bearer frozen-secret")] * (2 if workflow else 4)
             native = page.request.get(
@@ -488,7 +520,7 @@ def test_cross_tier_validation_routes_embeddings_separately(
                     )
                 seen.clear()
                 page.goto(run)
-                page.get_by_role("button", name="Rerun saved inputs").click()
+                rerun_saved_inputs(page)
                 playwright.expect(report_link).to_be_visible(timeout=30000)
             assert set(seen) == expected
         finally:
@@ -598,7 +630,7 @@ def test_default_root_keyless_preserves_combined_evidence(page, private_remote, 
         assert "live runtime is disabled" in str(report).lower()
         assert "embedding setup is required" in str(report).lower()
         assert page.get_by_role("link", name="Download native Benchmark").count() == 1
-        page.get_by_role("button", name="Rerun saved inputs").click()
+        rerun_saved_inputs(page)
         playwright.expect(link).to_be_visible(timeout=20000)
         playwright.expect(page.get_by_text("Reused saved starter")).to_be_visible()
 

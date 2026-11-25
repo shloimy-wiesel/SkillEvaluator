@@ -1,44 +1,48 @@
 from difflib import unified_diff
+from typing import Annotated
 
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 
+from .diff_preview import MAX_DIFF_LINES, MAX_PREVIEW_BYTES
 from .editing import Conflict, branches, commit_changes, open_branch, read_file, require_base
-from .workspace import WorkspaceError
+from .frontend_routes import document
+from .project_api import failure, get_project
+from .workspace import Project, WorkspaceError
 
-router = APIRouter(prefix="/projects/{project_id}/edit")
+router = APIRouter()
+path = "/projects/{project_id}/edit"
+api = "/api/v1" + path
 
 
-def _project(request, project_id):
-    ws = request.app.state.workspace
-    p = ws.get(project_id)
-    if p is None:
+class EditorView(BaseModel):
+    project: Project
+    text: str | None = None
+    heads: dict[str, str] = {}
+    error: str | None = None
+
+
+@router.get(path, name="skill_editor", include_in_schema=False)
+def editor(request: Request, project_id: str):
+    if request.app.state.workspace.get(project_id) is None:
         raise HTTPException(404, "Unknown project")
-    return ws, p
+    return document(request, "edit.html")
 
 
-def _render(request, p, error=None, **context):
+@router.get(api)
+def editor_view(request: Request, project_id: str) -> EditorView:
+    ws = request.app.state.workspace
+    p = get_project(ws, project_id)
+    view = EditorView(project=p)
     try:
-        heads = branches(request.app.state.workspace, p)
+        view.heads = branches(ws, p)
     except WorkspaceError as exc:
-        heads, error = [], error or exc
-    if "text" not in context:
-        try:
-            context["text"] = _text(request.app.state.workspace, p)
-        except WorkspaceError as exc:
-            error = error or exc
-    return request.app.state.templates.TemplateResponse(
-        request=request,
-        name="editor/index.html",
-        context=dict(project=p, heads=heads, error=error, **context),
-        status_code=409 if isinstance(error, Conflict) else 422 if error else 200,
-    )
-
-
-@router.get("", name="skill_editor")
-def editor(request: Request, project_id: str, pushed: str = ""):
-    _, p = _project(request, project_id)
-    return _render(request, p, pushed=pushed == p.revision)
+        view.error = str(exc)
+    try:
+        view.text = _text(ws, p)
+    except WorkspaceError as exc:
+        view.error = view.error or str(exc)
+    return view
 
 
 def _text(ws, p):
@@ -51,40 +55,49 @@ def _text(ws, p):
         raise WorkspaceError("SKILL.md must be UTF-8 text.") from exc
 
 
-@router.post("/changes")
-def skill_changes(
-    request: Request,
-    project_id: str,
-    *,
-    branch: str = Form(),
-    revision: str = Form(),
-    text: str = Form(""),
-    action: str = Form(),
-):
-    ws, p = _project(request, project_id)
-    text = text.replace("\r\n", "\n")
+def _api_error(exc):
+    return failure(409, "conflict", str(exc)) if isinstance(exc, Conflict) else failure(422, "edit_failed", str(exc))
+
+
+def _preview(original, draft):
+    for side in (original, draft):
+        if len(side) > MAX_PREVIEW_BYTES or len(side.encode()) > MAX_PREVIEW_BYTES:
+            return "Diff omitted: the saved file or draft exceeds the 32 KiB preview limit."
+    before = original.replace("\r\n", "\n").splitlines(keepends=True)
+    after = draft.splitlines(keepends=True)
+    if len(before) + len(after) > MAX_DIFF_LINES:
+        return f"Diff omitted: the saved file and draft exceed {MAX_DIFF_LINES:,} combined lines."
+    lines = unified_diff(before, after, fromfile="saved/SKILL.md", tofile="draft/SKILL.md")
+    return "".join(line if line.endswith("\n") else line + "\n\\ No newline at end of file\n" for line in lines)
+
+
+class SkillChange(BaseModel):
+    branch: str
+    revision: str
+    text: str
+    action: str
+
+
+@router.post(api + "/changes", name="api_skill_changes", response_model=dict[str, str])
+def skill_changes(request: Request, project_id: str, form: Annotated[SkillChange, Form()]):
+    ws = request.app.state.workspace
+    p = get_project(ws, project_id)
+    text = form.text.replace("\r\n", "\n")
     try:
-        require_base(p, branch, revision)
+        require_base(p, form.branch, form.revision)
         original = _text(ws, p)
-        if action == "preview":
-            lines = unified_diff(
-                original.replace("\r\n", "\n").splitlines(keepends=True),
-                text.splitlines(keepends=True),
-                fromfile="saved/SKILL.md",
-                tofile="draft/SKILL.md",
-            )
-            diff = "".join(line if line.endswith("\n") else line + "\n\\ No newline at end of file\n" for line in lines)
-            return _render(request, p, text=text, diff=diff)
-        if action != "save":
+        if form.action == "preview":
+            return {"diff": _preview(original, text)}
+        if form.action != "save":
             raise WorkspaceError("Choose preview or save.")
         data = text.replace("\n", "\r\n") if "\r\n" in original and "\n" not in original.replace("\r\n", "") else text
         sha = commit_changes(ws, p, {"SKILL.md": data.encode()}, "Update SKILL.md")
     except WorkspaceError as exc:
-        return _render(request, p, exc, text=text, draft_branch=branch, draft_revision=revision)
-    return RedirectResponse(str(request.url_for("skill_editor", project_id=p.id)) + "?pushed=" + sha, 303)
+        raise _api_error(exc) from exc
+    return {"revision": sha}
 
 
-@router.post("/branch")
+@router.post(api + "/branch", name="api_select_branch", response_model=dict[str, str])
 def select_branch(
     request: Request,
     project_id: str,
@@ -95,11 +108,14 @@ def select_branch(
     revision: str = Form(),
     action: str = Form(),
 ):
-    ws, p = _project(request, project_id)
+    ws = request.app.state.workspace
+    p = get_project(ws, project_id)
     try:
         require_base(p, branch, revision)
+        if action not in ("switch", "create"):
+            raise WorkspaceError("Choose switch or create.")
         expected, _, name = source.partition(" ")
         open_branch(ws, p, name, expected, (new or "") if action == "create" else None)
     except WorkspaceError as exc:
-        return _render(request, p, exc)
-    return RedirectResponse(request.url_for("skill_editor", project_id=p.id), 303)
+        raise _api_error(exc) from exc
+    return {"branch": new if action == "create" else name}
