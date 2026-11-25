@@ -4,52 +4,55 @@ from contextlib import suppress
 from difflib import unified_diff
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Literal
 
 import yaml
-from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, ConfigDict
 
 from skillevaluator.tier3.scaffold import init_custom_grader, init_harbor_task
 
 from .editing import Conflict, commit_changes, read_file, require_base
-from .grader_job import GRADER, GraderOptions, public_identity
+from .frontend_routes import document
+from .grader_job import GRADER, GraderOptions, QualificationControls, public_identity
 from .grader_sandbox import require_sandbox
+from .project_api import failure, get_project
 from .providers import worker_environment
-from .workspace import WorkspaceError
+from .workspace import Project, WorkspaceError
 
-router = APIRouter(prefix="/projects/{project_id}/assets")
+router = APIRouter()
+path = "/projects/{project_id}/assets"
+api_path = "/api/v1" + path
 
 
 def project(request, project_id):
     ws = request.app.state.workspace
-    p = ws.get(project_id)
-    if not p:
-        raise HTTPException(404, "Unknown project")
-    return ws, p
+    return ws, get_project(ws, project_id)
 
 
-def render(request, p, error=None, **context):
-    raw = request.app.state.workspace.git(
-        p, ["--literal-pathspecs", "ls-tree", "-rz", p.revision, "--", p.folder], raw=True
-    )
+class AssetView(BaseModel):
+    project: Project
+    files: list[str]
+
+
+@router.get(api_path)
+def asset_view(request: Request, project_id: str) -> AssetView:
+    ws, p = project(request, project_id)
+    raw = ws.git(p, ["--literal-pathspecs", "ls-tree", "-rz", p.revision, "--", p.folder], raw=True)
     files = []
     for record in raw.split(b"\0"):
         if record.startswith((b"100644 ", b"100755 ")):
             path = Path(record.partition(b"\t")[2].decode(errors="replace")).relative_to(p.folder)
             if path.suffix == ".json":
                 files.append(str(path))
-    return request.app.state.templates.TemplateResponse(
-        request=request,
-        name="assets/index.html",
-        context=dict(project=p, files=files, error=error, **context),
-        status_code=409 if isinstance(error, Conflict) else 422 if error else 200,
-    )
+    return AssetView(project=p, files=files)
 
 
-@router.get("", name="assets")
-def index(request: Request, project_id: str, pushed: str = ""):
-    _, p = project(request, project_id)
-    return render(request, p, pushed=pushed == p.revision)
+@router.get(path, name="assets", include_in_schema=False)
+def index(request: Request, project_id: str):
+    project(request, project_id)
+    return document(request, "assets.html")
 
 
 def materialize(ws, p, dest, directory):
@@ -129,104 +132,83 @@ def scaffold(ws, p, *, kind, mode, language, force, config, case_id):
         return changes, modes, "".join(preview)
 
 
-@router.post("/scaffold", name="asset_scaffold")
-def change(
-    request: Request,
-    project_id: str,
-    *,
-    kind: str = Form(),
-    branch: str = Form(),
-    revision: str = Form(),
-    language: str = Form(),
-    mode: str = Form(),
-    config: bool = Form(False),
-    force: bool = Form(False),
-    case_id: str = Form("case-001"),
-    action: str = Form(),
-):
+class RevisionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    branch: str
+    revision: str
+
+
+class Starter(RevisionInput):
+    kind: Literal["grader", "harbor"]
+    language: Literal["shell", "python"]
+    mode: Literal["default", "custom_only", "default_plus_custom"]
+    config: bool = False
+    force: bool = False
+    case_id: str = "case-001"
+    action: Literal["preview", "save"]
+
+
+class Preview(BaseModel):
+    diff: str
+
+
+class Pushed(BaseModel):
+    revision: str
+
+
+@router.post(api_path + "/scaffold")
+def change(request: Request, project_id: str, body: Starter) -> Preview | Pushed:
     ws, p = project(request, project_id)
-    draft = {
-        "kind": kind,
-        "branch": branch,
-        "revision": revision,
-        "language": language,
-        "mode": mode,
-        "config": config,
-        "force": force,
-        "case_id": case_id,
-    }
     try:
-        require_base(p, branch, revision)
-        changes, modes, diff = scaffold(
-            ws, p, kind=kind, mode=mode, language=language, force=force, config=config, case_id=case_id
-        )
-        if action == "preview":
-            return render(request, p, draft=draft, diff=diff or "No changes.")
-        if action != "save":
-            raise WorkspaceError("Choose preview or save.")
+        require_base(p, body.branch, body.revision)
+        changes, modes, diff = scaffold(ws, p, **body.model_dump(exclude={"branch", "revision", "action"}))
+        if body.action == "preview":
+            return Preview(diff=diff or "No changes.")
         sha = commit_changes(ws, p, changes, "Create evaluation starter", executable=modes)
-    except (WorkspaceError, ValueError, OSError, yaml.YAMLError) as exc:
-        return render(request, p, exc, draft=draft)
-    return RedirectResponse(str(request.url_for("assets", project_id=p.id)) + "?pushed=" + sha, 303)
+    except Conflict as exc:
+        raise failure(409, "stale_revision", str(exc)) from exc
+    except (ValueError, OSError, yaml.YAMLError) as exc:
+        raise failure(422, "starter_failed", str(exc)) from exc
+    return Pushed(revision=sha)
 
 
-@router.post("/qualify", name="qualify_grader")
-def qualify_form(
-    request: Request,
-    project_id: str,
-    *,
-    branch: str = Form(),
-    revision: str = Form(),
-    suite: str = Form(""),
-    sandbox_consent: bool = Form(False),
-    policy: str = Form(""),
-    split: str = Form("assessment"),
-    cases: str = Form(""),
-    repeats: int = Form(3),
-    concurrency: int = Form(1),
-    timeout: float = Form(300),
-    max_false_pass_rate: float | None = Form(None),
-    max_false_fail_rate: float | None = Form(None),
-    max_unjudgeable_rate: float | None = Form(None),
-    action: str = Form(),
-):
+class Qualification(RevisionInput, QualificationControls):
+    action: Literal["check", "qualify"]
+
+
+class Queued(BaseModel):
+    run_id: str
+
+
+@router.post(api_path + "/qualify", status_code=202)
+def qualify(request: Request, project_id: str, body: Qualification) -> Queued:
     ws, p = project(request, project_id)
     try:
-        require_base(p, branch, revision)
-        if action not in {"check", "qualify"}:
-            raise WorkspaceError("Unknown qualification action.")
-        for name in (suite, policy):
+        require_base(p, body.branch, body.revision)
+        for name in (body.suite, body.policy):
             if name and (not name.endswith(".json") or read_file(ws, p, name) is None):
                 raise WorkspaceError("Select an existing skill JSON file.")
         chat = None
-        if action == "qualify":
-            if suite:
-                require_sandbox(sandbox_consent)
+        if body.action == "qualify":
+            if body.suite:
+                require_sandbox(body.sandbox_consent)
             # A not-ready preflight still produces a receipt without inference.
             with suppress(ValueError):
                 chat = public_identity(worker_environment(ws, p.id, "chat"))
         opts = GraderOptions(
-            check_suite=action == "check",
+            check_suite=body.action == "check",
             chat=chat,
-            suite=suite,
-            sandbox_consent=sandbox_consent,
-            policy=policy,
-            split=split,
-            cases=tuple(cases.split()),
-            repeats=repeats,
-            concurrency=concurrency,
-            timeout=timeout,
-            max_false_pass_rate=max_false_pass_rate,
-            max_false_fail_rate=max_false_fail_rate,
-            max_unjudgeable_rate=max_unjudgeable_rate,
+            **body.model_dump(exclude={"branch", "revision", "action"}),
         )
-        run_id = request.app.state.jobs.enqueue(p, revision, GRADER, opts)
-    except (WorkspaceError, ValueError) as exc:
-        return render(request, p, exc)
-    return RedirectResponse(request.url_for("run_detail", project_id=p.id, run_id=run_id), 303)
+        run_id = request.app.state.jobs.enqueue(p, body.revision, GRADER, opts)
+    except Conflict as exc:
+        raise failure(409, "stale_revision", str(exc)) from exc
+    except ValueError as exc:
+        raise failure(422, "qualification_failed", str(exc)) from exc
+    return Queued(run_id=run_id)
 
 
-@router.get("/evidence/{run_id}", name="grader_evidence")
+@router.get(path + "/evidence/{run_id}", name="grader_evidence")
 def evidence(request: Request, project_id: str, run_id: str):
     ws, p = project(request, project_id)
     row = request.app.state.jobs.get(p.id, run_id)
