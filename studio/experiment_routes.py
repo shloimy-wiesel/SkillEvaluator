@@ -43,6 +43,8 @@ async def queue(request: Request, project_id: str, action: str):
         elif definition is INTERACTION:
             data["skills"] = data.get("skills", "").splitlines()
             data["agents"] = form.getlist("agents")
+            if "kata_dns" in data:
+                data["kata_dns"] = data["kata_dns"].splitlines()
             controls = InteractionControls.model_validate(data)
             options = freeze(request.app.state.workspace, project_id, "chat", controls, definition.options)
         else:

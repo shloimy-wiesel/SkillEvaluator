@@ -185,6 +185,13 @@ def test_interaction_pins_suite_and_retains_incomplete_evidence(page, private_re
         def value(flag):
             return args[args.index("--" + flag) + 1]
 
+        from skillevaluator.tier3.evals_config import parse_environment_kwarg_overrides
+
+        overrides = [args[i + 1] for i, arg in enumerate(args) if arg == "--environment-kwarg"]
+        assert parse_environment_kwarg_overrides(overrides, env_mode="kata") == {
+            "kata_runtime": "kata-qemu",
+            "kata_dns": ["192.0.2.1", "2001:db8::1"],
+        }
         assert (Path(value("eval-source")) / "evals/evals.json").read_bytes() == dataset.read_bytes()
         assert [value(k) for k in ("metric", "n-attempts", "n-concurrent", "env-mode", "model", "agents")] == [
             "accuracy",
@@ -196,6 +203,10 @@ def test_interaction_pins_suite_and_retains_incomplete_evidence(page, private_re
         ]
         native = Path(value("results-dir")) / "interaction_20260101_030405"
         native.mkdir(parents=True)
+        assert "--harbor-keep-jobs" in args
+        job = native / "baseline/run1/_harbor-jobs/trial"
+        job.mkdir(parents=True)
+        (job / "trial.log").write_text("No outcome; chat-secret")
         (native / "interaction.json").write_text(
             json.dumps(
                 {
@@ -222,6 +233,9 @@ def test_interaction_pins_suite_and_retains_incomplete_evidence(page, private_re
         page.get_by_label("Fixed evaluation source").fill("skills/suite")
         page.get_by_label("Outcome metric").select_option("accuracy")
         page.get_by_label("Environment").select_option("kata")
+        page.get_by_label("Kata runtime").select_option("kata-qemu", timeout=2000)
+        page.get_by_label("Kata DNS").fill("192.0.2.1\n2001:db8::1")
+        page.get_by_label("Keep Harbor jobs").check(timeout=2000)
         page.get_by_label("Attempts per case").fill("2")
         page.get_by_label("Concurrent trials").fill("3")
         page.get_by_label("Agent model override").fill("agent-v2")
@@ -229,10 +243,13 @@ def test_interaction_pins_suite_and_retains_incomplete_evidence(page, private_re
         page.get_by_role("button", name="Run interaction").click()
         playwright.expect(page.get_by_role("status")).to_contain_text("incomplete")
         assert export(page).json()["reasons"] == ["Missing paired trials", "[REDACTED]"]
+        assert "baseline/run1/_harbor-jobs" in export(page, "Markdown").text()
+        assert next((tmp_path / "volume/artifacts").rglob("trial.log")).read_text() == "No outcome; [REDACTED]"
         assert export(page).body() == next((tmp_path / "volume/artifacts").rglob("interaction.json")).read_bytes()
         for field, bad in [
             ("env_mode", "local"),
             ("environment_kwarg", "anything"),
+            ("kata_runtime", "kata-qemu"),  # Docker accepts no overrides.
             ("skills", "../outside\nskills/logs"),
         ]:
             data = {
@@ -242,6 +259,9 @@ def test_interaction_pins_suite_and_retains_incomplete_evidence(page, private_re
             }
             data[field] = bad
             assert page.request.post(url + "/interaction", form=data).status == 422
+        data = dict(data, skills="skills/triage\nskills/logs", env_mode="kata")
+        for field, bad in [("kata_runtime", "runc"), ("kata_dns", "resolver.example"), ("kata_dns", "fe80::1%eth0")]:
+            assert page.request.post(url + "/interaction", form=dict(data, **{field: bad})).status == 422
         assert len(calls) == 1
 
 
