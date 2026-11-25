@@ -1,0 +1,14 @@
+[
+  {
+    "key": "tier3 compare-versions",
+    "status": "partial",
+    "equivalent": "Compare explicit retained Studio live runs using native paired with-skill eligibility and scores. No automatic compatible-prior search or CLI JSON output.",
+    "evidence": "tests/studio/test_comparison.py::test_author_compares_paired_evidence_then_inspects_policy_mismatch"
+  },
+  {
+    "key": "tier3 history",
+    "status": "partial",
+    "equivalent": "Selected run cards show native history arm scores, paired baseline lift and coverage. No cross-run trend export.",
+    "evidence": "tests/studio/test_comparison_engine.py::test_retained_version_change_is_not_baseline_lift"
+  }
+]

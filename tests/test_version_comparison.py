@@ -76,11 +76,11 @@ def evaluation(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         return runner.run_harbor_eval(
             skill,
             ["opencode"],
-            output_dir=tmp_path / "results/demo",
+            output_dir=options.pop("output_dir", tmp_path / "results/demo"),
             env_mode="docker",
             agent_runtime_preflight=False,
             agent_models={"opencode": "openai/test-model"},
-            evaluated_source={"repository": "example/skill", "commit": version * 40},
+            evaluated_source=options.pop("evaluated_source", {"repository": "example/skill", "commit": version * 40}),
             **options,
         )
 
