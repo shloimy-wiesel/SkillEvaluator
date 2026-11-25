@@ -208,6 +208,9 @@ def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, l
 
     pytest.importorskip("openai")
     seen = []
+    workflow = action in ("tier1", "tier1-validate")
+    if not workflow:
+        publish(tmp_path, {"skills/second/SKILL.md": "# Second\n"})
 
     class Judge(BaseHTTPRequestHandler):
         def do_POST(self):
@@ -247,7 +250,6 @@ def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, l
             project = page.url
             page.goto(project + "/expert/" + action)
             sha = page.get_by_label("Commit SHA").input_value()
-            workflow = action in ("tier1", "tier1-validate")
             denied = page.request.post(page.url, form={"sha": sha, **({"llm": "true"} if workflow else {})})
             assert denied.status == 422 and "chat provider" in denied.text()
             endpoint = f"https://127.0.0.1:{judge.server_port}/v1"
@@ -258,6 +260,8 @@ def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, l
             if workflow:
                 page.get_by_label("Checks to run").select_option("unicode")
                 page.get_by_label("Model-backed checks").select_option("true")
+            else:
+                page.get_by_label("Target directory").select_option("skills")
             page.get_by_label("Minimum score").fill("90")
             page.get_by_label("Reports").select_option("json")
             page.get_by_role("button", name="Queue check").click()
@@ -268,7 +272,13 @@ def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, l
             page.goto(run)
             page.get_by_role("button", name="Rerun saved inputs").click()
             playwright.expect(page.get_by_role("status")).to_contain_text("failed", timeout=30000)
-            assert seen == [("/v1/chat/completions", "frozen-model", "Bearer frozen-secret")] * 2
+            assert seen == [("/v1/chat/completions", "frozen-model", "Bearer frozen-secret")] * (2 if workflow else 4)
+            native = page.request.get(
+                page.get_by_role("link", name="Download native JSON").get_attribute("href")
+            ).json()
+            assert any("rubric" in r["validator"].lower() and r["status"] == "failed" for r in native["results"])
+            if not workflow:
+                assert all(name in str(native["results"]) for name in ("triage", "second"))
             assert "frozen-secret" not in page.content()
             assert b"frozen-secret" not in (tmp_path / "volume/studio.sqlite3").read_bytes()
         finally:
