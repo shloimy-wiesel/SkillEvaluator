@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ValidationError
 
+from .worker_deadline import WorkerTimeout
 from .workspace import Project, Workspace, WorkspaceError
 
 
@@ -138,7 +139,6 @@ class Jobs:
         except WorkspaceError:
             # Interrupted checkout may not have finished registering itself.
             shutil.rmtree(root)
-            self.workspace.git(project, ["worktree", "prune"])
         if area.exists():
             # A killed adapter may also leave private scratch directories beside its checkout.
             shutil.rmtree(area)
@@ -192,6 +192,11 @@ class Jobs:
                 db.execute(
                     "UPDATE runs SET status=?,exit_code=?,progress='Results saved',report=?,markdown=? WHERE id=?",
                     (outcome.status, outcome.exit_code, outcome.report, outcome.markdown, run_id),
+                )
+        except WorkerTimeout as exc:
+            with self.connection() as db, db:
+                db.execute(
+                    "UPDATE runs SET status='timed_out', exit_code=124, progress=? WHERE id=?", (str(exc), run_id)
                 )
         except Exception as exc:
             with self.connection() as db, db:

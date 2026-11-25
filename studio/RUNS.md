@@ -37,6 +37,25 @@ records become `interrupted`. No work is replayed. **Rerun saved inputs**
 explicitly creates another ID with the original SHA, folder and options.
 The earlier record is unchanged.
 
+### Live and expert worker deadline
+
+Set `STUDIO_EVALUATOR_TIMEOUT_SECONDS` on the Linux Studio service (integer
+1–86400; default 3600). Sandbox probes and evaluator execution share the
+remaining wall clock. This applies to live Tier 3, interaction trials and
+expert checks; the shorter 30-second probe and 180-second offline expert
+limits still apply. A timeout is saved as `timed_out` (124), not a gate
+failure. The next queued job receives its own deadline.
+
+Each invocation has a private process group and a Linux child subreaper
+(requires procfs), so cleanup includes owned Harbor clients even when they
+start separate sessions. Before creating a Docker/Kata sandbox the worker
+records its fresh random Compose project name in a private host directory.
+On timeout it allows up to five seconds to reap descendants and another
+30 seconds to remove containers, networks and volumes by exact recorded
+Compose project label. Shared images, build caches, other projects and
+unlabeled resources are left alone. If the daemon cannot confirm cleanup,
+the run diagnostic identifies the project to inspect.
+
 ## Adding a typed evaluator
 
 1. Define a frozen Pydantic model of effective, non-secret settings with

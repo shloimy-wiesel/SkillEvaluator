@@ -1330,6 +1330,11 @@ class SkillEvaluatorDockerEnvironment(DockerEnvironment):
     async def start(self, force_build: bool) -> None:
         """Reject unsupported Compose inputs before Docker mutates a project."""
         self._compose_model_metadata()
+        if ledger := os.environ.get("SKILLEVALUATOR_COMPOSE_LEDGER"):
+            # Studio's private host directory, never a task input. Record
+            # ownership before the first mutating Compose command.
+            self.session_id = f"studio-{uuid.uuid4().hex}"
+            (Path(ledger) / self.session_id).touch(mode=0o600, exist_ok=False)
         await super().start(force_build)
 
     @classmethod

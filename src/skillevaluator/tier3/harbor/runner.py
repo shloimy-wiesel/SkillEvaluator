@@ -2915,6 +2915,8 @@ def _harbor_subprocess_environment(
     host_env = os.environ
     environment = _selected_host_environment(_HARBOR_BASE_ENV_VARS, host_env)
     environment.update(_selected_host_environment(_env_mode_host_env_vars(env_mode), host_env))
+    if env_mode in {"docker", "kata"} and "SKILLEVALUATOR_COMPOSE_LEDGER" in host_env:
+        environment["SKILLEVALUATOR_COMPOSE_LEDGER"] = host_env["SKILLEVALUATOR_COMPOSE_LEDGER"]
     for name in _env_mode_host_path_env_vars(env_mode) & environment.keys():
         environment[name] = _absolute_host_path(environment[name])
     if provider.provider == "bedrock":

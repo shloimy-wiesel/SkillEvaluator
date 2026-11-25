@@ -17,12 +17,14 @@ from . import expert_profiles, live_job
 from .expert_options import ACTIONS, CHECKS, FIELDS, FILES, HARNESSES, MULTI, REPORTS, ExpertOptions
 from .jobs import JobDefinition, Outcome
 from .runs import project_for, record_for
+from .worker_deadline import WorkerTimeout, bounded_worker, run_evaluator
 from .workspace import WorkspaceError
 
 router = APIRouter(prefix="/projects/{project_id}/expert")
 SUFFIXES = {".sarif.json": "SARIF", ".junit.xml": "JUnit", ".json": "JSON", ".md": "Markdown", ".html": "HTML"}
 
 
+@bounded_worker
 def evaluate(ctx, options):
     ctx.progress(ACTIONS[options.action])
     chat = expert_profiles.environment(ctx, options.chat)
@@ -79,6 +81,8 @@ def evaluate(ctx, options):
             try:
                 if reason is None:
                     live_job.sandbox_preflight(work, runtime)
+            except WorkerTimeout:
+                raise
             except WorkspaceError as exc:
                 reason = str(exc)
         try:
@@ -108,7 +112,7 @@ def evaluate(ctx, options):
 def invoke(ctx, args, work, output, *, chat, embeddings, runtime, reason):
     log = work / "console.txt"
     with log.open("wb") as console:
-        done = subprocess.run(
+        done = run_evaluator(
             [sys.executable, "-I", str(Path(__file__).with_name("expert_worker.py")), *args],
             cwd=work,
             env={
@@ -127,7 +131,8 @@ def invoke(ctx, args, work, output, *, chat, embeddings, runtime, reason):
             },
             stdout=console,
             stderr=subprocess.DEVNULL,
-            timeout=None if runtime else 180,
+            sandbox=bool(runtime),
+            limit=None if runtime else 180,
             input=json.dumps({"embeddings": embeddings, "live": bool(runtime), "preflight_error": reason}).encode(),
         )
     if done.returncode not in (0, 1):

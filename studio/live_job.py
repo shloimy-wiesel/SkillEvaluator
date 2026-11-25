@@ -24,6 +24,7 @@ from skillevaluator.tier3.dataset_utils import DATASET_EXTENSIONS, find_eval_fil
 from .jobs import JobContext, JobDefinition, Outcome
 from .native_location import bounded_directory, native_directory
 from .providers import worker_environment
+from .worker_deadline import bounded_worker, run_evaluator
 from .workspace import WorkspaceError
 
 Positive = Annotated[int, Field(gt=0)]
@@ -206,20 +207,22 @@ def sandbox_preflight(cwd, env):
         (["docker", "info"], "The sandbox Docker daemon is unavailable."),
     ]:
         try:
-            subprocess.run(
+            probe = run_evaluator(
                 command,
                 env=env,
                 cwd=cwd,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                timeout=30,
-                check=True,
+                limit=30,
+                sandbox=False,
             )
+            probe.check_returncode()
         except (OSError, subprocess.SubprocessError) as exc:
             raise WorkspaceError(message) from exc
 
 
+@bounded_worker
 def invoke_engine(args, cwd, env, *, retained=None):
     sandbox_preflight(cwd, env)
     launch = ["from skillevaluator.cli import cli; cli()"]
@@ -231,10 +234,11 @@ def invoke_engine(args, cwd, env, *, retained=None):
             "with authorized_sources(sources): cli()",
             json.dumps({key: str(path) for key, path in retained.items()}),
         ]
-    return subprocess.run(
+    return run_evaluator(
         [sys.executable, "-I", "-c", *launch, *args],
         env=env,
         cwd=cwd,
+        sandbox=True,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -334,6 +338,7 @@ def redact_file(path, secrets):
     path.write_bytes(clean)
 
 
+@bounded_worker
 def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
     workspace = ctx.workspace
     if options.evaluator_revision != operator_revision():
