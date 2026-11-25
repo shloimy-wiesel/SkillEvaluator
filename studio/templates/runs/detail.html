@@ -1,5 +1,6 @@
-{% extends "base.html" %}{% block title %}Run details{% endblock %}{% block content %}
-<p><a href="{{ url_for('runs_index', project_id=project.id) }}">Evaluation runs</a> / Details</p>
+{% extends "base.html" %}{% block title %}Run details{% endblock %}
+{% block ancestors %}{{ super() }}<span aria-hidden="true">/</span><a href="{{ url_for('runs_index', project_id=project.id) }}">Evaluation runs</a>{% endblock %}
+{% block content %}
 <h1>{{ run.kind }}</h1>
 <p role="status">{{ run.status }} · {{ run.progress }}</p>
 <dl><dt>Commit</dt><dd><code>{{ run.sha }}</code></dd><dt>Skill folder</dt><dd>{{ run.folder }}</dd>
