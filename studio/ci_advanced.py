@@ -7,25 +7,28 @@ from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Form, Request
-from pydantic import Field
+from pydantic import BaseModel, Field, JsonValue, PlainSerializer
 
 from skillevaluator import ci_onboarding as ci
 
 from .ci_adapter import review_branch, worker
-from .ci_receipts import feedback, published
-from .ci_routes import ReviewForm, project
+from .ci_receipts import Publication, feedback, published
+from .ci_routes import API, PAGE, ReviewForm, project, rejected
 from .editing import Conflict, branches, commit_changes, project_lock, require_base
-from .workspace import WorkspaceError
+from .frontend_routes import document
+from .workspace import Project, WorkspaceError
 
-router = APIRouter(prefix="/projects/{project_id}/ci")
+router = APIRouter()
 Provider = Literal["openai", "anthropic", "nv_build", "openai-compatible"]
 LiteralText = Annotated[str, Field(pattern=r"^(?:[a-zA-Z0-9_./:@+][a-zA-Z0-9_./:@+-]*)?$", max_length=256)]
 ALL = ci.all_tier_helpers
+# JavaScript cannot represent every GitLab resource ID as an exact number.
+PipelineId = Annotated[int, Field(gt=0, le=2**63 - 1), PlainSerializer(str, return_type=str, when_used="json")]
 
 
 class Options(ReviewForm):
     action: Literal["review", "apply", "status", "receipt"]
-    pipeline_id: int | None = Field(default=None, gt=0, le=2**63 - 1)
+    pipeline_id: PipelineId | None = None
     platform: Literal["auto", "github", "gitlab"] = "auto"
     tiers: Literal["one", "all"] = "one"
     mode: Literal["preview", "save", "pr"] = "save"
@@ -126,31 +129,66 @@ def descriptors(ws):
     }
 
 
-def view(request, p, form=None, status=200, **ctx):
-    return request.app.state.templates.TemplateResponse(
-        request=request,
-        name="ci/advanced.html",
-        context=dict(
-            project=p,
-            releases=["", *descriptors(request.app.state.workspace)],
-            form=form or Options(branch=p.branch, revision=p.revision, action="review"),
-            **ctx,
-        ),
-        status_code=status,
+class Pipeline(BaseModel):
+    id: PipelineId
+    status: str
+
+
+class Job(BaseModel):
+    name: str
+    status: str
+    url: str
+
+
+class Review(BaseModel):
+    files: dict[str, str]
+    plan: dict[str, JsonValue]
+    manual_merge: str
+
+
+class AdvancedView(BaseModel):
+    project: Project
+    releases: list[str]
+    form: Options
+    roots: list[str] = []
+    discovery_error: str = ""
+    notice: str | None = None
+    result: Review | None = None
+    digest: str | None = None
+    jobs: list[Job] | None = None
+    pipelines: list[Pipeline] = []
+    selected: PipelineId | None = None
+
+
+def view(request, p, form=None, **ctx):
+    return AdvancedView(
+        project=p,
+        releases=["", *descriptors(request.app.state.workspace)],
+        form=form or Options(branch=p.branch, revision=p.revision, action="review"),
+        **ctx,
     )
 
 
-@router.get("/advanced", name="advanced_ci")
+@router.get(PAGE + "/advanced", name="advanced_ci", include_in_schema=False)
 def advanced(request: Request, project_id: str):
+    project(request, project_id)
+    return document(request, "ci-advanced.html")
+
+
+@router.get(API + "/advanced")
+def options(request: Request, project_id: str) -> AdvancedView:
     ws, p = project(request, project_id)
+    receipt = feedback(request, p, "advanced_ci")
     try:
-        return view(request, p, roots=ci.git_helpers.discover(ws.checkout(p)), **feedback(request, p, "advanced_ci"))
+        roots = [r["root"] for r in ci.git_helpers.discover(ws.checkout(p))]
     except ci.SetupError as exc:
-        return view(request, p, error=str(exc), status=422)
+        # Root discovery is advisory; live status does not require a valid scan layout.
+        return view(request, p, discovery_error=str(exc), **receipt)
+    return view(request, p, roots=roots, **receipt)
 
 
-@router.post("/advanced")
-def advanced_action(request: Request, project_id: str, form: Annotated[Options, Form()]):
+@router.post(API + "/advanced", response_model=AdvancedView | Publication)
+def advanced_action(request: Request, project_id: str, form: Options):
     from fastapi.responses import JSONResponse
 
     ws, p = project(request, project_id)
@@ -215,4 +253,11 @@ def advanced_action(request: Request, project_id: str, form: Annotated[Options, 
                 )
             return published(request, p, "advanced_ci", "Reviewed setup saved. Host settings were not changed.")
     except (WorkspaceError, ci.SetupError) as exc:
-        return view(request, p, form, status=409 if isinstance(exc, Conflict) else 422, error=str(exc))
+        raise rejected(exc) from exc
+
+
+@router.post(PAGE + "/advanced", include_in_schema=False)
+def download_receipt(request: Request, project_id: str, form: Annotated[Options, Form()]):
+    if form.action != "receipt":
+        raise rejected(WorkspaceError("Use the versioned API for CI setup."))
+    return advanced_action(request, project_id, form)
