@@ -12,18 +12,17 @@ from .workspace import WorkspaceError
 
 
 def snapshot(workspace, project_id, options):
-    tier2 = options.tiers == "1,2"
-    if tier2:
-        options = freeze_role(workspace, project_id, options, "embeddings")
-    required = tier2 or options.action == "rubric-eval" or options.llm or options.llm_verify
-    automatic = options.action in {"tier1", "tier1-validate"} and options.llm is None
-    if not (required or automatic):
-        return options
-    # An entirely absent profile is the direct CLI's keyless default.
+    if options.live:
+        options = options.model_copy(update={"snapshot_id": uuid4().hex})
+    tier2 = options.action == "validate" and (not options.tiers or "2" in options.tiers)
     with closing(database(workspace)) as db:
-        if not required and not load(db, workspace, project_id, "chat"):
-            return options
-    return freeze_role(workspace, project_id, options, "chat")
+        if tier2 and load(db, workspace, project_id, "embeddings"):
+            options = freeze_role(workspace, project_id, options, "embeddings")
+        required = options.action == "rubric-eval" or options.llm or options.llm_verify
+        automatic = tier2 or options.live or (options.action in {"tier1", "tier1-validate"} and options.llm is None)
+        if required or (automatic and load(db, workspace, project_id, "chat")):
+            options = freeze_role(workspace, project_id, options, "chat")
+    return options
 
 
 def freeze_role(workspace, project_id, options, role):
@@ -42,6 +41,8 @@ def freeze_role(workspace, project_id, options, role):
     frozen = options.model_copy(update={role: profile})
     if config.api_key and config.api_key in frozen.model_dump_json():
         raise WorkspaceError("Keep credentials out of public check settings.")
+    if options.live:
+        env["SKILL_EVAL_LLM_MODEL" if role == "chat" else "SKILL_EVAL_EMBEDDING_MODEL"] = config.model
     # Preserve the engine's distinction between a model override and its defaults.
     with closing(database(workspace)) as db, db:
         db.execute("""CREATE TABLE IF NOT EXISTS expert_profiles

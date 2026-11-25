@@ -8,6 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from skillevaluator.harness.overlay import profile_names
 from skillevaluator.tier1.commands import DEFAULT_CHECKS, OPTIONAL_CHECKS
 
+from .live_job import Agent, Budget, Model, Positive
+
+AGENT_MODELS = {"codex_model": "codex", "opencode_model": "opencode", "claude_code_model": "claude-code"}
+
 ACTIONS = {
     "quality-check": "Quality check",
     "rubric-eval": "Rubric evaluation",
@@ -31,6 +35,31 @@ FILES = {
     "policy": "Validation policy overlay",
 }
 COMMON = {"checks", "skip", "profile", "min_score", "previous_version", "llm", *FILES}
+FILES["price_file"] = "Model price file"
+ROOT_LIVE = {
+    *AGENT_MODELS,
+    "price_file",
+    "n_attempts",
+    "n_concurrent",
+    "grading_mode",
+    "max_agents",
+    "max_agent_tokens",
+    "max_judge_calls",
+    "max_cost_usd",
+    "pass_threshold",
+    "stop_on_pass",
+    "timeout_multiplier",
+    "tolerate_baseline_timeouts",
+    "block_on_agent_eval",
+    "env_mode",
+    "autopilot",
+    "agents",
+    "max_cases",
+    "max_attempts_total",
+    "agent_runtime_preflight",
+    "skip_baseline",
+    "model",
+}
 FIELDS = {
     "quality-check": {"reports", "min_score", "quality_config"},
     "validate": COMMON
@@ -38,6 +67,7 @@ FIELDS = {
         "reports",
         "tiers",
         "block_on_dedup",
+        *ROOT_LIVE,
         "fail_fast",
         "continue_on_failure",
         "verbose",
@@ -61,7 +91,7 @@ FIELDS = {
     },
     **{a: COMMON | {"reports"} for a in WORKFLOWS[1:]},
 }
-MULTI = {"reports", "checks", "skip", "harness"}
+MULTI = {"reports", "checks", "skip", "harness", "agents"}
 
 
 class FrozenProfile(BaseModel):
@@ -73,16 +103,41 @@ class FrozenProfile(BaseModel):
 
 
 class ExpertOptions(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
     action: str
+    snapshot_id: str | None = Field(None, pattern=r"^[0-9a-f]{32}$")
     chat: FrozenProfile | None = None
     embeddings: FrozenProfile | None = None
     min_score: int | None = Field(None, ge=0, le=100)
     reports: tuple[Literal["cli", "json", "html", "markdown", "sarif", "junit", "github"], ...] = ()
     checks: tuple[str, ...] = ()
     skip: tuple[str, ...] = ()
-    tiers: Literal["1", "1,2"] | None = None
+    tiers: Literal["1", "1,2", "1,3", "1,2,3"] | None = None
     block_on_dedup: bool | None = None
+    env_mode: Literal["docker", "kata"] | None = None
+    agents: tuple[Agent, ...] = ()
+    block_on_agent_eval: bool | None = None
+    autopilot: bool | None = None
+    agent_runtime_preflight: bool | None = None
+    skip_baseline: bool = False
+    max_cases: int | None = Field(None, gt=0)
+    max_attempts_total: int | None = Field(None, ge=0)
+    model: Model | None = None
+    codex_model: Model | None = None
+    opencode_model: Model | None = None
+    claude_code_model: Model | None = None
+    n_attempts: Positive | None = None
+    n_concurrent: Positive | None = None
+    max_agents: Positive | None = None
+    max_agent_tokens: Budget | None = None
+    max_judge_calls: Budget | None = None
+    pass_threshold: float | None = Field(None, ge=0, le=1)
+    max_cost_usd: float | None = Field(None, ge=0)
+    price_file: str | None = None
+    timeout_multiplier: float | None = Field(None, gt=0)
+    stop_on_pass: bool | None = None
+    tolerate_baseline_timeouts: bool | None = None
+    grading_mode: Literal["default", "default_plus_custom", "custom_only"] | None = None
     include_revision: bool = False
     llm: bool | None = None
     llm_verify: bool = False
@@ -104,11 +159,19 @@ class ExpertOptions(BaseModel):
     explicit_invocation: bool = False
     headless: bool = False
 
+    @property
+    def live(self):
+        return self.action == "validate" and (not self.tiers or "3" in self.tiers)
+
     @model_validator(mode="after")
     def scope(self):
         if self.action not in FIELDS:
             raise ValueError("Unknown action")
-        if self.model_dump(exclude_defaults=True).keys() - FIELDS[self.action] - {"action", "chat", "embeddings"}:
+        if (
+            self.model_dump(exclude_defaults=True).keys()
+            - FIELDS[self.action]
+            - {"action", "chat", "embeddings", "snapshot_id"}
+        ):
             raise ValueError("Setting outside this action")
         if set(self.checks) - set(CHECKS) or set(self.skip) - {*CHECKS, "secrets"}:
             raise ValueError("Unknown check")
@@ -119,10 +182,14 @@ class ExpertOptions(BaseModel):
             for v in self.harness_versions
         ):
             raise ValueError("Invalid harness selection")
-        if self.action == "validate" and not self.tiers:
-            raise ValueError("Select supported tiers")
-        if self.block_on_dedup is not None and self.tiers != "1,2":
+        if not self.live and self.model_dump(exclude_defaults=True).keys() & ROOT_LIVE:
+            raise ValueError("Select Tier 3 to set live controls")
+        if self.block_on_dedup is not None and self.tiers and "2" not in self.tiers:
             raise ValueError("Select Tier 2 to set its gate")
+        if any(getattr(self, key) and agent not in self.agents for key, agent in AGENT_MODELS.items()):
+            raise ValueError("Select each agent with a model override")
+        if self.max_cost_usd is not None and not self.price_file:
+            raise ValueError("Select a price file with a cost limit")
         for key in FILES:
             path = getattr(self, key)
             if path and (
@@ -141,11 +208,13 @@ class ExpertOptions(BaseModel):
             cmd.extend(["--output-dir", str(ctx.artifacts)])
         for key, value in self.model_dump(exclude_defaults=True).items():
             flag = "--" + key.replace("_", "-")
-            if key in {"action", "chat", "embeddings"}:
+            if key in {"action", "chat", "embeddings", "snapshot_id"}:
                 continue
             if key == "reports":
                 for fmt in value:
                     cmd.extend(["--report", fmt])
+            elif key in AGENT_MODELS:
+                cmd.extend(["--agent-model", f"{AGENT_MODELS[key]}={value}"])
             elif key == "write_json":
                 cmd.extend(["--json", str(ctx.artifacts / "harness.json")])
             elif key == "include_revision":
@@ -153,7 +222,15 @@ class ExpertOptions(BaseModel):
             elif key == "harness_versions":
                 for item in value:
                     cmd.extend(["--harness-version", item])
-            elif key in {"llm", "block_on_dedup"}:
+            elif key in {
+                "llm",
+                "block_on_dedup",
+                "block_on_agent_eval",
+                "autopilot",
+                "agent_runtime_preflight",
+                "stop_on_pass",
+                "tolerate_baseline_timeouts",
+            }:
                 cmd.append(flag if value else "--no-" + flag[2:])
             elif isinstance(value, bool):
                 cmd.append(flag)

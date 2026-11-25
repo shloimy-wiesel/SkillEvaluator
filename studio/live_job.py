@@ -22,6 +22,7 @@ from skillevaluator.source_identity import normalized_evaluated_source
 from skillevaluator.tier3.dataset_utils import DATASET_EXTENSIONS, find_eval_file
 
 from .jobs import JobContext, JobDefinition, Outcome
+from .native_location import bounded_directory, native_directory
 from .providers import worker_environment
 from .workspace import WorkspaceError
 
@@ -32,6 +33,7 @@ Model = Annotated[str, Field(pattern=r"^[a-zA-Z0-9_.:/@+-]{1,256}$")]
 
 
 class Controls(BaseModel):
+    harbor_keep_jobs: bool = False
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
     workflow: Literal["evaluate", "direct", "alias"] = "evaluate"
     env_mode: Literal["docker", "kata"] = "docker"
@@ -174,15 +176,10 @@ def retained_sources(workspace, project_id, folder, options):
         if options.evaluator_revision != saved.evaluator_revision:
             raise WorkspaceError("Prior run used a different evaluator revision.")
         root = workspace.data_dir / "artifacts" / project_id / run_id / "tier3"
-        candidates = [p for p in root.glob("*/result.json") if p.resolve() == p]
-        if len(candidates) != 1:
-            raise WorkspaceError("Missing or ambiguous retained evidence.")
-        native = candidates[0].parent
-        if any(p.is_symlink() or (p.is_file() and p.stat().st_nlink != 1) for p in native.rglob("*")):
-            raise WorkspaceError("Unsupported linked evidence.")
         try:
+            native = bounded_directory(root)
             config = json.loads((native / "run_config.json").read_text())
-            result = json.loads(candidates[0].read_text())
+            result = json.loads((native / "result.json").read_text())
             identity = config["evaluated_source"]
             valid = (
                 result["run_id"] == native.name
@@ -199,8 +196,7 @@ def retained_sources(workspace, project_id, folder, options):
     return selected
 
 
-def invoke_engine(args, cwd, env, *, retained=None):
-    """No shell, repo cwd, stdin, ambient providers, or repository Python path."""
+def sandbox_preflight(cwd, env):
     if os.environ.get("STUDIO_LIVE_ENABLED") != "1":
         raise WorkspaceError("Live runtime is disabled. Configure the Studio live image and sandbox daemon.")
     for command, message in [
@@ -221,6 +217,10 @@ def invoke_engine(args, cwd, env, *, retained=None):
             )
         except (OSError, subprocess.SubprocessError) as exc:
             raise WorkspaceError(message) from exc
+
+
+def invoke_engine(args, cwd, env, *, retained=None):
+    sandbox_preflight(cwd, env)
     launch = ["from skillevaluator.cli import cli; cli()"]
     if retained:
         launch = [
@@ -240,11 +240,10 @@ def invoke_engine(args, cwd, env, *, retained=None):
     ).returncode
 
 
-def stage(ctx, base, options):
+def check_stage_policy(source):
     """Only generated Harbor tasks; no repository-authored launchers or native environments."""
     from skillevaluator.tier3.evals_config import load_evals_config
 
-    source = ctx.skill
     if any((source / "evals" / name).exists() for name in ("environment", "harbor")):
         raise WorkspaceError("This preset needs a dataset and a generated task environment.")
     config, config_path = load_evals_config(source)
@@ -271,10 +270,12 @@ def stage(ctx, base, options):
         }
     ):
         raise WorkspaceError("The pinned run policy contains settings outside this Studio preset.")
+    return config_path
+
+
+def stage_skill(source, base, exclude):
     skill = base / "inputs" / source.name
-    shutil.copytree(
-        source, skill, ignore=lambda root, _names: {".git", "eval", "evals"} if Path(root) == source else {".git"}
-    )
+    shutil.copytree(source, skill, ignore=lambda root, _names: {".git", *exclude} if Path(root) == source else {".git"})
     # Bind linked-file discovery to this input projection even when the Studio
     # volume itself is nested in an unrelated developer checkout.
     subprocess.run(
@@ -285,6 +286,13 @@ def stage(ctx, base, options):
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    return skill
+
+
+def stage(ctx, base, options):
+    source = ctx.skill
+    config_path = check_stage_policy(source)
+    skill = stage_skill(source, base, {"eval", "evals"})
     evals = skill / "evals"
     evals.mkdir()
     if config_path:
@@ -401,6 +409,8 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
                 args.append(("--" if enabled else "--no-") + name.replace("_", "-"))
         if options.autopilot:
             args.append("--autopilot")
+        if options.harbor_keep_jobs:
+            args.append("--harbor-keep-jobs")
         env = {
             k: os.environ[k]
             for k in ("DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "SSL_CERT_FILE")
@@ -430,19 +440,21 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
                 temporary = saved_dataset.with_suffix(".part")
                 shutil.copyfile(dataset, temporary)
                 temporary.replace(saved_dataset)
-    paths = [path for path in output.glob("*/result.json") if path.resolve() == path and path.is_file()]
-    if len(paths) != 1:
+
+    try:
+        result_path = native_directory(output) / "result.json"
+    except (ValueError, OSError, RuntimeError) as exc:
         raise WorkspaceError(
             "No canonical Tier 3 result. Check dataset, provider/agent compatibility and sandbox readiness."
-        )
+        ) from exc
     from skillevaluator.evaluation.tier3_report import agent_eval_result_from_directory
     from skillevaluator.reporting.json_reporter import JSONReporter
     from skillevaluator.tier3.harbor.run_budget import budget_fully_denied
 
-    payload = json.loads(paths[0].read_text())
+    payload = json.loads(result_path.read_text())
     result = agent_eval_result_from_directory(
         ctx.skill,
-        paths[0].parent,
+        result_path.parent,
         env_mode=options.env_mode,
         engine_result=payload,
         evaluated_source=normalized_evaluated_source(
@@ -465,7 +477,7 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
         )
         if canonical.get("mode") == "baseline_only" and canonical.get("execution_status") == "succeeded":
             status = "neutral"
-    benchmark = paths[0].with_name("tier3-benchmark.md")
+    benchmark = result_path.with_name("tier3-benchmark.md")
     markdown = (
         benchmark.read_text() if benchmark.is_file() and benchmark.resolve() == benchmark else f"# Tier 3: {status}\n"
     )

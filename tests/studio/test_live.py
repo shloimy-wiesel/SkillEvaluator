@@ -45,7 +45,9 @@ def test_direct_workflow_retains_evidence_and_reruns_original_profile(page, priv
             generated.write_text('{"skill_name":"triage","evals":[]}')
         else:
             assert generated.read_text() == '{"skill_name":"triage","evals":[]}'
-        native = Path(args[args.index("--results-dir") + 1]) / "20260101_120000"
+        from skillevaluator.tier3.results_location import resolve_results_root
+
+        native = resolve_results_root(Path(args[1]), args[args.index("--results-dir") + 1]) / "20260101_120000"
         native.mkdir(parents=True)
         native.with_name("latest").symlink_to(native.name)
         arm = native / "codex/with-skill"
@@ -326,7 +328,7 @@ def test_project_retained_selection_and_provenance(page, private_remote, tmp_pat
     volume = tmp_path / "volume"
 
     def engine(args, cwd, env, *, retained=None):
-        native = Path(args[args.index("--results-dir") + 1]) / "20260101_120000"
+        native = Path(args[args.index("--results-dir") + 1]) / "triage" / "20260101_120000"
         sha = args[args.index("--evaluated-source-revision") + 1]
         if sources:
             assert retained == {"reuse_baseline": sources[0], "compare_to": sources[0]}

@@ -145,7 +145,10 @@ def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, l
             judge.shutdown()
 
 
-def test_cross_tier_validation_routes_embeddings_separately(page, private_remote, tmp_path, loopback_tls, monkeypatch):
+@pytest.mark.parametrize("tiers", ["1,2", "1,2,3"])
+def test_cross_tier_validation_routes_embeddings_separately(
+    page, private_remote, tmp_path, loopback_tls, monkeypatch, tiers
+):
     import json
     import subprocess
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -211,7 +214,10 @@ def test_cross_tier_validation_routes_embeddings_separately(page, private_remote
                     role + "-key",
                 )
             page.goto(project + "/expert/validate")
-            page.get_by_label("Tiers", exact=False).select_option("1,2", timeout=2000)
+            page.get_by_label("Tiers", exact=False).select_option(tiers, timeout=2000)
+            if tiers == "1,2,3":
+                page.get_by_text("Tier 3 settings", exact=True).click()
+                page.get_by_label("Prepare missing dataset").select_option("false")
             page.get_by_label("Checks to run").select_option("unicode")
             page.get_by_label("Tier 2 gate").select_option("false")
             page.get_by_role("button", name="Queue check").click()
@@ -301,8 +307,173 @@ def test_pipeline_passes_only_scoped_parameters_to_installed_cli(tmp_path):
     for params in [
         {"action": "lint-scripts", "min_score": 1},
         {"action": "pii-scan", "pii_waivers": "../secret.yaml"},
-        {"action": "validate", "tiers": "1,2,3"},
+        {"action": "validate", "tiers": "1", "env_mode": "docker"},
         {"action": "tier1", "fail_fast": True},
     ]:
         with pytest.raises(ValidationError):
             ExpertOptions(**params)
+
+
+def test_default_root_keyless_preserves_combined_evidence(page, private_remote, tmp_path, monkeypatch):
+    monkeypatch.delenv("STUDIO_LIVE_ENABLED", raising=False)
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        page.get_by_role("heading", name="handbook").wait_for()
+        page.goto(page.url + "/expert/validate")
+        sha = page.get_by_label("Commit SHA").input_value()
+        page.get_by_label("Checks to run").select_option("unicode")
+        page.get_by_label("Verbose output").check()
+        page.get_by_label("Reports").select_option("json")
+        page.get_by_role("button", name="Queue check").click()
+        link = page.get_by_role("link", name="Download native JSON")
+        playwright.expect(link).to_be_visible(timeout=12000)
+        report = page.request.get(link.get_attribute("href")).json()
+        assert sha in str(report)
+        assert "live runtime is disabled" in str(report).lower()
+        assert "embedding setup is required" in str(report).lower()
+        assert page.get_by_role("link", name="Download native Benchmark").count() == 1
+        page.get_by_role("button", name="Rerun saved inputs").click()
+        playwright.expect(link).to_be_visible(timeout=20000)
+        playwright.expect(page.get_by_text("Reused saved starter")).to_be_visible()
+
+
+def test_root_blocks_on_missing_cases_without_autopilot(page, private_remote, tmp_path):
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        page.get_by_role("heading", name="handbook").wait_for()
+        page.goto(page.url + "/expert/validate")
+        page.get_by_label("Tiers", exact=False).select_option("1,3")
+        page.get_by_label("Checks to run").select_option("unicode")
+        page.get_by_text("Tier 3 settings", exact=True).click()
+        page.get_by_label("Tier 3 blocking gate").select_option("true")
+        page.get_by_label("Prepare missing dataset").select_option("false")
+        page.get_by_role("button", name="Queue check").click()
+        link = page.get_by_role("link", name="Download native JSON")
+        playwright.expect(link).to_be_visible(timeout=20000)
+        report = page.request.get(link.get_attribute("href")).json()
+        assert report["gating"]["tiers"]["3"]["blocking"] is True
+        assert report["tier3"]["verdict"] == "fail"
+        playwright.expect(page.get_by_role("status")).to_contain_text("failed")
+
+
+@pytest.mark.parametrize("partial", [True, False])
+def test_root_folds_harbor_arm_evidence_with_pinned_options(tmp_path, monkeypatch, partial):
+    import json
+    import shutil
+    from pathlib import Path
+
+    from click.testing import CliRunner
+    from studio.expert_options import ExpertOptions
+    from studio.jobs import JobContext
+
+    from skillevaluator.cli import cli
+    from skillevaluator.embedded import sandbox_preflight
+    from skillevaluator.evaluation import EvaluationService
+
+    skill = tmp_path / "lookup-code"
+    shutil.copytree(Path(__file__).resolve().parents[1] / "fixtures/skills/lookup-code", skill)
+    out = tmp_path / "reports"
+    ctx = JobContext(tmp_path, skill, "a" * 40, None, None, "project", "run", out)
+    (tmp_path / "prices.json").write_text('{"fixture-model":{"input_per_mtok":1,"output_per_mtok":2}}')
+    options = ExpertOptions(
+        action="validate",
+        tiers="1,3",
+        checks=("unicode",),
+        agents=("codex",),
+        n_attempts=2,
+        n_concurrent=3,
+        max_agents=1,
+        max_cases=2,
+        pass_threshold=0.7,
+        timeout_multiplier=1.5,
+        stop_on_pass=False,
+        skip_baseline=True,
+        agent_runtime_preflight=False,
+        tolerate_baseline_timeouts=False,
+        max_agent_tokens=1024,
+        max_judge_calls=0,
+        max_cost_usd=1.25,
+        price_file="prices.json",
+        grading_mode="default",
+        model="fallback-model",
+        max_attempts_total=4,
+        codex_model="fixture-model",
+        env_mode="kata",
+        block_on_agent_eval=partial,
+        include_revision=True,
+    )
+    observed = []
+
+    def harbor(self, request, **kwargs):
+        observed.append(
+            (
+                request.skill_workspace_mode,
+                request.env_mode,
+                request.agent_model,
+                request.n_attempts,
+                request.max_attempts_total,
+                request.evaluated_source,
+            )
+        )
+        assert (request.agents, request.model, request.n_concurrent, request.max_agents, request.max_cases) == (
+            "codex",
+            "fallback-model",
+            3,
+            1,
+            2,
+        )
+        assert (
+            request.pass_threshold,
+            request.timeout_multiplier,
+            request.stop_on_pass,
+            request.skip_baseline,
+            request.agent_runtime_preflight,
+            request.tolerate_baseline_timeouts,
+        ) == (0.7, 1.5, False, True, False, False)
+        assert (
+            request.max_agent_tokens,
+            request.max_judge_calls,
+            request.max_cost_usd,
+            request.price_file,
+            request.grading_mode,
+        ) == (1024, 0, 1.25, tmp_path / "prices.json", "default")
+        run = request.results_dir / skill.name / "20260101_120000"
+        arm = run / "codex/with-skill"
+        arm.mkdir(parents=True)
+        (arm / "summary.json").write_text(
+            json.dumps(
+                {
+                    "metrics": ["security"],
+                    "scores": {"security": 0.75},
+                    "execution_status": "succeeded",
+                    "expected_attempts": 1,
+                    "scored_attempts": 1,
+                    "num_trials": 1,
+                }
+            )
+        )
+        (run / "run_config.json").write_text("{}")
+        payload = {
+            "run_id": run.name,
+            "run_dir": str(run),
+            "agents": {"codex": {}},
+            "execution_status": "failed" if partial else "succeeded",
+            "execution_errors": ["second trial interrupted"] if partial else [],
+        }
+        (run / "result.json").write_text(json.dumps(payload))
+        return payload
+
+    monkeypatch.setattr(EvaluationService, "evaluate", harbor)
+    token = sandbox_preflight.set(lambda: None)
+    try:
+        result = CliRunner().invoke(cli, [*options.arguments(ctx), "--results-dir", str(tmp_path / "runs")])
+    finally:
+        sandbox_preflight.reset(token)
+    assert observed == [("isolated", "kata", ("codex=fixture-model",), 2, 4, {"commit": ctx.revision})]
+    assert result.exit_code == int(partial), result.output
+    report = json.loads(next(out.glob("*.json")).read_text())
+    assert report["evaluated_source"]["commit"] == ctx.revision
+    assert report["tier3"]["agents"]["codex"]["conditions"]["with_skill"]["scored_attempts"] == 1
+    assert ("second trial interrupted" in str(report["results"])) == partial
