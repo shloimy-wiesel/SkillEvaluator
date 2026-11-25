@@ -1,0 +1,68 @@
+[
+  {
+    "key": "create-eval-dataset",
+    "status": "partial",
+    "equivalent": "Review a generation preview from saved chat settings; retained results must be inside the selected skill snapshot and new trajectory collection is not enabled.",
+    "evidence": "tests/studio/test_datasets.py::test_model_preview_uses_only_saved_chat_credentials"
+  },
+  {
+    "key": "tier3 create-eval-dataset",
+    "status": "partial",
+    "equivalent": "Same generator as the root command; preview then apply, with no live trajectory collection.",
+    "evidence": "tests/studio/test_datasets.py::test_generate_and_validate_local_draft"
+  },
+  {
+    "key": "create-eval-dataset:no_llm",
+    "status": "implemented",
+    "equivalent": "Use local templates to generate without provider credentials.",
+    "evidence": "tests/studio/test_datasets.py::test_generate_and_validate_local_draft"
+  },
+  {
+    "key": "create-eval-dataset:grounding",
+    "status": "partial",
+    "equivalent": "Skill grounding exercised with local templates; trace and intent paths not covered by this browser test.",
+    "evidence": "tests/studio/test_datasets.py::test_generate_and_validate_local_draft"
+  },
+  {
+    "key": "tier3 validate",
+    "status": "partial",
+    "equivalent": "Validate the private skill snapshot and inspect dataset checks. This journey covers the default contract only.",
+    "evidence": "tests/studio/test_datasets.py::test_generate_and_validate_local_draft"
+  },
+  {
+    "key": "tier3 migrate-dataset",
+    "status": "partial",
+    "equivalent": "Convert a legacy collection and publish a new dataset without altering the source. Destinations are constrained to dataset paths.",
+    "evidence": "tests/studio/test_datasets.py::test_migrate_legacy_then_review_routing_without_losing_authored_fields"
+  },
+  {
+    "key": "tier3 migrate-dataset:destination",
+    "status": "partial",
+    "equivalent": "Stage a new JSON/YAML destination under the selected skill; verified for canonical JSON.",
+    "evidence": "tests/studio/test_datasets.py::test_migrate_legacy_then_review_routing_without_losing_authored_fields"
+  },
+  {
+    "key": "tier3 import-traces",
+    "status": "partial",
+    "equivalent": "Upload a bounded session export and review redacted candidates in the private draft. Output is draft-scoped.",
+    "evidence": "tests/studio/test_datasets.py::test_review_export_before_publishing_redacted_fixtures"
+  },
+  {
+    "key": "tier3 import-traces:export",
+    "status": "implemented",
+    "equivalent": "Choose an export file from the browser rather than a host path.",
+    "evidence": "tests/studio/test_datasets.py::test_review_export_before_publishing_redacted_fixtures"
+  },
+  {
+    "key": "tier3 accept-traces",
+    "status": "partial",
+    "equivalent": "Publish an independently reviewed expectation and its fixtures. Native Harbor opt-in and observed-output decisions are not exercised in this journey.",
+    "evidence": "tests/studio/test_datasets.py::test_review_export_before_publishing_redacted_fixtures"
+  },
+  {
+    "key": "tier3 accept-traces:dry_run",
+    "status": "implemented",
+    "equivalent": "Preview additions before staging them; inspection does not consume the candidates.",
+    "evidence": "tests/studio/test_datasets.py::test_review_export_before_publishing_redacted_fixtures"
+  }
+]

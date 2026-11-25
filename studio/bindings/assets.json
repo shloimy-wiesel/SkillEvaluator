@@ -1,0 +1,242 @@
+[
+  {
+    "key": "init-custom-grader",
+    "status": "implemented",
+    "equivalent": "Review generated changes and publish one commit",
+    "evidence": "tests/studio/test_assets.py::test_custom_grader_preview_and_push"
+  },
+  {
+    "key": "init-custom-grader:skill_path",
+    "status": "implemented",
+    "equivalent": "Connected skill and branch",
+    "evidence": "tests/studio/test_assets.py::test_custom_grader_preview_and_push"
+  },
+  {
+    "key": "init-custom-grader:mode",
+    "status": "implemented",
+    "equivalent": "Canonical grading mode",
+    "evidence": "tests/studio/test_assets.py::test_custom_grader_preview_and_push"
+  },
+  {
+    "key": "init-custom-grader:language",
+    "status": "implemented",
+    "equivalent": "Python or shell",
+    "evidence": "tests/studio/test_assets.py::test_custom_grader_preview_and_push"
+  },
+  {
+    "key": "init-custom-grader:force",
+    "status": "implemented",
+    "equivalent": "Overwrite switches the grader language",
+    "evidence": "tests/studio/test_assets.py::test_custom_grader_preview_and_push"
+  },
+  {
+    "key": "init-custom-grader:no_config",
+    "status": "implemented",
+    "equivalent": "Clearing configuration preserves the existing mode",
+    "evidence": "tests/studio/test_assets.py::test_custom_grader_preview_and_push"
+  },
+  {
+    "key": "tier3 init-custom-grader",
+    "status": "implemented",
+    "equivalent": "Review generated changes and publish one commit",
+    "evidence": "tests/studio/test_assets.py::test_custom_grader_preview_and_push"
+  },
+  {
+    "key": "tier3 init-custom-grader:skill_path",
+    "status": "implemented",
+    "equivalent": "Connected skill and branch",
+    "evidence": "tests/studio/test_assets.py::test_custom_grader_preview_and_push"
+  },
+  {
+    "key": "tier3 init-custom-grader:mode",
+    "status": "implemented",
+    "equivalent": "Canonical grading mode",
+    "evidence": "tests/studio/test_assets.py::test_custom_grader_preview_and_push"
+  },
+  {
+    "key": "tier3 init-custom-grader:language",
+    "status": "implemented",
+    "equivalent": "Python or shell",
+    "evidence": "tests/studio/test_assets.py::test_custom_grader_preview_and_push"
+  },
+  {
+    "key": "tier3 init-custom-grader:force",
+    "status": "implemented",
+    "equivalent": "Overwrite switches the grader language",
+    "evidence": "tests/studio/test_assets.py::test_custom_grader_preview_and_push"
+  },
+  {
+    "key": "tier3 init-custom-grader:no_config",
+    "status": "implemented",
+    "equivalent": "Clearing configuration preserves the existing mode",
+    "evidence": "tests/studio/test_assets.py::test_custom_grader_preview_and_push"
+  },
+  {
+    "key": "init-harbor-task",
+    "status": "implemented",
+    "equivalent": "Review generated changes and publish one commit",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "init-harbor-task:skill_path",
+    "status": "implemented",
+    "equivalent": "Connected skill and branch",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "init-harbor-task:force",
+    "status": "implemented",
+    "equivalent": "Replace the existing reviewed native task",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "init-harbor-task:case_id",
+    "status": "implemented",
+    "equivalent": "Case directory and manifest entry",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "init-harbor-task:mode",
+    "status": "implemented",
+    "equivalent": "Canonical native grading mode",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "init-harbor-task:language",
+    "status": "implemented",
+    "equivalent": "Starter grader and test script language",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "init-harbor-task:with_config",
+    "status": "implemented",
+    "equivalent": "Opt into native_harbor configuration",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "tier3 init-harbor-task",
+    "status": "implemented",
+    "equivalent": "Review generated changes and publish one commit",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "tier3 init-harbor-task:skill_path",
+    "status": "implemented",
+    "equivalent": "Connected skill and branch",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "tier3 init-harbor-task:force",
+    "status": "implemented",
+    "equivalent": "Replace the existing reviewed native task",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "tier3 init-harbor-task:case_id",
+    "status": "implemented",
+    "equivalent": "Case directory and manifest entry",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "tier3 init-harbor-task:mode",
+    "status": "implemented",
+    "equivalent": "Canonical native grading mode",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "tier3 init-harbor-task:language",
+    "status": "implemented",
+    "equivalent": "Starter grader and test script language",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "tier3 init-harbor-task:with_config",
+    "status": "implemented",
+    "equivalent": "Opt into native_harbor configuration",
+    "evidence": "tests/studio/test_assets.py::test_native_harbor_starter"
+  },
+  {
+    "key": "tier3 validate-grader",
+    "status": "partial",
+    "equivalent": "Project suites support preflight; live qualification runs only the shipped suite.",
+    "evidence": "tests/studio/test_assets.py::test_run_shipped_verifier_retains_attempt_evidence"
+  },
+  {
+    "key": "tier3 validate-grader:suite_dir",
+    "status": "partial",
+    "equivalent": "Select a committed manifest for preflight; only the bundled suite is available for live qualification.",
+    "evidence": "tests/studio/test_assets.py::test_authored_suite_is_checked_as_evidence_only"
+  },
+  {
+    "key": "tier3 validate-grader:check_suite",
+    "status": "implemented",
+    "equivalent": "Verify evidence without inference.",
+    "evidence": "tests/studio/test_assets.py::test_check_selected_reference_cases"
+  },
+  {
+    "key": "tier3 validate-grader:case_ids",
+    "status": "implemented",
+    "equivalent": "Repeated case IDs as separate lines.",
+    "evidence": "tests/studio/test_assets.py::test_check_selected_reference_cases"
+  },
+  {
+    "key": "tier3 validate-grader:split",
+    "status": "implemented",
+    "equivalent": "Filter by labelled split.",
+    "evidence": "tests/studio/test_assets.py::test_check_selected_reference_cases"
+  },
+  {
+    "key": "tier3 validate-grader:qualification_policy",
+    "status": "implemented",
+    "equivalent": "Select a committed assessment policy and inspect the not_run receipt.",
+    "evidence": "tests/studio/test_assets.py::test_qualification_insufficient_coverage_never_spends"
+  },
+  {
+    "key": "tier3 validate-grader:as_json",
+    "status": "implemented",
+    "equivalent": "Retained JSON export.",
+    "evidence": "tests/studio/test_assets.py::test_check_selected_reference_cases"
+  },
+  {
+    "key": "tier3 validate-grader:output",
+    "status": "implemented",
+    "equivalent": "Private output per run; download attempt evidence as a ZIP.",
+    "evidence": "tests/studio/test_assets.py::test_run_shipped_verifier_retains_attempt_evidence"
+  },
+  {
+    "key": "tier3 validate-grader:repeats",
+    "status": "partial",
+    "equivalent": "Number of trials, capped at 20.",
+    "evidence": "tests/studio/test_assets.py::test_run_shipped_verifier_retains_attempt_evidence"
+  },
+  {
+    "key": "tier3 validate-grader:concurrency",
+    "status": "partial",
+    "equivalent": "Simultaneous attempts, capped at four.",
+    "evidence": "tests/studio/test_assets.py::test_run_shipped_verifier_retains_attempt_evidence"
+  },
+  {
+    "key": "tier3 validate-grader:timeout",
+    "status": "partial",
+    "equivalent": "Per-attempt seconds, capped at 600.",
+    "evidence": "tests/studio/test_assets.py::test_run_shipped_verifier_retains_attempt_evidence"
+  },
+  {
+    "key": "tier3 validate-grader:max_false_pass_rate",
+    "status": "partial",
+    "equivalent": "Optional numeric gate; policy incompatibility verified, inference-based gate crossing not exercised.",
+    "evidence": "tests/studio/test_assets.py::test_qualification_insufficient_coverage_never_spends"
+  },
+  {
+    "key": "tier3 validate-grader:max_false_fail_rate",
+    "status": "partial",
+    "equivalent": "Optional numeric gate; policy incompatibility verified, inference-based gate crossing not exercised.",
+    "evidence": "tests/studio/test_assets.py::test_qualification_insufficient_coverage_never_spends"
+  },
+  {
+    "key": "tier3 validate-grader:max_unjudgeable_rate",
+    "status": "partial",
+    "equivalent": "Optional numeric gate; policy incompatibility verified, inference-based gate crossing not exercised.",
+    "evidence": "tests/studio/test_assets.py::test_qualification_insufficient_coverage_never_spends"
+  }
+]
