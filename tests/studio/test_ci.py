@@ -158,6 +158,26 @@ def second_skill(tmp_path, remote):
     subprocess.run(["git", "push", str(remote), "main"], cwd=seed, check=True)
 
 
+def test_live_status_remains_available_when_scan_roots_are_ambiguous(page, github_remote, tmp_path):
+    seed = tmp_path / "seed"
+    (seed / "SKILL.md").write_text("# Root skill\n")
+    subprocess.run(["git", "add", "SKILL.md"], cwd=seed, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=a", "-c", "user.email=a@example.com", "commit", "-m", "root skill"],
+        cwd=seed,
+        check=True,
+    )
+    subprocess.run(["git", "push", str(tmp_path / "server/handbook.git"), "main"], cwd=seed, check=True)
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *github_remote, skill="skills/triage")
+        page.get_by_role("link", name="Repository CI").click()
+        page.get_by_role("link", name="Advanced CI setup").click()
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("cannot be safely isolated")
+        page.get_by_role("button", name="Read live status").click(timeout=1500)
+        playwright.expect(page.get_by_role("status")).to_contain_text("Latest scan: failure")
+
+
 def test_gitlab_all_tier_review(page, private_remote, tmp_path):
     remote = tmp_path / "server/handbook.git"
     second_skill(tmp_path, remote)

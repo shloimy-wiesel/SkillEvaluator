@@ -17,6 +17,7 @@ interface Advanced {
   form: Defaults;
   releases: string[];
   roots: string[];
+  discovery_error: string;
   notice?: string;
   jobs?: { name: string; status: string; url: string }[];
   pipelines: { id: string; status: string }[];
@@ -103,6 +104,7 @@ const AdvancedCI = ({ data, path }: { data: Advanced; path: string }) => {
   const { result, problem, busy, onSubmit } = useCIAction<Advanced>(path);
   const view = result ?? data;
   const { project, form } = data;
+  const diagnostic = problem || view.discovery_error;
 
   return (
     <>
@@ -116,7 +118,7 @@ const AdvancedCI = ({ data, path }: { data: Advanced; path: string }) => {
           <pre>{view.notice}</pre>
         </output>
       )}
-      {problem && <p role="alert">{problem}</p>}
+      {diagnostic && <p role="alert">{diagnostic}</p>}
       <Jobs view={view} />
       <form onSubmit={onSubmit}>
         <input type="hidden" name="branch" value={project.branch} />

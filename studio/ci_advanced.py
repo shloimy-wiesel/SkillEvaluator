@@ -151,6 +151,7 @@ class AdvancedView(BaseModel):
     releases: list[str]
     form: Options
     roots: list[str] = []
+    discovery_error: str = ""
     notice: str | None = None
     result: Review | None = None
     digest: str | None = None
@@ -177,15 +178,13 @@ def advanced(request: Request, project_id: str):
 @router.get(API + "/advanced")
 def options(request: Request, project_id: str) -> AdvancedView:
     ws, p = project(request, project_id)
+    receipt = feedback(request, p, "advanced_ci")
     try:
-        return view(
-            request,
-            p,
-            roots=[r["root"] for r in ci.git_helpers.discover(ws.checkout(p))],
-            **feedback(request, p, "advanced_ci"),
-        )
+        roots = [r["root"] for r in ci.git_helpers.discover(ws.checkout(p))]
     except ci.SetupError as exc:
-        raise rejected(exc) from exc
+        # Root discovery is advisory; live status does not require a valid scan layout.
+        return view(request, p, discovery_error=str(exc), **receipt)
+    return view(request, p, roots=roots, **receipt)
 
 
 @router.post(API + "/advanced", response_model=AdvancedView | Publication)
