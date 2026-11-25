@@ -15,6 +15,11 @@ route name)` in `PROJECT_LINKS` for project overview navigation. A named
 project entry route must take `project_id`. Prefer a feature-owned prefix
 such as `/projects/{project_id}/datasets` and unique route names.
 
+Place the route name in the appropriate ordered task in `studio/navigation.py`
+to surface it under Authoring, Evaluation or Results. Unclassified registered
+entries remain reachable under Project tools. `base.html` provides a project
+breadcrumb when the template context contains `project`.
+
 ```python
 router = APIRouter(prefix="/projects/{project_id}/datasets")
 
@@ -58,6 +63,8 @@ redirect after a successful save. Do not introduce template-level secrets.
   stderr. Do not store host paths or accept executable config through forms.
 
 ## Run the browser journey
+
+See [RUNS.md](RUNS.md) for the queue, evaluator adapter, rerun and artifact contracts.
 
 ```sh
 pip install pytest playwright==1.65.2

@@ -25,7 +25,6 @@
 {% if index >= 0 %}<button formnovalidate name="action" value="remove">Remove case</button>{% endif %}</form>
 {% endmacro %}
 <div class="datasets">
-<a href="{{ url_for('project', project_id=project.id) }}">← {{ project.name }}</a>
 <p class="eyebrow">Evaluation design / {{ draft.state.branch if draft else project.branch }}</p>
 <h1>Datasets</h1><p class="lede">Design the cases that put your skill to the test.</p>
 {% if error %}<p role="alert" class="error">{{ error }}</p>{% endif %}

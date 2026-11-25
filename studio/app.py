@@ -1,6 +1,7 @@
 """Studio ASGI application factory."""
 
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Form, HTTPException, Request
@@ -8,17 +9,28 @@ from fastapi.responses import PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .extensions import PROJECT_LINKS, ROUTERS
+from .extensions import JOB_DEFINITIONS, PROJECT_LINKS, ROUTERS
+from .jobs import Jobs
+from .navigation import task_groups
 from .workspace import Workspace, WorkspaceError
 
 PACKAGE = Path(__file__).parent
 
 
-def create_app(data_dir=None, *, routers=()):
-    app = FastAPI(title="SkillEvaluator Studio")
+def create_app(data_dir=None, *, routers=(), job_definitions=()):
+    @asynccontextmanager
+    async def lifespan(app):
+        app.state.jobs = Jobs(app.state.workspace, (*JOB_DEFINITIONS, *job_definitions))
+        try:
+            yield
+        finally:
+            app.state.jobs.pool.shutdown(cancel_futures=True)
+
+    app = FastAPI(title="SkillEvaluator Studio", lifespan=lifespan)
     workspace = app.state.workspace = Workspace(data_dir or os.environ.get("STUDIO_DATA_DIR", "/data"))
     templates = app.state.templates = Jinja2Templates(directory=PACKAGE / "templates")
     templates.env.globals["project_links"] = PROJECT_LINKS
+    templates.env.filters["task_groups"] = task_groups
     app.mount("/static", StaticFiles(directory=PACKAGE / "static"), name="static")
 
     @app.middleware("http")

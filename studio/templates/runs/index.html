@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}Evaluation runs{% endblock %}{% block content %}
+<h1>Evaluation runs</h1>
+<section class="panel"><h2>Keyless Tier 1</h2><p>Check schema and Unicode in the selected skill. No model, external scanner or repository script runs.</p>
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+<form method="post"><label for="sha">Commit SHA</label><input id="sha" name="sha" value="{{ sha|default(project.revision) }}" required>
+<label for="checks">Static checks</label><select id="checks" name="checks">
+{% for key,label in [('both','Schema and Unicode'),('schema','Schema only'),('unicode','Unicode only')] %}
+<option value="{{ key }}"{% if checks == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+<button>Queue static checks</button></form></section>
+<section class="panel" id="history"><h2>Run history</h2>{% for run in runs %}<article>
+<a href="{{ url_for('run_detail',project_id=project.id,run_id=run.id) }}">{{ run.sha }}</a>
+<p>{{ run.kind }} · {{ run.status }} · {{ run.created }} UTC</p></article>{% else %}<p class="empty"><b>No runs yet.</b> Queue a check to see its results here.</p>{% endfor %}</section>
+{% endblock %}
