@@ -1,4 +1,6 @@
 """Install production feature routers and their named project entry routes here."""
 
-ROUTERS = ()
-PROJECT_LINKS = ()  # (label, route_name) pairs; each named route takes project_id.
+from .providers import router as provider_router
+
+ROUTERS = (provider_router,)
+PROJECT_LINKS = (("Provider settings", "provider_settings"),)
