@@ -28,6 +28,7 @@ def connect_with_tokens(page, base, config):
     page.get_by_role("link", name="GitLab access").click()
     page.get_by_label("GitLab API token").fill(config["api_token"])
     page.get_by_role("button", name="Save API token").click()
+    playwright.expect(page.get_by_role("status")).to_have_text("API token saved.")
     return detail
 
 

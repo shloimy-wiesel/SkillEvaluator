@@ -260,6 +260,7 @@ def gitlab_host(page, private_remote, api_handler, tmp_path, monkeypatch, *, req
             page.get_by_role("link", name="GitLab access").click()
             page.get_by_label("GitLab API token").fill(api_token)
             page.get_by_role("button", name="Save API token").click()
+            playwright.expect(page.get_by_role("status")).to_have_text("API token saved.")
             page.goto(detail)
 
     sha = subprocess.check_output(["git", "rev-parse", "main"], cwd=remote, text=True).strip()
