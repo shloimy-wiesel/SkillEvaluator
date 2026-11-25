@@ -54,7 +54,7 @@ def before_push():
 
 
 @pytest.fixture
-def private_remote(tmp_path, loopback_tls, monkeypatch, before_push):
+def private_remote(tmp_path, loopback_tls, monkeypatch, before_push, api_handler):
     origin = tmp_path / "server"
     origin.mkdir()
     seed = tmp_path / "seed"
@@ -77,6 +77,8 @@ def private_remote(tmp_path, loopback_tls, monkeypatch, before_push):
 
     class Handler(SimpleHTTPRequestHandler):
         def do_GET(self):
+            if api_handler and api_handler[0](self):
+                return
             if self.headers.get("Authorization") == f"Basic {expected}":
                 path, _, query = self.path.partition("?")
                 if query == "service=git-receive-pack" and before_push:

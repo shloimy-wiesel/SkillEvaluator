@@ -17,6 +17,9 @@ contain a regular `SKILL.md` on the remote's default branch. Private projects
 also need a username and access token: for GitHub use your account and a token
 with repository contents read access; for GitLab use your username and a
 token with `read_repository`. Enter credentials in the separate fields.
+For a private GitLab installation, expand **Self-managed GitLab** and enter
+the installation URL (including any port and prefix), not the group URL.
+See [GitLab access and TLS](GITLAB.md) for private CA and API settings.
 
 Open a project to see its folder, checked-out branch, and full revision.
 **Check remote access** verifies the saved credentials without updating the checkout.

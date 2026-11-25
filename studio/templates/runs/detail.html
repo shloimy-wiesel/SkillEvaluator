@@ -38,8 +38,7 @@
 {% endfor %}
 {% if report.studio_artifacts %}<h2>Run files</h2><ul>{% for name in report.studio_artifacts %}
 <li><a href="{{ url_for('overlap_artifact', project_id=project.id, run_id=run.id, name=name) }}">{{ name }}</a></li>
-{% endfor %}</ul>{% endif %}{% endif %}
-{% endif %}
+{% endfor %}</ul>{% endif %}{% endif %}{% endif %}
 {% if run.status not in ('queued','running') %}
 <form method="post" action="{{ url_for('run_again', project_id=project.id, run_id=run.id) }}">
 <button>Rerun saved inputs</button></form>{% endif %}
