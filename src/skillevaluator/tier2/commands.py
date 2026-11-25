@@ -16,6 +16,8 @@ from skillevaluator.tier2.results import guarded_results
 from skillevaluator.validators.similarity import SimilarityValidator
 
 if TYPE_CHECKING:
+    from skillevaluator.embedding.client import EmbeddingClient
+    from skillevaluator.inference import LLMClient
     from skillevaluator.models.result import ValidationResult
 
 
@@ -36,6 +38,8 @@ def run_similarity_check(
     save_cache: Path | None = None,
     max_entries: int = SIMILARITY_DEFAULT_MAX_ENTRIES,
     max_scalar_comparisons: int = SIMILARITY_DEFAULT_MAX_SCALAR_COMPARISONS,
+    embedding_client: EmbeddingClient | None = None,
+    repository_root: Path | None = None,
 ) -> list[ValidationResult]:
     # Caller option errors have safe diagnostics and should not become provider failures.
     validate_max_entries(max_entries)
@@ -52,6 +56,8 @@ def run_similarity_check(
             content_type=None if content_type == "auto" else content_type,
             full_body=full_body,
             max_entries=max_entries,
+            **({"repository_root": repository_root} if repository_root is not None else {}),
+            **({"embedding_client": embedding_client} if embedding_client is not None else {}),
             max_scalar_comparisons=max_scalar_comparisons,
         )
         return validator.validate(content_path)
@@ -65,12 +71,16 @@ def run_context_optimization_check(
     threshold: float = 0.80,
     model: str | None = None,
     llm_model: str | None = None,
+    chat_client: LLMClient | None = None,
+    embedding_client: EmbeddingClient | None = None,
 ) -> list[ValidationResult]:
     def _run() -> ValidationResult:
         validator = IntraSkillValidator(
             threshold=threshold,
             embedding_model=model,
             llm_model=llm_model,
+            **({"chat_client": chat_client} if chat_client is not None else {}),
+            **({"embedding_client": embedding_client} if embedding_client is not None else {}),
         )
         return validator.validate(skill_path)
 

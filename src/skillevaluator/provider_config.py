@@ -634,7 +634,9 @@ def resolve_llm_provider(environ: Mapping[str, str] | None = None) -> ProviderCo
 
 def resolve_embedding_provider(environ: Mapping[str, str] | None = None) -> ProviderConfig:
     """Resolve the embedding provider used by Tier 2 semantic overlap checks."""
-    env = _environment(environ)
+    from skillevaluator.embedded import embedding_environment
+
+    env = _environment(environ if environ is not None else embedding_environment.get())
     provider = (
         env.get("SKILL_EVAL_EMBEDDING_PROVIDER")
         or env.get("SKILL_EVAL_LLM_PROVIDER")

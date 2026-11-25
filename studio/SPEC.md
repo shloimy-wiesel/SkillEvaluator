@@ -26,6 +26,7 @@ Open a self-hosted browser workspace, pick a project and branch, edit the skill 
 14. As an advanced user, I want each CLI capability reachable without entering commands, including experiments, scaffolding, CI setup, artifact review, and external metrics.
 15. As a maintainer, I want an inventory checked against the shipped CLI, so new options cannot silently go missing.
 16. As an operator, I want one documented container deployment with persistent storage, so recreating a container preserves projects, secrets, and history.
+17. As a self-managed GitLab author (#18), I can connect, edit and push to a nested project behind a private CA, custom port and install prefix. Studio remembers the instance per project and uses separate API credentials for project checks, MR and pipeline workflows.
 
 ## Implementation Decisions
 

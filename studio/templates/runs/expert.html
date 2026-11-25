@@ -1,0 +1,38 @@
+{% extends "base.html" %}{% block title %}{{ label }}{% endblock %}{% block content %}
+<p><a href="{{ url_for('runs_index', project_id=project.id) }}">Evaluation runs</a></p>
+<h1>{{ label }}</h1>
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+<p>Evaluate {{ project.folder }} at the selected commit. Leave optional fields empty for evaluator defaults.</p>
+{% if action == 'rubric-eval' or 'llm' in fields or 'llm_verify' in fields %}
+<p>{% if action == 'rubric-eval' %}Rubric evaluation requires{% else %}Model-backed checks use{% endif %}
+the saved <a href="{{ url_for('provider_settings', project_id=project.id) }}">chat provider</a>.
+{% if action in ('tier1','tier1-validate') %}The default uses chat when configured.{% endif %}
+Key-backed providers require the chat SDK.</p>{% endif %}
+<form method="get"><label>Commit SHA<input name="sha" value="{{ sha }}" required></label>
+<button>Load commit files</button></form>
+<form method="post">
+<input type="hidden" name="sha" value="{{ sha }}">
+<p>Loaded revision: <code>{{ sha }}</code></p>
+{% if 'tiers' in fields %}<label>Tiers<select name="tiers" required><option value="">Choose tiers</option><option value="1">Tier 1 only</option><option value="1,2">Tier 1 and Tier 2</option></select></label>
+<label>Tier 2 gate<select name="block_on_dedup"><option value="">Evaluator default</option><option value="true">Blocking</option><option value="false">Advisory</option></select></label>
+<label><input type="checkbox" name="include_revision" value="true">Record the pinned revision on the benchmark card</label>
+<p>Tier 2 requires both embeddings and chat profiles. Tier 3 and the unrestricted default pipeline require a staged Harbor runtime and are unavailable here.</p>{% endif %}
+{% if 'checks' in fields %}<label>Checks to run<select multiple name="checks">{% for c in checks %}<option>{{ c }}</option>{% endfor %}</select></label>
+<label>Checks to skip<select multiple name="skip">{% for c in checks + ('secrets',) %}<option>{{ c }}</option>{% endfor %}</select></label>
+<label>Policy profile<select name="profile"><option value="">Evaluator default</option>{% for p in ('default','registry','external') %}<option>{{ p }}</option>{% endfor %}</select></label>
+<label>Previous version<input name="previous_version"></label>{% endif %}
+{% if 'checks' in fields or action == 'security-scan' %}<p>Keyless scans use installed scanners. Managed downloads and SkillSpector's separate model transport are unavailable. Missing scanner evidence is reported as such.</p>{% endif %}
+{% if 'min_score' in fields %}<label>Minimum score<input type="number" min="0" max="100" name="min_score"></label>{% endif %}
+{% if 'llm' in fields %}<label>Model-backed checks<select name="llm"><option value="">Evaluator default</option><option value="true">Enable (chat provider)</option><option value="false">Disable</option></select></label>{% endif %}
+{% for key,title in [('fail_fast','Stop on first failure'),('continue_on_failure','Continue on failure'),('verbose','Verbose output'),('llm_verify','Verify findings with chat provider')] if key in fields %}<label><input type="checkbox" name="{{ key }}" value="true">{{ title }}</label>{% endfor %}
+{% for key,title in files.items() if key in fields %}<label>{{ title }}<select name="{{ key }}"><option value="">Evaluator default</option>{% for path in choices %}<option>{{ path }}</option>{% endfor %}</select></label>{% endfor %}
+{% if 'harness' in fields %}<label for="harness">Harnesses</label><select id="harness" name="harness" multiple>{% for h in harnesses %}<option>{{ h }}</option>{% endfor %}</select>{% endif %}
+{% if action == 'harness-check' %}
+<p>Advisory compatibility for packaged profiles. An omitted selection checks all harnesses.</p>
+<label>Context tokens<input type="number" min="0" name="context_tokens"></label>
+{% for key,title in [('write_json','Write harness JSON'),('headless','Headless mode'),('explicit_invocation','Explicit invocation'),('custom_provider','Custom provider')] %}
+<label><input type="checkbox" name="{{ key }}" value="true">{{ title }}</label>{% endfor %}
+<details><summary>Harness versions</summary>{% for h in harnesses %}<label>{{ h }} version<input name="version_{{ h }}"></label>{% endfor %}</details>
+{% endif %}
+{% if 'reports' in fields %}<label>Reports<select name="reports" multiple>{% for fmt in formats %}<option>{{ fmt }}</option>{% endfor %}</select></label>{% endif %}
+<button>Queue check</button></form>{% endblock %}

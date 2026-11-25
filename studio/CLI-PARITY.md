@@ -15,6 +15,10 @@ The [machine-readable CLI surface](../tests/golden/cli_surface.json) is the opti
 | Configure repository automation | `ci init`, `ci status`, `ci demo` |
 | Inspect the installation | Global verbosity, installed version, contextual help, command-local verbosity |
 
+The [Tier 2 overlap guide](OVERLAP.md) describes the implemented direct
+workflow, focused routes/aliases, catalog inputs, provider prerequisites
+and report equivalents. Option-level evidence: `bindings/overlap.json`.
+
 ## Acceptance criteria for every row
 
 - Map every parameter to a labelled control or a documented browser equivalent, including inherited defaults, paired switches, aliases, repeated values, positional arguments, file types, and backend constraints. File selectors refer to authorized project files or artifacts.
@@ -50,17 +54,40 @@ No release/wheel-complete claim is made by this report.
 
 ## Repository CI journey
 
-On a connected GitHub-compatible project, open **Repository CI**. Review a
-new Tier 1 checks-only workflow for the selected branch and skill folder,
-then publish the exact generated contents. The branch push can start CI.
-Existing scans are preserved. Check status compares the remote tip to your
-snapshot; a configured scan or publisher is not a passing run. Inspect run
-results on the Git host. From the up-to-date default branch, review the demo
-comment, publish the dedicated demo branch, and confirm the PR on the host.
-The demo does not switch your active checkout. If that branch already exists,
-inspect it on the Git host. All transport uses the saved project's Git access.
+Open **Repository CI** from a connected project. Quick setup writes a GitHub
+Tier 1 checks-only caller. **Advanced CI setup** uses the installed CLI's
+release descriptors, discovery, validation and workflow renderers. Choose the
+scan roots, runner and model settings, review each file and download the plan.
+Publishing re-renders it against the same revision and checks the remote tip.
 
-Remaining: multiple scan roots, hosted report and Pages configuration, setup
-PR automation, live provider API results, automatic demo PR creation, GitLab
-and all-tier routing/options. No custom release descriptors, host paths,
-commands, or submitted YAML are accepted.
+| Selection | Result / prerequisite |
+| --- | --- |
+| GitHub Tier 1 | Pinned or stable checks. Advanced setup defaults to hosted reports; select checks for artifact-only evaluation. |
+| GitHub or GitLab all tiers | Pinned checks and trusted PR/MR feedback linking retained CI artifacts. Configure provider secrets, protected environment and runner; commit native datasets for Tier 3. Benchmark publication is GitHub-only. |
+| Preview | Shows generated files without writing to the remote or changing host settings. An existing custom GitLab root gets the CLI's manual merge instructions, not an automatic replacement. |
+| Save | Commits the reviewed files to the open branch. This may start CI. Unlike local CLI save, hosted workflow publication requires live privacy/ownership preflight. |
+| PR | Creates a setup branch and authenticated request. GitHub Tier 1 uses the wizard's admin checks and can provision Actions, Pages, the report history and deployment environment. Private Pages must already have verified private visibility. |
+| Live status | CLI status reads the live default branch, host settings and latest run or pipeline. Configuration alone is not a verified scan. |
+| Demo | On the current default branch, review a comment-only change to a tracked skill under the configured scan roots; create its PR/MR without switching your project. |
+
+Tokens come from the saved project; grant the Git and API permissions needed
+for the selected action. GitHub host operations require `gh` (included in the
+Studio image); GitLab uses the configured installation root (including port and path prefix),
+project CA and a **separate project API token** from GitLab access. Studio
+uses `studio.gitlab.instance(workspace, project)` (#18): `root`, `namespace`,
+`web_url` and project-bound `request(method, suffix, query=..., payload=...)`.
+Live GitLab operations require that integration. No fallback to gitlab.com
+or forwarding of Git credentials to an API. Pipeline/MR links use the
+configured project and numeric host IDs. Private runners also need their own CA trust. GitLab
+before 18.4 requires a project Reporter/read_api admission token. Provider
+credentials and protected environments belong to the CI host. Studio neither
+installs runner dependencies nor verifies model execution during setup.
+
+For a candidate release, install an operator-reviewed CLI descriptor under
+`$STUDIO_DATA_DIR/ci-releases/NAME.json` (letters, digits, hyphens or underscores;
+16 KiB maximum). Authors choose the name, never a host path. Only literal
+repository selectors and typed runner/model options are accepted. Studio reopens an existing all-tier setup or demo request only if its base,
+branch tip and complete Git tree still match the reviewed change. A failed API request after a successful push leaves the
+review branch available. Hosted configuration can also finish partially; the
+wizard reports confirmed steps. No live hosted evaluation is claimed by the
+fixture tests.

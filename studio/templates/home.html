@@ -16,4 +16,7 @@
 <label for="username">Git username</label><input id="username" name="username" autocomplete="off">
 <label for="token">Access token</label><input id="token" name="token" type="password" autocomplete="new-password">
 <p class="hint">Use a token with repository read access to connect.</p></details>
+<details><summary>Self-managed GitLab</summary>
+<label for="gitlab-root">GitLab installation URL</label><input id="gitlab-root" type="url" name="gitlab_root" placeholder="https://git.example.net:8443/forge">
+<label for="ca-pem">Private CA certificate (optional PEM bundle)</label><textarea id="ca-pem" name="ca_pem"></textarea></details>
 <button type="submit">Connect project</button></form></section></div>{% endblock %}
