@@ -17,4 +17,31 @@
 {% if checked == role %}<p role="status">{{ notice }}</p>
 {% if models %}<ul aria-label="Discovered models">{% for model in models %}<li>{{ model }}</li>{% endfor %}</ul>{% endif %}{% endif %}
 </section>{% endfor %}
+<section class="panel"><h2>Project readiness</h2>
+<p>Check this worker before an evaluation. Tier 1 needs the selected scanners, Tier 2 uses the saved provider profiles, and Tier 3 needs the runtime tools and a reachable backend. Each check stops after 90 seconds.</p>
+<form method="post" action="{{ url_for('native_readiness',project_id=project.id) }}">
+<label>Readiness action <select name="action"><option value="doctor">Check tier readiness (doctor)</option><option value="health-check">Quick health check</option><option value="tier3 doctor">Inspect the live runtime</option><option value="models">Discover chat models</option></select></label>
+<label>Tier scope <select name="tier"><option value="">Evaluator default (3)</option>{% for value in ['1','2','3','all'] %}<option>{{ value }}</option>{% endfor %}</select></label>
+<label>Scanner checks <select multiple name="checks">{% for check in scanners %}<option>{{ check }}</option>{% endfor %}</select></label>
+<label>Probe timeout (seconds) <input type="number" step="any" min="0.001" max="60" name="timeout"></label>
+<label>Catalog limit <input type="number" min="1" max="100" name="limit" placeholder="10"></label>
+<details><summary>Tier 3 runtime options</summary>
+<label>Runtime agents <select multiple name="agents">{% for agent in runtime_agents %}<option>{{ agent }}</option>{% endfor %}</select></label>
+<label>Runtime environment <select name="env_mode"><option value="">Evaluator default (Docker)</option>{% for mode in modes %}<option>{{ mode }}</option>{% endfor %}</select></label>
+<label>Kata runtime handler <input name="kata_runtime" placeholder="kata"></label>
+<label>Kata DNS address <input name="kata_dns"></label>
+<label>Execution backend (doctor) <select name="backend"><option value="">Evaluator default (Harbor)</option><option>harbor</option><option>nemo-gym</option></select></label>
+{% for agent in runtime_agents if agent != 'claude' %}<label>{{ agent }} model override <input name="{{ agent.replace('-', '_') }}_model" maxlength="256"></label>{% endfor %}
+</details>
+<label><input type="checkbox" name="verify_models" value="true">Allow provider probes</label>
+<p>Tier 2 sends a billable embedding and chat request. Tier 3 checks the selected agent models and live prerequisites. Model discovery only reads the chat catalog.</p>
+<label><input name="as_json" type="checkbox" value="true">Show redacted JSON</label>
+<button>Run selected check</button></form>
+{% if result %}{% if result.models is defined %}<p role="status">Catalog reachable: {{ result.provider }}</p>
+<ul>{% for model in result.models %}<li>{{ model.id }}{% if model.is_configured %} (configured){% endif %}</li>{% else %}<li>No matching chat models</li>{% endfor %}</ul>
+{% else %}<p role="status">Readiness: {{ result.status }}</p>
+<table><thead><tr><th>Tier</th><th>Check</th><th>Status</th><th>Details</th></tr></thead><tbody>
+{% for tier in result.tiers %}{% for row in tier.checks %}<tr><td>{{ tier.tier }}</td><td>{{ row.check }}</td><td>{{ row.status }}</td><td>{{ row.detail }}</td></tr>{% endfor %}{% endfor %}
+</tbody></table>{% endif %}<p>Evaluator exit code: {{ exit_code }}</p>{% if show_json %}<pre aria-label="Native JSON">{{ result | tojson(indent=2) }}</pre>{% endif %}{% endif %}
+</section>
 {% endblock %}

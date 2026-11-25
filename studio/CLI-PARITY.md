@@ -30,6 +30,10 @@ and report equivalents. Option-level evidence: `bindings/overlap.json`.
 
 The [evaluation assets workflow](ASSETS.md) maps the two starter generators and `tier3 validate-grader`, including the execution boundary for repository suites.
 
+[Project readiness](PROVIDERS.md#project-readiness) maps `doctor`,
+`health-check`, `tier3 doctor` and `models`, including the consent boundary,
+worker prerequisites and tested limits. See `bindings/readiness.json`.
+
 [Review a completed run](RUNS.md#review-a-completed-run) covers agent score
 comparison, reports, Harbor trajectory inspection, dashboard filters and
 multi-turn feedback. The run picker binds these readers to retained project
