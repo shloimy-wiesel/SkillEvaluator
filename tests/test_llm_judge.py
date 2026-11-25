@@ -416,8 +416,8 @@ def test_structured_judges_pass_openai_response_format_schema(
     resp = MockUrllibResponse({"choices": [{"message": {"content": valid_response}}]})
 
     monkeypatch.setattr(
-        eval_template.urllib.request,
-        "urlopen",
+        eval_template,
+        "_open_verifier_request",
         lambda req, **_: captured_requests.append(json.loads(req.data)) or resp,
     )
     template_result = getattr(eval_template, judge_name)(*call_args)
@@ -467,8 +467,8 @@ def test_structured_judges_pass_anthropic_output_config_schema(
     anth_resp = MockUrllibResponse({"content": [{"type": "text", "text": valid_response}]})
 
     monkeypatch.setattr(
-        eval_template.urllib.request,
-        "urlopen",
+        eval_template,
+        "_open_verifier_request",
         lambda req, **_: captured_requests.append(json.loads(req.data)) or anth_resp,
     )
     template_result = eval_template.judge_accuracy("question", "ground truth", "agent response")
@@ -565,7 +565,7 @@ def test_client_and_template_downgrade_on_400_422_and_memoize_across_calls(
             )
         return ok_resp
 
-    monkeypatch.setattr(eval_template.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(eval_template, "_open_verifier_request", fake_urlopen)
     tres1 = eval_template.judge_accuracy("q1", "gt1", "ans1")
     tres2 = eval_template.judge_accuracy("q2", "gt2", "ans2")
 
@@ -730,7 +730,7 @@ def test_template_model_fallback_isolates_schema_memoization_per_model(
             )
         return ok_resp
 
-    monkeypatch.setattr(eval_template.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(eval_template, "_open_verifier_request", fake_urlopen)
     res = eval_template.judge_accuracy("q", "gt", "ans")
     assert res["score"] == 1.0
     assert [r["model"] for r in http_requests] == [
@@ -782,7 +782,7 @@ def test_reasoning_token_exhaustion_missing_message_retries_cleanly(
         ]
     )
 
-    monkeypatch.setattr(eval_template.urllib.request, "urlopen", lambda _req, **_: next(responses))
+    monkeypatch.setattr(eval_template, "_open_verifier_request", lambda _req, **_: next(responses))
     tres = eval_template.judge_accuracy("q", "gt", "ans")
     assert tres["score"] == 1.0
 
@@ -894,7 +894,7 @@ def test_anthropic_downgrades_on_400_and_memoizes_across_calls(
             )
         return anth_resp
 
-    monkeypatch.setattr(eval_template.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(eval_template, "_open_verifier_request", fake_urlopen)
     tres1 = eval_template.judge_accuracy("q1", "gt1", "ans1")
     tres2 = eval_template.judge_accuracy("q2", "gt2", "ans2")
 
@@ -1213,7 +1213,7 @@ def test_harbor_eval_template_unrelated_400_does_not_disable_schema(
             )
         return ok_resp
 
-    monkeypatch.setattr(eval_template.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(eval_template, "_open_verifier_request", fake_urlopen)
 
     res1 = eval_template.judge_accuracy("q1", "gt1", "ans1")
     assert res1["status"] == "error"
