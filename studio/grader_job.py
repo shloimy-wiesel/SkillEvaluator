@@ -19,21 +19,24 @@ from .providers import worker_environment
 from .workspace import WorkspaceError
 
 
-class GraderOptions(BaseModel):
+class QualificationControls(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
     suite: str = ""  # selected skill-relative suite.json; omitted means the shipped suite
     policy: str = ""
     split: Literal["assessment", "all", "tuning"] = "assessment"
     cases: tuple[str, ...] = ()
-    chat: tuple[str, str, str] | None = None
     sandbox_consent: bool = False
-    check_suite: bool = True
     repeats: int = Field(default=3, ge=1, le=20)
     concurrency: int = Field(default=1, ge=1, le=4)
     timeout: float = Field(default=300, gt=0, le=600)
     max_false_pass_rate: float | None = Field(default=None, ge=0, le=1)
     max_false_fail_rate: float | None = Field(default=None, ge=0, le=1)
     max_unjudgeable_rate: float | None = Field(default=None, ge=0, le=1)
+
+
+class GraderOptions(QualificationControls):
+    chat: tuple[str, str, str] | None = None
+    check_suite: bool = True
 
 
 def evaluate(ctx, options):

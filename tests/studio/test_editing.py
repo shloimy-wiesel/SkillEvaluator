@@ -1,5 +1,7 @@
 import subprocess
 
+import httpx
+
 # ruff: noqa: F811 -- pytest discovers these shared fixtures by name
 from test_workspace import before_push, connect, page, playwright, private_remote, running  # noqa: F401
 
@@ -64,6 +66,48 @@ def test_preview_and_publish_skill(page, tmp_path, private_remote):
         assert subprocess.check_output(["git", "show", "main:skills/triage/SKILL.md"], cwd=remote) == (
             b"# Review\n\nAssess the evidence.\n"
         )
+
+
+def test_editor_mutations_are_versioned_and_return_structured_errors(tmp_path):
+    path = "/projects/missing/edit"
+    with running(tmp_path / "volume") as base, httpx.Client(base_url=base, trust_env=False) as client:
+        for suffix in ("/changes", "/branch"):
+            assert client.post(path + suffix).status_code == 404
+            endpoint = "/api/v1" + path + suffix
+            invalid = client.post(endpoint)
+            assert invalid.status_code == 422
+            assert invalid.json()["detail"]["code"] == "invalid_request"
+            missing = client.post(endpoint, data={"branch": "main", "revision": "abc", "action": "save", "source": "x"})
+            assert missing.status_code == 404
+            assert missing.json()["detail"]["code"] == "unknown_project"
+
+
+def test_api_preview_limits_preserve_saved_file(tmp_path, private_remote):
+    remote, token = private_remote
+    with running(tmp_path / "volume") as base, httpx.Client(base_url=base, trust_env=False) as client:
+        project = (
+            client.post(
+                "/api/v1/projects",
+                json={"remote": remote, "folder": "skills/triage", "username": "author", "token": token},
+            )
+            .raise_for_status()
+            .json()
+        )
+        path = f"/api/v1/projects/{project['id']}/edit/changes"
+        fields = {"branch": project["branch"], "revision": project["revision"]}
+        for draft, limit in [("é" * 20000, "32 KiB"), ("a\n" * 2000, "2,000 combined lines")]:
+            result = client.post(path, data={**fields, "action": "preview", "text": draft}).raise_for_status()
+            assert len(result.content) < 256
+            assert limit in result.json()["diff"]
+
+        large = "x" * 100000
+        fields["revision"] = (
+            client.post(path, data={**fields, "action": "save", "text": large}).raise_for_status().json()["revision"]
+        )
+        result = client.post(path, data={**fields, "action": "preview", "text": "short draft"}).raise_for_status()
+        assert len(result.content) < 256
+        assert "32 KiB" in result.json()["diff"]
+        assert client.get(path.removesuffix("/changes")).raise_for_status().json()["text"] == large
 
 
 def test_stale_remote_preserves_draft_and_branch_point(page, tmp_path, private_remote):
