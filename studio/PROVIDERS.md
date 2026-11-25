@@ -66,6 +66,22 @@ JSON to `POST` one of these paths relative to the same endpoint:
 Validation and discovery errors return HTTP 422 with `detail.code` and
 `detail.message`; unknown projects and roles return HTTP 404.
 
+### Verification for #29
+
+On the pre-migration document (`8305e1b`), Chromium timed out waiting for the
+versioned profile GET after reload. The new credential-lifecycle API test then
+received HTTP 404 before the save endpoint existed. With the exported document
+and API, `python -m pytest -q tests/studio/test_providers.py` passed all 21
+tests using Chrome 131.0.6778.108, Playwright 1.65.2, Python 3.13.11 and the
+installed SkillEvaluator 1.2.1.
+
+Fixtures include successive ASGI servers reopening one project volume, a private
+HTTPS Git remote, and a local TLS inference gateway that checks each role’s
+path and credential. The suite verifies redacted catalogs, redirect rejection,
+consent before inference, native check rows, and failure exit codes. The
+frontend passed `corepack pnpm typecheck`, `corepack pnpm lint`, and
+`corepack pnpm build`, which emitted `providers.html`.
+
 ## Python boundary
 
 ```python
