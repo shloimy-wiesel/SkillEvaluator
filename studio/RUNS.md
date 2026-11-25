@@ -171,12 +171,57 @@ they do not change Git. Rerun reuses the retained generated dataset once it is
 available and always uses the original encrypted profile, commit and options.
 Use a fresh submission to evaluate a new profile or generate a new starter.
 
-The Harbor preset supports Docker and Kata (requires a configured Kata runtime),
+The generated Harbor preset supports Docker and Kata (requires a configured Kata runtime),
 isolated skill workspaces, standard and in-container custom grading, pinned
 `evals/files` inputs, and safe declarative trial settings in `evals/config.yml`.
 It does not accept host execution, repository-defined environments, arbitrary
 setup commands, or native task bundles. A partial or unscored run is not a
 measured failure. A neutral skill verdict can have CLI exit code zero.
+
+### Operator-approved Docker profiles
+
+**Native Harbor** runs single-step cases from `evals/harbor/` created with
+`init-harbor-task --with-config`. Keep the stock task manifest, Dockerfile and
+matching case names; review the instruction, sandbox tests, and skill dataset.
+An edited launch recipe, Compose file, host path, custom verifier image or
+extra file is rejected. The engine stages and scores the native cases. Use a
+separate grader consent for custom grading. **Experimental NeMo Gym** uses
+reviewed generated-task inputs with Codex and a Responses-compatible saved
+chat provider. Its dedicated worker checks the Gym CLI interface, Docker,
+endpoint reachability and strict dataset validation before running the real
+Gym adapter. Budget flags (even zero), retained comparisons and unsupported
+Harbor settings do not carry over. Neither profile generates missing cases.
+
+1. Provision the [dedicated live worker](README.md#live-tier-3-image). Use
+   target `live` for Harbor, or `docker build --target live-gym -f studio/Dockerfile .`
+   for Gym. The latter adds isolated Python 3.13.14, uv 0.13.4 and Gym at
+   commit `792fa142f58277aecff05d402061d647e9a92acf`. The standard/live targets
+   do not contain Gym. See [runtime requirements](../docs/nemo-gym.mdx).
+2. Set `STUDIO_LIVE_ENABLED=1` and `STUDIO_EVALUATOR_CONTAINER_REVISION` to
+   the deployed image digest or full build commit. After reviewing the inputs,
+   set `STUDIO_SANDBOX_APPROVALS` to a JSON list on the worker. Example entry
+   (replace the project ID from the Studio URL and the full commit):
+   `{"project":"0123456789abcdef0123456789abcdef","folder":"skills/triage","sha":"0123456789abcdef0123456789abcdef01234567","profile":"native-docker"}`.
+   Use `gym-docker` for Gym. An absent, invalid or nonmatching list grants no
+   optional profile. Restart the worker to apply changes.
+3. Choose **Evaluate**, the approved **Sandbox profile** and Docker. Confirm
+   review and paid execution. Approval is rechecked at launch and replay;
+   changing the worker revision requires a fresh submission. Failures show in
+   the run status; no fallback backend runs. Completed trials use the same
+   canonical result/report downloads as other live runs.
+
+**Verification:** On Linux with Docker 28, the optional image built and its
+Gym CLI passed the engine’s task-folder compatibility check as the non-root
+Studio user (`0.7.0rc0`, source commit above). To exercise browser → installed
+CLI → canonical reports without model charges, run:
+
+```sh
+STUDIO_TEST_LIVE_RUNTIME=1 STUDIO_TEST_GYM_ENGINE=1 python -m pytest -q tests/studio/test_live.py
+```
+
+The native case uses a zero total-attempt budget. The Gym case uses local
+provider and rollout fixtures with the real doctor, engine and report reader;
+it does not qualify production credentials or model behavior.
 
 ### Live comparison sources and provenance
 

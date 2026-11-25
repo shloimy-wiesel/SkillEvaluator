@@ -343,6 +343,42 @@ def init_custom_grader(
     return 0
 
 
+STARTER_DOCKERFILE = """FROM python:3.12-slim
+
+RUN apt-get -o Acquire::Retries=3 update && \\
+    apt-get -o Acquire::Retries=3 install -y --no-install-recommends bash curl git jq procps ripgrep && \\
+    rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /workspace/skills /logs/agent /logs/verifier
+WORKDIR /workspace
+"""
+
+
+def starter_task_manifest(case_id: str) -> str:
+    return f"""schema_version = {toml_quote("1.3")}
+
+[task]
+name = {toml_quote(f"nvidia/{case_id}")}
+description = {toml_quote("Custom SkillEvaluator Harbor task")}
+
+[metadata]
+entry_id = {toml_quote(case_id)}
+
+[agent]
+timeout_sec = 300.0
+
+[verifier]
+timeout_sec = {DEFAULT_LLM_VERIFIER_TIMEOUT_SEC}
+
+[environment]
+cpus = 2
+memory_mb = 4096
+storage_mb = 2048
+network_mode = {toml_quote("public")}
+skills_dir = {toml_quote("/workspace/skills")}
+"""
+
+
 def init_harbor_task(
     skill_path: Path,
     *,
@@ -418,45 +454,13 @@ def init_harbor_task(
             _write_evals_config(private_evals, grading_mode=mode, task_source="native_harbor")
         _write_harbor_dataset(private_harbor, case_id)
 
-        task_content = f"""schema_version = {toml_quote("1.3")}
-
-[task]
-name = {toml_quote(f"nvidia/{case_id}")}
-description = {toml_quote("Custom SkillEvaluator Harbor task")}
-
-[metadata]
-entry_id = {toml_quote(case_id)}
-
-[agent]
-timeout_sec = 300.0
-
-[verifier]
-timeout_sec = {DEFAULT_LLM_VERIFIER_TIMEOUT_SEC}
-
-[environment]
-cpus = 2
-memory_mb = 4096
-storage_mb = 2048
-network_mode = {toml_quote("public")}
-skills_dir = {toml_quote("/workspace/skills")}
-"""
+        task_content = starter_task_manifest(case_id)
         tomllib.loads(task_content)
         (private_case / "task.toml").write_text(task_content, encoding="utf-8")
         (private_case / "instruction.md").write_text(
             "Replace this with the user-facing task instruction for the agent.\n", encoding="utf-8"
         )
-        (env_dir / "Dockerfile").write_text(
-            """FROM python:3.12-slim
-
-RUN apt-get -o Acquire::Retries=3 update && \\
-    apt-get -o Acquire::Retries=3 install -y --no-install-recommends bash curl git jq procps ripgrep && \\
-    rm -rf /var/lib/apt/lists/*
-
-RUN mkdir -p /workspace/skills /logs/agent /logs/verifier
-WORKDIR /workspace
-""",
-            encoding="utf-8",
-        )
+        (env_dir / "Dockerfile").write_text(STARTER_DOCKERFILE, encoding="utf-8")
         grader_path = tests_dir / ("grader.sh" if language == "shell" else "grader.py")
         _write_grader_file(grader_path, language=language)
         test_sh = tests_dir / "test.sh"

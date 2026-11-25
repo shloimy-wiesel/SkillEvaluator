@@ -6,18 +6,24 @@ from pydantic import ValidationError
 
 from .live_job import COMPLETED, LIVE, Controls, snapshot
 from .runs import project_for
+from .sandbox_profiles import LABELS, availability
 from .workspace import WorkspaceError
 
 router = APIRouter(prefix="/projects/{project_id}/live")
 
 
-def render(request, project, error=None):
+def render(request, project, error=None, selected="generated"):
     return request.app.state.templates.TemplateResponse(
         request=request,
         name="live/index.html",
         context={
             "project": project,
             "error": error,
+            "selected": selected,
+            "profiles": [
+                (key, label, availability(project.id, project.folder, project.revision, key))
+                for key, label in LABELS.items()
+            ],
             "prior": [
                 row
                 for row in request.app.state.jobs.history(project.id)
@@ -42,12 +48,19 @@ async def queue(request: Request, project_id: str):
         controls = Controls.model_validate({**data, "agents": form.getlist("agents")})
         if controls.grading_mode not in (None, "default") and not controls.sandbox_grader_consent:
             raise WorkspaceError("Repository grading requires explicit sandbox consent.")
-        options = snapshot(request.app.state.workspace, project_id, controls)
+        options = snapshot(request.app.state.workspace, project_id, controls, form.get("sha", ""))
         run_id = request.app.state.jobs.enqueue(project, form.get("sha", ""), LIVE, options)
     except ValidationError:
-        return render(request, project, "Check live settings, project paths, trial counts and budget prerequisites.")
+        return render(
+            request,
+            project,
+            "Check live settings, project paths, trial counts and budget prerequisites.",
+            form.get("sandbox_profile"),
+        )
     except WorkspaceError as exc:
-        return render(request, project, str(exc))
+        return render(request, project, str(exc), form.get("sandbox_profile"))
     except ValueError:
-        return render(request, project, "Configure a chat provider before queuing live trials.")
+        return render(
+            request, project, "Configure a chat provider before queuing live trials.", form.get("sandbox_profile")
+        )
     return RedirectResponse(request.url_for("run_detail", project_id=project_id, run_id=run_id), 303)

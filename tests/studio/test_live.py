@@ -425,3 +425,208 @@ def test_project_retained_selection_and_provenance(page, private_remote, tmp_pat
             db.execute("UPDATE runs SET status='neutral', project_id='other-project' WHERE id=?", (prior,))
         response = page.request.post(live, form={"sha": sha, "compare_to": prior})
         assert response.status == 422 and len(sources) == 2
+
+
+def test_operator_sandbox_profile_needs_review_and_enabled_worker(page, private_remote, tmp_path, monkeypatch):
+    import json
+
+    with running(tmp_path / "volume") as base:
+        settings = open_settings(page, base, private_remote)
+        save_profile(page.get_by_role("region", name="Chat", exact=True), "https://chat.example/v1", "test", "secret")
+        url = base + settings.removesuffix("/providers") + "/live"
+        page.goto(url)
+        sha = page.get_by_label("Commit SHA").input_value()
+        profile = page.get_by_label("Sandbox profile")
+        playwright.expect(profile).to_have_count(1, timeout=2000)
+        assert profile.locator("option:enabled").count() == 1
+        approval = {"project": settings.split("/")[2], "folder": "skills/triage", "sha": sha, "profile": "gym-docker"}
+        monkeypatch.setenv("STUDIO_SANDBOX_APPROVALS", json.dumps([approval]))
+        monkeypatch.setenv("STUDIO_LIVE_ENABLED", "1")
+        monkeypatch.setenv("STUDIO_EVALUATOR_CONTAINER_REVISION", "a" * 40)
+        page.reload()
+        profile.select_option("gym-docker")
+        page.get_by_role("button", name="Queue live evaluation").click()
+        playwright.expect(page.get_by_role("alert")).to_contain_text("review")
+        page.get_by_label("I reviewed the pinned task inputs").check()
+        page.get_by_label("Commit SHA").fill("b" * 40)
+        page.get_by_role("button", name="Queue live evaluation").click()
+        playwright.expect(page.get_by_role("alert")).to_contain_text("approved")
+
+
+def test_native_profile_stages_reviewed_scaffold_with_the_engine(tmp_path):
+    from types import SimpleNamespace
+
+    from studio.live_job import Controls, stage
+    from studio.workspace import WorkspaceError
+
+    from skillevaluator.tier3.harbor.adapter import stage_native_harbor_tasks
+    from skillevaluator.tier3.scaffold import init_harbor_task
+
+    source = tmp_path / "repo/triage"
+    source.mkdir(parents=True)
+    (source / "SKILL.md").write_text("# Triage\n")
+    init_harbor_task(source, force=False, case_id="one", mode="custom_only", language="python", with_config=True)
+    ctx = SimpleNamespace(skill=source)
+    options = Controls(sandbox_profile="native-docker", reviewed_inputs=True, sandbox_grader_consent=True)
+    staged = stage(ctx, tmp_path / "run", options)
+    cases = stage_native_harbor_tasks(staged, tmp_path / "tasks", grading_mode="custom_only")
+    assert (
+        len(cases) == 1
+        and (cases[0] / "instruction.md").read_bytes() == (source / "evals/harbor/one/instruction.md").read_bytes()
+    )
+    (source / "evals/harbor/one/environment/compose.yaml").write_text("services: {}")
+    with pytest.raises(WorkspaceError, match="native task"):
+        stage(ctx, tmp_path / "second", options)
+
+
+def test_gym_profile_refuses_missing_runtime_without_a_trial(page, private_remote, tmp_path, monkeypatch):
+    monkeypatch.setattr("studio.live_job.PINNED_GYM", tmp_path / "absent-gym")
+    import json
+
+    from test_datasets import seed_skill
+
+    seed_skill(tmp_path, {"evals/evals.json": '{"skill_name":"triage","evals":[{"id":"one","prompt":"review"}]}'})
+    monkeypatch.setenv("STUDIO_LIVE_ENABLED", "1")
+    monkeypatch.setenv("STUDIO_EVALUATOR_CONTAINER_REVISION", "c" * 40)
+    with running(tmp_path / "volume") as base:
+        settings = open_settings(page, base, private_remote)
+        save_profile(
+            page.get_by_role("region", name="Chat", exact=True), "https://chat.example/v1", "codex-model", "private-key"
+        )
+        page.goto(base + settings.removesuffix("/providers") + "/live")
+        approval = {
+            "project": settings.split("/")[2],
+            "folder": "skills/triage",
+            "sha": page.get_by_label("Commit SHA").input_value(),
+            "profile": "gym-docker",
+        }
+        monkeypatch.setenv("STUDIO_SANDBOX_APPROVALS", json.dumps([approval]))
+        page.reload()
+        page.get_by_label("Sandbox profile").select_option("gym-docker")
+        page.get_by_label("I reviewed the pinned task inputs").check()
+        page.get_by_role("button", name="Queue live evaluation").click()
+        playwright.expect(page.get_by_role("status")).to_contain_text("pinned NeMo Gym", timeout=8000)
+
+
+def test_native_profile_does_not_discard_authored_launch_settings(tmp_path):
+    from types import SimpleNamespace
+
+    from studio.live_job import Controls, stage
+    from studio.workspace import WorkspaceError
+
+    from skillevaluator.tier3.scaffold import init_harbor_task
+
+    skill = tmp_path / "triage"
+    skill.mkdir()
+    (skill / "SKILL.md").write_text("# Triage")
+    init_harbor_task(skill, force=False, case_id="one", mode="custom_only", language="shell", with_config=True)
+    with (skill / "evals/harbor/dataset.toml").open("a") as manifest:
+        manifest.write('path="/host/tasks"\n')
+    with pytest.raises(WorkspaceError, match="native task"):
+        stage(
+            SimpleNamespace(skill=skill),
+            tmp_path / "run",
+            Controls(sandbox_profile="native-docker", sandbox_grader_consent=True),
+        )
+
+
+@pytest.mark.skipif(os.getenv("STUDIO_TEST_GYM_ENGINE") != "1", reason="requires installed engine and Docker info")
+def test_gym_browser_to_canonical_engine_evidence(page, private_remote, tmp_path, gateway, monkeypatch):
+    """Only the vendor rollout process is a fixture; doctor, CLI, staging and reports are real."""
+    import json
+    import sys
+
+    from test_datasets import seed_skill
+    from tests.test_nemo_gym_backend import _FAKE_GYM
+
+    gym = tmp_path / "gym"
+    env_log = tmp_path / "launches.jsonl"
+    gym.write_text(
+        _FAKE_GYM.format(python=sys.executable).replace('os.environ["FAKE_GYM_ENV_LOG"]', repr(str(env_log)))
+    )
+    gym.chmod(0o755)
+    monkeypatch.setattr("studio.live_job.PINNED_GYM", gym)
+    monkeypatch.setenv("STUDIO_LIVE_ENABLED", "1")
+    monkeypatch.setenv("STUDIO_EVALUATOR_CONTAINER_REVISION", "c" * 40)
+    seed_skill(
+        tmp_path,
+        {
+            "evals/evals.json": json.dumps(
+                {
+                    "skill_name": "triage",
+                    "evals": [{"id": "one", "prompt": "Add 1+1", "expected_output": "2", "assertions": ["adds"]}],
+                }
+            )
+        },
+    )
+    with running(tmp_path / "volume") as base:
+        settings = open_settings(page, base, private_remote)
+        save_profile(
+            page.get_by_role("region", name="Chat", exact=True),
+            gateway[0] + "/allowed/v1",
+            "private-chat",
+            "chat-secret",
+        )
+        page.goto(base + settings.removesuffix("/providers") + "/live")
+        sha = page.get_by_label("Commit SHA").input_value()
+        approval = {"project": settings.split("/")[2], "folder": "skills/triage", "sha": sha, "profile": "gym-docker"}
+        monkeypatch.setenv("STUDIO_SANDBOX_APPROVALS", json.dumps([approval]))
+        page.reload()
+        page.get_by_label("Sandbox profile").select_option("gym-docker")
+        page.get_by_label("I reviewed the pinned task inputs").check()
+        page.get_by_role("button", name="Queue live evaluation").click()
+        playwright.expect(page.get_by_role("status")).to_contain_text("Results saved", timeout=60000)
+        report = page.request.get(page.get_by_role("link", name="Download JSON").get_attribute("href")).json()
+        assert report["tier3"]["evaluated_source"]["commit"] == sha
+        assert report["tier3"]["summary"]["execution_backend"] == "nemo-gym"
+        launches = [json.loads(line) for line in env_log.read_text().splitlines()]
+        assert {launch["arm"] for launch in launches} == {"with", "without"}
+        assert all(
+            "GITHUB_TOKEN" not in launch["env"] and "chat-secret" not in str(launch["argv"]) for launch in launches
+        )
+
+        monkeypatch.delenv("STUDIO_SANDBOX_APPROVALS")
+        page.get_by_role("button", name="Rerun saved inputs").click()
+        playwright.expect(page.get_by_role("status")).to_contain_text("not operator-approved")
+        assert len(env_log.read_text().splitlines()) == 2
+
+
+@pytest.mark.skipif(os.getenv("STUDIO_TEST_LIVE_RUNTIME") != "1", reason="requires Harbor and Docker info")
+def test_native_profile_zero_budget_keeps_pinned_engine_evidence(page, private_remote, tmp_path, gateway, monkeypatch):
+    import json
+
+    from test_datasets import seed_skill
+
+    from skillevaluator.tier3.scaffold import init_harbor_task
+
+    skill = tmp_path / "seed/skills/triage"
+    init_harbor_task(skill, force=False, case_id="one", mode="custom_only", language="python", with_config=True)
+    seed_skill(tmp_path, {})
+    monkeypatch.setenv("STUDIO_LIVE_ENABLED", "1")
+    monkeypatch.setenv("STUDIO_EVALUATOR_CONTAINER_REVISION", "d" * 40)
+    with running(tmp_path / "volume") as base:
+        settings = open_settings(page, base, private_remote)
+        save_profile(
+            page.get_by_role("region", name="Chat", exact=True), gateway[0] + "/v1", "private-chat", "chat-secret"
+        )
+        page.goto(base + settings.removesuffix("/providers") + "/live")
+        sha = page.get_by_label("Commit SHA").input_value()
+        approval = {
+            "project": settings.split("/")[2],
+            "folder": "skills/triage",
+            "sha": sha,
+            "profile": "native-docker",
+        }
+        monkeypatch.setenv("STUDIO_SANDBOX_APPROVALS", json.dumps([approval]))
+        page.reload()
+        page.get_by_label("Sandbox profile").select_option("native-docker")
+        page.get_by_label("I reviewed the pinned task inputs").check()
+        page.get_by_label("Allow the repository grader in the sandbox").check()
+        page.get_by_label("codex", exact=True).check()
+        page.get_by_text("Trial settings and budgets").click()
+        page.get_by_label("Maximum total attempts").fill("0")
+        page.get_by_label("Run a paid agent preflight").select_option("false")
+        page.get_by_role("button", name="Queue live evaluation").click()
+        playwright.expect(page.get_by_role("status")).to_contain_text("not_run", timeout=60000)
+        report = page.request.get(page.get_by_role("link", name="Download JSON").get_attribute("href")).json()
+        assert report["tier3"]["evaluated_source"] == {"commit": sha, "evaluator_container_revision": "d" * 40}

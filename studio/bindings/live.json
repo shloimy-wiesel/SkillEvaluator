@@ -2,7 +2,7 @@
   {
     "key": "tier3 [workflow]",
     "status": "partial",
-    "equivalent": "Project-pinned generated Harbor tasks on Docker/Kata. Native tasks and host-specific execution are unavailable.",
+    "equivalent": "Direct preparation supports generated Harbor tasks only. Use Evaluate with reviewed inputs for native Harbor or experimental Gym.",
     "evidence": "tests/studio/test_live.py::test_direct_workflow_retains_evidence_and_reruns_original_profile"
   },
   {
@@ -26,7 +26,7 @@
   {
     "key": "tier3 [workflow]:backend",
     "status": "partial",
-    "equivalent": "Generated Harbor tasks only; NeMo Gym is unavailable.",
+    "equivalent": "Direct preparation supports generated Harbor tasks only. Use Evaluate with reviewed inputs for native Harbor or experimental Gym.",
     "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
   },
   {
@@ -254,8 +254,8 @@
   {
     "key": "tier3 evaluate",
     "status": "partial",
-    "equivalent": "Project-pinned generated Harbor tasks on Docker/Kata. Native tasks and host-specific execution are unavailable.",
-    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+    "equivalent": "Generated Harbor Docker/Kata, approved single-step native Harbor Docker tasks, or experimental pinned Gym/Codex Docker with reviewed skill cases.",
+    "evidence": "tests/studio/test_live.py::test_gym_browser_to_canonical_engine_evidence"
   },
   {
     "key": "tier3 evaluate:skill_path",
@@ -278,8 +278,8 @@
   {
     "key": "tier3 evaluate:backend",
     "status": "partial",
-    "equivalent": "Generated Harbor tasks only; NeMo Gym is unavailable.",
-    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+    "equivalent": "Generated Harbor Docker/Kata, approved single-step native Harbor Docker tasks, or experimental pinned Gym/Codex Docker with reviewed skill cases.",
+    "evidence": "tests/studio/test_live.py::test_gym_browser_to_canonical_engine_evidence"
   },
   {
     "key": "tier3 evaluate:environment_kwarg",
@@ -398,8 +398,8 @@
   {
     "key": "tier3 evaluate:custom_dockerfile_mode",
     "status": "partial",
-    "equivalent": "Generated Dockerfile only: no repository Dockerfile preserve/rebase control.",
-    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+    "equivalent": "Generated Dockerfile or the stock native scaffold recipe with engine rebase; no authored Dockerfile overrides.",
+    "evidence": "tests/studio/test_live.py::test_native_profile_stages_reviewed_scaffold_with_the_engine"
   },
   {
     "key": "tier3 evaluate:skill_workspace_mode",
@@ -512,8 +512,8 @@
   {
     "key": "evaluate",
     "status": "partial",
-    "equivalent": "Project-pinned generated Harbor tasks on Docker/Kata. Native tasks and host-specific execution are unavailable.",
-    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+    "equivalent": "Generated Harbor Docker/Kata, approved single-step native Harbor Docker tasks, or experimental pinned Gym/Codex Docker with reviewed skill cases.",
+    "evidence": "tests/studio/test_live.py::test_gym_browser_to_canonical_engine_evidence"
   },
   {
     "key": "evaluate:skill_path",
@@ -536,8 +536,8 @@
   {
     "key": "evaluate:backend",
     "status": "partial",
-    "equivalent": "Generated Harbor tasks only; NeMo Gym is unavailable.",
-    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+    "equivalent": "Generated Harbor Docker/Kata, approved single-step native Harbor Docker tasks, or experimental pinned Gym/Codex Docker with reviewed skill cases.",
+    "evidence": "tests/studio/test_live.py::test_gym_browser_to_canonical_engine_evidence"
   },
   {
     "key": "evaluate:environment_kwarg",
@@ -656,8 +656,8 @@
   {
     "key": "evaluate:custom_dockerfile_mode",
     "status": "partial",
-    "equivalent": "Generated Dockerfile only: no repository Dockerfile preserve/rebase control.",
-    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+    "equivalent": "Generated Dockerfile or the stock native scaffold recipe with engine rebase; no authored Dockerfile overrides.",
+    "evidence": "tests/studio/test_live.py::test_native_profile_stages_reviewed_scaffold_with_the_engine"
   },
   {
     "key": "evaluate:skill_workspace_mode",
