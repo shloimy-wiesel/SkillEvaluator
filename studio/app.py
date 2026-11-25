@@ -10,6 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .extensions import JOB_DEFINITIONS, PROJECT_LINKS, ROUTERS
+from .gitlab import instance
+from .gitlab_routes import router as gitlab_router
 from .jobs import Jobs
 from .navigation import task_groups
 from .workspace import Workspace, WorkspaceError
@@ -57,10 +59,17 @@ def create_app(data_dir=None, *, routers=(), job_definitions=()):
 
     @app.post("/projects")
     def connect(
-        request: Request, remote: str = Form(), folder: str = Form("."), username: str = Form(""), token: str = Form("")
+        request: Request,
+        *,
+        remote: str = Form(),
+        folder: str = Form("."),
+        username: str = Form(""),
+        token: str = Form(""),
+        gitlab_root: str = Form(""),
+        ca_pem: str = Form(""),
     ):
         try:
-            project_id = workspace.connect(remote, folder, username, token)
+            project_id = workspace.connect(remote, folder, username, token, gitlab_root=gitlab_root, ca_pem=ca_pem)
         except WorkspaceError as e:
             # Invalid URLs may themselves contain credentials.
             return home(request, str(e), folder=folder)
@@ -88,6 +97,7 @@ def create_app(data_dir=None, *, routers=(), job_definitions=()):
             request=request, name="project.html", context={"project": project, "notice": "Remote access confirmed."}
         )
 
-    for router in (*ROUTERS, *routers):
+    templates.env.globals["gitlab_instance"] = lambda project: instance(workspace, project)
+    for router in (gitlab_router, *ROUTERS, *routers):
         app.include_router(router)
     return app
