@@ -69,7 +69,7 @@ def history(
         )
     return request.app.state.templates.TemplateResponse(
         request=request,
-        name="history.html",
+        name="history/index.html",
         context={
             "project": project,
             "choices": choices,

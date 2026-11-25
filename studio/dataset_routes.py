@@ -38,7 +38,7 @@ def render(request, p, draft=None, error=None, **extra):
             error = error or exc
     return request.app.state.templates.TemplateResponse(
         request=request,
-        name="datasets.html",
+        name="datasets/index.html",
         context=dict(
             project=p, draft=draft, doc=doc, error=error, review=review_document(draft) if draft else None, **extra
         ),

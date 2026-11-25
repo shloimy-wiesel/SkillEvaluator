@@ -13,6 +13,7 @@ from .workspace import WorkspaceError
 
 router = APIRouter(prefix="/projects/{project_id}/compare")
 SHA = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
+MAX_DIFF_LINES = 2000
 
 
 def saved_refs(ws, project):
@@ -73,17 +74,14 @@ def changed_files(ws, project, left, right):
         old_mode, new_mode, old, new, change = header[1:].split()
         a = preview(ws, project, old_mode, old).splitlines(keepends=True)
         b = preview(ws, project, new_mode, new).splitlines(keepends=True)
-        edits = (
-            SequenceMatcher(None, a, b).get_opcodes() if len(a) + len(b) <= 2000 else [("equal", 0, len(a), 0, len(b))]
-        )
-        files.append(
-            {
-                "path": filename.decode(errors="replace"),
-                "change": change.decode(),
-                "prior": [(op, "".join(a[i:j])) for op, i, j, _, _ in edits if i != j],
-                "current": [(op, "".join(b[i:j])) for op, _, _, i, j in edits if i != j],
-            }
-        )
+        file = {"path": filename.decode(errors="replace"), "change": change.decode()}
+        if len(a) + len(b) > MAX_DIFF_LINES:
+            file["notice"] = f"Line diff omitted: the two previews exceed {MAX_DIFF_LINES:,} combined lines."
+        else:
+            edits = SequenceMatcher(None, a, b).get_opcodes()
+            file["prior"] = [(op, "".join(a[i:j])) for op, i, j, _, _ in edits if i != j]
+            file["current"] = [(op, "".join(b[i:j])) for op, _, _, i, j in edits if i != j]
+        files.append(file)
     return files, len(parts) // 2
 
 
@@ -150,5 +148,5 @@ def compare(
     except WorkspaceError as exc:
         context["error"] = str(exc)
     return request.app.state.templates.TemplateResponse(
-        request=request, name="comparison.html", context=context, status_code=422 if "error" in context else 200
+        request=request, name="comparison/index.html", context=context, status_code=422 if "error" in context else 200
     )

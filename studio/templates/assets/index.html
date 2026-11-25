@@ -27,6 +27,7 @@ To evaluate your skill with an authored grader, <a href="{{ url_for('live_index'
 <label>Concurrency <input type="number" name="concurrency" min="1" max="4" value="1"></label>
 <label>Attempt timeout (seconds) <input type="number" name="timeout" min="0.001" step="any" max="600" value="300"></label>
 {% for gate in ['false pass','false fail','unjudgeable'] %}<label>Maximum {{ gate }} rate <input type="number" min="0" max="1" step="any" name="max_{{ gate|replace(' ','_') }}_rate"></label>{% endfor %}
+<label><input type="checkbox" name="sandbox_consent"> Allow this project suite to run in the isolated Docker worker with the saved chat profile (offline if none).</label>
 <button name="action" value="check">Check suite</button> <button name="action" value="qualify">Run qualification</button>
-<p>Live qualification uses the bundled reference suite, the installed tier3 extra and the project chat provider. It may incur inference charges. Project suites support evidence checks only. Results and JSON exports are retained in Evaluation runs.</p></form>
+<p>Bundled qualification uses the installed tier3 extra and the project chat provider. It may incur inference charges. Project suite qualification requires an enabled sandbox. Results and JSON exports are retained in Evaluation runs.</p></form>
 {% endblock %}

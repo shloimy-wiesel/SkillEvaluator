@@ -71,6 +71,10 @@ docker exec skill-studio-live docker info
 docker exec skill-studio-live docker compose version
 ```
 
+To enable [project-suite grader qualification](ASSETS.md#qualify-against-a-project-suite),
+also pass `-e STUDIO_GRADER_IMAGE="$(docker image inspect --format '{{.Id}}' skillevaluator-studio:live)"`
+to the Studio container. That trusted image must already exist on the sandbox daemon.
+
 Allow the worker to build/pull Harbor task images and install agent runtimes;
 allow trial containers to reach your HTTPS model endpoint. A loopback provider
 URL on the Studio container is not reachable as loopback in a sibling trial.

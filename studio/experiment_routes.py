@@ -13,7 +13,7 @@ ACTIONS = {"metrics": METRICS, "decoys": DECOYS, "interaction": INTERACTION}
 def render(request, project, error=None):
     return request.app.state.templates.TemplateResponse(
         request=request,
-        name="experiments.html",
+        name="experiments/index.html",
         context={"project": project, "error": error},
         status_code=422 if error else 200,
     )

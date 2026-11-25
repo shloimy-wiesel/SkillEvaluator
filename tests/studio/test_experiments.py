@@ -129,10 +129,16 @@ def test_select_decoys_retains_ranked_manifest_from_project_catalog(page, privat
                     page.get_by_role("region", name="Embeddings", exact=True),
                     endpoint,
                     "default-model",
-                    "embedding-secret",
+                    'embedding-"secret',
                 )
                 page.goto(base + settings.removesuffix("/providers") + "/experiments")
                 page.get_by_label("Catalog JSON").fill("catalog.json", timeout=2000)
+                page.get_by_label("Catalog root").fill("skills")
+                page.get_by_label("Decoy count").fill("1")
+                page.get_by_label("Exclude paths").fill('old/embedding-"secret')
+                page.get_by_role("button", name="Select decoys").click()
+                playwright.expect(page.get_by_role("alert")).to_contain_text("keep credentials out")
+                page.get_by_label("Catalog JSON").fill("catalog.json")
                 page.get_by_label("Catalog root").fill("skills")
                 page.get_by_label("Decoy count").fill("1")
                 page.get_by_label("Exclude paths").fill("release\ntriage")
@@ -142,7 +148,7 @@ def test_select_decoys_retains_ranked_manifest_from_project_catalog(page, privat
                 report = export(page).json()
                 assert report["catalog_root"] == "." and report["exclude"] == ["release", "triage"]
                 assert [(s["path"], s["score"]) for s in report["selected"]] == [("logs", 1.0)]
-                assert seen == [("Bearer embedding-secret", "catalog-model")]
+                assert seen == [('Bearer embedding-"secret', "catalog-model")]
                 assert export(page).body() == next((tmp_path / "volume/artifacts").rglob("decoys.json")).read_bytes()
         finally:
             server.shutdown()

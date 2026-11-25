@@ -44,7 +44,7 @@ def installation(request: Request, project_id: str, topic: str = "root"):
         raise HTTPException(422, "Choose a listed help topic.")
     return request.app.state.templates.TemplateResponse(
         request=request,
-        name="installation.html",
+        name="installation/index.html",
         context={
             "project": project,
             "version": installed_output(("--version",)),
