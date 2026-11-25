@@ -99,6 +99,15 @@ wizard reports confirmed steps. No live hosted evaluation is claimed by the
 fixture tests.
 
 [Experiments](RUNS.md#experiments) maps selection, fixed-suite interactions
-and external metrics to pinned jobs with native JSON exports. Interaction
-backend kwargs and raw Harbor jobs remain unbound. The browser interaction
-proof uses a fixture at the sandbox invocation boundary, not a paid live trial.
+and external metrics to pinned jobs with native JSON exports. Of the 24
+experiment command and parameter rows, 16 are implemented and eight partial:
+selection and its catalog root require a portable committed collection;
+interaction, skills, evaluation source, agents, environment and backend
+kwargs are limited to Studio's fixed-suite isolated presets. Docker accepts
+no kwargs; Kata exposes runtime presets and literal DNS addresses.
+The browser exercises opt-in job retention and incomplete evidence at the
+sandbox invocation boundary. `tests/tier3/test_interactions.py` checks
+propagation through all configurations and rejects incomparable outcomes;
+`tests/test_harbor_environment_contract.py` and
+`tests/test_harbor_artifact_retention.py` exercise backend validation and
+native retention. These tests do not qualify a paid live trial.
