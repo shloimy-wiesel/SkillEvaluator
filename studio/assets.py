@@ -13,6 +13,7 @@ from skillevaluator.tier3.scaffold import init_custom_grader, init_harbor_task
 
 from .editing import Conflict, commit_changes, read_file, require_base
 from .grader_job import GRADER, GraderOptions, public_identity
+from .grader_sandbox import require_sandbox
 from .providers import worker_environment
 from .workspace import WorkspaceError
 
@@ -177,6 +178,7 @@ def qualify_form(
     branch: str = Form(),
     revision: str = Form(),
     suite: str = Form(""),
+    sandbox_consent: bool = Form(False),
     policy: str = Form(""),
     split: str = Form("assessment"),
     cases: str = Form(""),
@@ -199,9 +201,7 @@ def qualify_form(
         chat = None
         if action == "qualify":
             if suite:
-                raise WorkspaceError(
-                    "Live qualification requires the bundled reference suite on this host. Use Check suite for project manifests."
-                )
+                require_sandbox(sandbox_consent)
             # A not-ready preflight still produces a receipt without inference.
             with suppress(ValueError):
                 chat = public_identity(worker_environment(ws, p.id, "chat"))
@@ -209,6 +209,7 @@ def qualify_form(
             check_suite=action == "check",
             chat=chat,
             suite=suite,
+            sandbox_consent=sandbox_consent,
             policy=policy,
             split=split,
             cases=tuple(cases.split()),
