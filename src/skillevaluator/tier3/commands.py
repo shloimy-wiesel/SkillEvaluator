@@ -81,7 +81,6 @@ from skillevaluator.utils.rich_markup import escape_markup, strip_terminal_contr
 # emoji=False: ":name:" codes in untrusted text must print literally.
 console = Console(emoji=False)
 
-_HARBOR_RESERVED_CASE_NAMES = frozenset({"dataset.toml", "readme.md", "metric.py", "results"})
 _DEFAULT_AGENT_BY_PROVIDER = {
     "nv_build": "opencode",
     "openai": "codex",

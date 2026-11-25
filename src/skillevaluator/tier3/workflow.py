@@ -343,9 +343,9 @@ def _preflight_nemo_gym(skill_path: Path, params: dict[str, Any]) -> None:
 def _prepare_dataset(skill_path: Path, *, source_path: Path, progress: str = "auto") -> None:
     """Reuse valid authored sources; create one starter case only when absent."""
     from skillevaluator.cli import _ensure_autopilot_dataset
-    from skillevaluator.tier3.commands import _validate_existing_scaffold_state
     from skillevaluator.tier3.dataset_utils import find_eval_file
     from skillevaluator.tier3.evals_spec import validate_tier3_source
+    from skillevaluator.tier3.scaffold import _validate_existing_scaffold_state
 
     evals_dir = source_path / "evals"
     _validate_existing_scaffold_state(source_path, evals_dir)

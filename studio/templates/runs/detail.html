@@ -6,6 +6,13 @@
 <dt>Configuration</dt><dd><code>{{ run.options }}</code></dd>
 {% if run.exit_code is not none %}<dt>Gate exit code</dt><dd>{{ run.exit_code }}</dd>{% endif %}</dl>
 {% if report %}<h2>Results</h2>
+{% if run.kind == 'validate-grader' %}
+{% if report.diagnostic %}<p>{{ report.diagnostic }}</p>{% endif %}
+{% if report.status == 'valid' %}<p>Suite valid: {{ report.cases }} {{ report.split }} cases.</p>{% endif %}
+{% if report.coverage %}<p>{{ report.coverage.cases }} cases · {{ report.coverage.attempts }} attempts</p><a href="{{ url_for('grader_evidence',project_id=project.id,run_id=run.id) }}">Download attempt evidence</a>{% endif %}
+{% if report.qualification %}<h3>Policy {{ report.qualification.policy_id }}: {{ report.qualification.status }}</h3><ul>{% for reason in report.qualification.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>{% endif %}
+<details><summary>Qualification evidence</summary><pre>{{ report|tojson(indent=2) }}</pre></details>
+{% endif %}
 {% if report.workflow %}<ul>{% for stage,details in report.workflow.stages.items() %}
 <li>{{ stage }}: {{ details.status }}{% if details.reason %} — {{ details.reason }}{% endif %}</li>
 {% endfor %}</ul>{% endif %}{% for result in report.results %}

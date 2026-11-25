@@ -2,6 +2,7 @@
 
 from .assets import router as assets_router
 from .editor_routes import router as editor_router
+from .grader_job import GRADER
 from .providers import router as provider_router
 from .runs import router as runs_router
 from .static_job import STATIC
@@ -13,4 +14,4 @@ PROJECT_LINKS = (
     ("Evaluation runs", "runs_index"),
     ("Evaluation assets", "assets"),
 )
-JOB_DEFINITIONS = (STATIC,)
+JOB_DEFINITIONS = (STATIC, GRADER)
