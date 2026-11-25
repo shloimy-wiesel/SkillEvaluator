@@ -1,52 +1,70 @@
-from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
+"""Project-scoped GitLab connection settings; tokens are write-only."""
 
+from fastapi import APIRouter, Request
+from pydantic import BaseModel, ConfigDict, SecretStr
+
+from .frontend_routes import document
 from .gitlab import instance
+from .project_api import failure, get_project
 from .workspace import WorkspaceError
 
-router = APIRouter(prefix="/projects/{project_id}/gitlab")
+router = APIRouter()
+PAGE = "/projects/{project_id}/gitlab"
+API = "/api/v1" + PAGE
+
+
+class Access(BaseModel):
+    root: str
+    namespace: str
+    web_url: str
+
+
+class Token(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    api_token: SecretStr
+
+
+class Notice(BaseModel):
+    notice: str
 
 
 def settings(request, project_id):
     ws = request.app.state.workspace
-    project = ws.get(project_id)
-    lab = project and instance(ws, project)
+    lab = instance(ws, get_project(ws, project_id))
     if not lab:
-        raise HTTPException(404, "No configured GitLab project.")
-    return project, lab
+        raise failure(404, "gitlab_not_configured", "No configured GitLab project.")
+    return lab
 
 
-def render(request, project, lab, **context):
-    return request.app.state.templates.TemplateResponse(
-        request=request,
-        name="gitlab/index.html",
-        context={"project": project, "lab": lab, **context},
-        status_code=422 if "error" in context else 200,
-    )
-
-
-@router.get("", name="gitlab_access")
+@router.get(PAGE, name="gitlab_access", include_in_schema=False)
 def access(request: Request, project_id: str):
-    return render(request, *settings(request, project_id))
+    settings(request, project_id)
+    return document(request, "gitlab.html")
 
 
-@router.post("/token")
-def token(request: Request, project_id: str, api_token: str = Form("")):
-    project, lab = settings(request, project_id)
+@router.get(API)
+def coordinates(request: Request, project_id: str) -> Access:
+    lab = settings(request, project_id)
+    return Access(root=lab.root, namespace=lab.namespace, web_url=lab.web_url)
+
+
+@router.post(API + "/token")
+def token(request: Request, project_id: str, form: Token) -> Notice:
+    lab = settings(request, project_id)
     try:
-        lab.set_token(api_token)
+        lab.set_token(form.api_token.get_secret_value())
     except WorkspaceError as exc:
-        return render(request, project, lab, error=str(exc))
-    return RedirectResponse(request.url_for("gitlab_access", project_id=project_id), 303)
+        raise failure(422, "invalid_token", str(exc)) from exc
+    return Notice(notice="API token saved." if form.api_token.get_secret_value() else "API token removed.")
 
 
-@router.post("/check")
-def check(request: Request, project_id: str):
-    project, lab = settings(request, project_id)
+@router.post(API + "/check")
+def check(request: Request, project_id: str) -> Notice:
+    lab = settings(request, project_id)
     try:
         result = lab.request("GET")
         if not isinstance(result, dict) or result.get("path_with_namespace") != lab.namespace:
             raise WorkspaceError("GitLab did not confirm the configured project.")
     except WorkspaceError as exc:
-        return render(request, project, lab, error=str(exc))
-    return render(request, project, lab, notice="Project API read access confirmed. Write access was not tested.")
+        raise failure(422, "gitlab_check_failed", str(exc)) from exc
+    return Notice(notice="Project API read access confirmed. Write access was not tested.")

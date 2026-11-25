@@ -67,6 +67,22 @@ created a branch and pushed an edit. The project API created MR `!1` at
 the pushed SHA; the pipeline query returned an empty list. This smoke used
 a real self-managed GitLab container and did not exercise a CI runner.
 
+### Studio HTTP API
+
+Studio serves the GitLab access, repository CI and advanced CI documents
+at their original project URLs. For API clients, prefix those URLs with
+`/api/v1` to read the same project-scoped settings. `POST` JSON to
+`gitlab/token` (an empty `api_token` removes the saved credential) or
+`gitlab/check` (read-only project check). The API never returns the token.
+
+CI actions use `POST ci`, `POST ci/demo` or `POST ci/advanced` below the
+versioned project URL. Send the branch and revision from the view; review
+before publishing and echo the returned digest as `approval`. Publication
+returns a browser `location` with a project-scoped receipt that can be
+reopened. The advanced `receipt` action instead downloads the reviewed
+`ci-plan.json`. An existing GitLab pipeline that needs a manual merge
+gets a preview and merge instructions.
+
 ### Reviewed push → real runner (#13 / #18)
 
 From the repository root on a **Linux host that can reach its local Docker

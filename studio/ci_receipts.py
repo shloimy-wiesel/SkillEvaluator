@@ -4,7 +4,11 @@ import sqlite3
 from contextlib import closing
 from uuid import uuid4
 
-from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
+
+
+class Publication(BaseModel):
+    location: str
 
 
 def database(request):
@@ -24,7 +28,7 @@ def published(request, project, route, notice, compare=None):
             (project.id, route),
         )
     url = request.url_for(route, project_id=project.id).include_query_params(receipt=receipt)
-    return RedirectResponse(url, status_code=303)
+    return Publication(location=url.path + "?" + url.query)
 
 
 def feedback(request, project, route):

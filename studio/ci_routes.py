@@ -3,26 +3,27 @@
 import hashlib
 import re
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Literal
 from urllib.parse import quote, urlsplit
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from .ci_adapter import review_branch
-from .ci_receipts import feedback, published
+from .ci_receipts import Publication, feedback, published
 from .editing import Conflict, branches, commit_changes, project_lock, read_file, require_base
-from .workspace import WorkspaceError
+from .frontend_routes import document
+from .project_api import failure, get_project
+from .workspace import Project, WorkspaceError
 
-router = APIRouter(prefix="/projects/{project_id}/ci")
+router = APIRouter()
+PAGE = "/projects/{project_id}/ci"
+API = "/api/v1" + PAGE
 
 
 def project(request, project_id):
     ws = request.app.state.workspace
-    p = ws.get(project_id)
-    if p is None:
-        raise HTTPException(404, "Unknown project")
-    return ws, p
+    return ws, get_project(ws, project_id)
 
 
 def is_gitlab(p):
@@ -30,19 +31,39 @@ def is_gitlab(p):
     return url.hostname != "github.com"
 
 
-def page(request, p, status=200, **context):
-    return request.app.state.templates.TemplateResponse(
-        request=request,
-        name="ci/index.html",
-        context={"project": p, "gitlab": is_gitlab(p), **context},
-        status_code=status,
-    )
+class CIView(BaseModel):
+    project: Project
+    gitlab: bool
+    notice: str | None = None
+    compare: str | None = None
+    scan_runs: str | None = None
+    workflow: str | None = None
+    digest: str | None = None
+    demo: str | None = None
+    demo_digest: str | None = None
+    demo_branch: str | None = None
+    demo_target: str | None = None
 
 
-@router.get("", name="repository_ci")
+def page(p, **context):
+    return CIView(project=p, gitlab=is_gitlab(p), **context)
+
+
+def rejected(exc):
+    conflict = isinstance(exc, Conflict)
+    return failure(409 if conflict else 422, "revision_conflict" if conflict else "ci_failed", str(exc))
+
+
+@router.get(PAGE, name="repository_ci", include_in_schema=False)
 def landing(request: Request, project_id: str):
+    project(request, project_id)
+    return document(request, "ci.html")
+
+
+@router.get(API)
+def setup(request: Request, project_id: str) -> CIView:
     _, p = project(request, project_id)
-    return page(request, p, **feedback(request, p, "repository_ci"))
+    return page(p, **feedback(request, p, "repository_ci"))
 
 
 class ReviewForm(BaseModel):
@@ -63,8 +84,8 @@ class DemoForm(ReviewForm):
     action: Literal["review", "publish", "request"]
 
 
-@router.post("")
-def operate(request: Request, project_id: str, form: Annotated[SetupForm, Form()]):
+@router.post(API)
+def operate(request: Request, project_id: str, form: SetupForm) -> CIView | Publication:
     from skillevaluator import ci_onboarding as ci
 
     branch, revision = form.branch, form.revision
@@ -83,7 +104,6 @@ def operate(request: Request, project_id: str, form: Annotated[SetupForm, Form()
                 publisher = read_file(ws, p, ci.PUBLISH, repo_root=True)
                 publication = "present" if publisher is not None else "absent"
                 return page(
-                    request,
                     p,
                     notice=f"Workflow {state} on remote branch {branch}. Publisher {publication}. Scan results not verified.",
                     scan_runs=(p.remote.rstrip("/").removesuffix(".git") + "/actions/workflows/skill-checks.yml")
@@ -98,13 +118,13 @@ def operate(request: Request, project_id: str, form: Annotated[SetupForm, Form()
             workflow = ci.render_files(release, [p.folder], score, scope, p.branch, p.name, full=False)[ci.SCAN]
             digest = hashlib.sha256(workflow.encode()).hexdigest()
             if form.action == "review":
-                return page(request, p, workflow=workflow, digest=digest, score=score, scope=scope, channel=channel)
+                return page(p, workflow=workflow, digest=digest)
             if form.approval != digest:
                 raise WorkspaceError("Review the generated workflow before publishing.")
             commit_changes(ws, p, {ci.SCAN: workflow.encode()}, "Set up Tier 1 skill checks", repo_root=True)
             return published(request, p, "repository_ci", "Published the reviewed workflow.")
     except WorkspaceError as exc:
-        return page(request, p, 409 if isinstance(exc, Conflict) else 422, error=str(exc))
+        raise rejected(exc) from exc
 
 
 def demo_manifest(ws, p, roots):
@@ -126,8 +146,8 @@ def demo_manifest(ws, p, roots):
     raise WorkspaceError("No tracked skill manifest matches the configured scan roots.")
 
 
-@router.post("/demo", name="ci_demo")
-def demo(request: Request, project_id: str, form: Annotated[DemoForm, Form()]):
+@router.post(API + "/demo", name="ci_demo")
+def demo(request: Request, project_id: str, form: DemoForm) -> CIView | Publication:
     from skillevaluator import ci_onboarding as ci
 
     branch, revision = form.branch, form.revision
@@ -174,7 +194,7 @@ def demo(request: Request, project_id: str, form: Annotated[DemoForm, Form()]):
             digest = hashlib.sha256(p.revision.encode() + b"\0" + target.encode() + b"\0" + draft).hexdigest()
             demo_branch = all_tiers.DEMO_BRANCH if all_mode else ci.DEMO_BRANCH
             if form.action == "review":
-                return page(request, p, demo=comment, demo_digest=digest, demo_branch=demo_branch, demo_target=target)
+                return page(p, demo=comment, demo_digest=digest, demo_branch=demo_branch, demo_target=target)
             if form.approval != digest:
                 raise WorkspaceError("Review the demo change before publishing.")
             if form.action == "request":
@@ -198,4 +218,4 @@ def demo(request: Request, project_id: str, form: Annotated[DemoForm, Form()]):
                 compare,
             )
     except WorkspaceError as exc:
-        return page(request, p, 409 if isinstance(exc, Conflict) else 422, error=str(exc))
+        raise rejected(exc) from exc
