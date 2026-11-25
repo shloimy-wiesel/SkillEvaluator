@@ -49,6 +49,23 @@ deadline. Studio passes saved role-specific configuration instead of ambient
 provider keys. The [30 bindings](bindings/readiness.json) cite Chromium and
 native engine evidence using local HTTPS fixtures, not a hosted provider.
 
+## Versioned HTTP API
+
+The provider document reads `GET /api/v1/projects/{id}/providers`. The response
+contains per-role settings, a `has_key` flag, and the available choices. Submit
+JSON to `POST` one of these paths relative to the same endpoint:
+
+- `/{role}` saves `provider`, `base_url`, `model`, `key` and optional `clear`.
+  A blank key is retained only when the provider and normalized URL match.
+  The response is the saved public profile. No response contains the stored key.
+- `/{role}/check` returns a `notice` and a list of safe model IDs.
+- `/readiness/run` accepts the readiness action and options; `checks` and
+  `agents` are arrays. A completed native check returns `result`, `exit_code`,
+  and `show_json`, including when the evaluator reports a failing tier.
+
+Validation and discovery errors return HTTP 422 with `detail.code` and
+`detail.message`; unknown projects and roles return HTTP 404.
+
 ## Python boundary
 
 ```python
