@@ -1,20 +1,10 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import type { ComponentType, SubmitEvent } from "react";
 
 import { api, messageOf, useResource } from "@/lib/studio-api";
-
-const subscribe = (listener: () => void) => {
-  window.addEventListener("popstate", listener);
-
-  return () => {
-    window.removeEventListener("popstate", listener);
-  };
-};
-
-const route = () => window.location.pathname + window.location.search;
-const empty = () => "";
+import { useRoute } from "@/lib/use-route";
 
 interface ScreenProps<T> {
   data: T;
@@ -48,7 +38,7 @@ export const CIDocument = <T,>({
 }: {
   screen: ComponentType<ScreenProps<T>>;
 }) => {
-  const path = useSyncExternalStore(subscribe, route, empty);
+  const path = useRoute();
 
   return path ? (
     <Loaded path={path} Screen={screen} />

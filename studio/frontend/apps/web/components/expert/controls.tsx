@@ -1,24 +1,9 @@
 "use client";
 
-import { useId, useState, useSyncExternalStore } from "react";
+import { useId, useState } from "react";
 import type { ReactNode, SubmitEvent } from "react";
 
 import { api, messageOf } from "@/lib/studio-api";
-
-const subscribe = (listener: () => void) => {
-  window.addEventListener("popstate", listener);
-
-  return () => {
-    window.removeEventListener("popstate", listener);
-  };
-};
-
-const locationKey = () => window.location.pathname + window.location.search;
-const serverLocation = () => "";
-
-/** @returns The canonical Studio route after hydration. */
-export const useRoute = () =>
-  useSyncExternalStore(subscribe, locationKey, serverLocation);
 
 interface ChoiceProps {
   name: string;

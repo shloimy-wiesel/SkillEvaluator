@@ -1,24 +1,13 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import type { ComponentType } from "react";
 
 import { useResource } from "@/lib/studio-api";
 import type { Project } from "@/lib/studio-api";
+import { useRoute } from "@/lib/use-route";
 
 import { score } from "./model";
 import type { Choice, Comparison } from "./model";
-
-const subscribe = (listener: () => void) => {
-  window.addEventListener("popstate", listener);
-
-  return () => {
-    window.removeEventListener("popstate", listener);
-  };
-};
-
-const browserPath = () => window.location.pathname + window.location.search;
-const serverPath = () => "";
 
 interface View {
   project: Project;
@@ -65,7 +54,7 @@ const Load = <T extends View>({
  */
 // oxlint-disable-next-line sonarjs/function-name -- React component.
 export const EvidencePage = <T extends View>(props: ScreenProps<T>) => {
-  const path = useSyncExternalStore(subscribe, browserPath, serverPath);
+  const path = useRoute();
 
   return path ? (
     <Load path={path} screen={props.screen} recovery={props.recovery} />
