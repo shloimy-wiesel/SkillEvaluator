@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from starlette.concurrency import run_in_threadpool
 
+from .dataset_collection import collect, refine_collected
 from .dataset_drafts import Draft
 from .dataset_tools import tools_action
 from .dataset_traces import review_document, traces
@@ -88,7 +89,12 @@ def handle(request, project_id, form):
             if str(draft.state["version"]) != form["version"]:
                 raise Conflict("The draft changed in another form. Review the current draft before retrying.")
             action = form["action"]
-            if action in ("add", "update", "remove"):
+            if action == "collect":
+                run = collect(draft, request.app.state.jobs, form.get("sandbox_consent") == "on")
+                return RedirectResponse(request.url_for("run_detail", project_id=p.id, run_id=run), 303)
+            if action == "refine_collected":
+                extra.update(refine_collected(draft, request.app.state.jobs))
+            elif action in ("add", "update", "remove"):
                 draft.case(form, action)
             elif action in ("create", "identity", "switch"):
                 draft.manage(form)

@@ -16,6 +16,7 @@
 <label>Selected skill folders (one per line)<textarea name="skills" required>{{ project.folder }}</textarea></label>
 <label>Fixed evaluation source<input name="eval_source" value="{{ project.folder }}" required></label>
 <label>Outcome metric<select name="metric"><option>goal_accuracy</option><option>accuracy</option><option>overall</option></select></label>
+<label><input type="checkbox" name="sandbox_grader_consent"> Allow the repository grader in the sandbox</label>
 <label>Environment<select name="env_mode"><option>docker</option><option>kata</option></select></label>
 <label>Kata runtime (Kata only)<select name="kata_runtime"><option value="">Engine default</option><option>kata</option><option>kata-qemu</option><option>kata-clh</option></select></label>
 <label>Kata DNS servers (Kata only, one IP address per line)<textarea name="kata_dns"></textarea></label>

@@ -2,67 +2,253 @@
   {
     "key": "create-eval-dataset",
     "status": "partial",
-    "equivalent": "Review a generation preview from saved chat settings; retained results must be inside the selected skill snapshot and new trajectory collection is not enabled.",
-    "evidence": "tests/studio/test_datasets.py::test_model_preview_uses_only_saved_chat_credentials"
+    "equivalent": "Generate a private preview. New evidence requires a separate consented, one-case sandbox job on the pinned commit.",
+    "evidence": "tests/studio/test_datasets.py::test_collect_then_refine_only_the_pinned_case"
   },
   {
-    "key": "tier3 create-eval-dataset",
-    "status": "partial",
-    "equivalent": "Same generator as the root command; preview then apply, with no live trajectory collection.",
-    "evidence": "tests/studio/test_datasets.py::test_generate_and_validate_local_draft"
+    "key": "create-eval-dataset:skill_path",
+    "status": "implemented",
+    "equivalent": "The open draft selects the skill.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "create-eval-dataset:full",
+    "status": "implemented",
+    "equivalent": "Generate the full bucket set, including an author-specified negative case.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
   },
   {
     "key": "create-eval-dataset:no_llm",
     "status": "implemented",
-    "equivalent": "Use local templates to generate without provider credentials.",
-    "evidence": "tests/studio/test_datasets.py::test_generate_and_validate_local_draft"
+    "equivalent": "Template generation without chat credentials.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "create-eval-dataset:dry_run",
+    "status": "implemented",
+    "equivalent": "Preview first. An unapplied refinement leaves the existing dataset intact for overwrite checks.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "create-eval-dataset:force",
+    "status": "implemented",
+    "equivalent": "Reject replacing an existing dataset until overwrite is selected.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "create-eval-dataset:prompt",
+    "status": "partial",
+    "equivalent": "Select a skill-relative guidance file; its path and content digest enter provenance.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
   },
   {
     "key": "create-eval-dataset:grounding",
+    "status": "implemented",
+    "equivalent": "Support skill, trace and automatic intent selection; inspect generated grounding and retained evidence.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "create-eval-dataset:refine",
+    "status": "implemented",
+    "equivalent": "Refine a skill-grounded starter from matching evidence; trace grounding preserves the authored expectation.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "create-eval-dataset:from_results",
     "status": "partial",
-    "equivalent": "Skill grounding exercised with local templates; trace and intent paths not covered by this browser test.",
-    "evidence": "tests/studio/test_datasets.py::test_generate_and_validate_local_draft"
+    "equivalent": "Select a specific retained run under the pinned skill.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "create-eval-dataset:results_dir",
+    "status": "partial",
+    "equivalent": "Find a completed run under a selected skill-relative results root.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "tier3 create-eval-dataset",
+    "status": "partial",
+    "equivalent": "Generate a private preview. New evidence requires a separate consented, one-case sandbox job on the pinned commit.",
+    "evidence": "tests/studio/test_datasets.py::test_collect_then_refine_only_the_pinned_case"
+  },
+  {
+    "key": "tier3 create-eval-dataset:skill_path",
+    "status": "implemented",
+    "equivalent": "The open draft selects the skill.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "tier3 create-eval-dataset:full",
+    "status": "implemented",
+    "equivalent": "Generate the full bucket set, including an author-specified negative case.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "tier3 create-eval-dataset:no_llm",
+    "status": "implemented",
+    "equivalent": "Template generation without chat credentials.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "tier3 create-eval-dataset:dry_run",
+    "status": "implemented",
+    "equivalent": "Preview first. An unapplied refinement leaves the existing dataset intact for overwrite checks.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "tier3 create-eval-dataset:force",
+    "status": "implemented",
+    "equivalent": "Reject replacing an existing dataset until overwrite is selected.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "tier3 create-eval-dataset:prompt",
+    "status": "partial",
+    "equivalent": "Select a skill-relative guidance file; its path and content digest enter provenance.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "tier3 create-eval-dataset:grounding",
+    "status": "implemented",
+    "equivalent": "Support skill, trace and automatic intent selection; inspect generated grounding and retained evidence.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "tier3 create-eval-dataset:refine",
+    "status": "implemented",
+    "equivalent": "Refine a skill-grounded starter from matching evidence; trace grounding preserves the authored expectation.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "tier3 create-eval-dataset:from_results",
+    "status": "partial",
+    "equivalent": "Select a specific retained run under the pinned skill.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
+  },
+  {
+    "key": "tier3 create-eval-dataset:results_dir",
+    "status": "partial",
+    "equivalent": "Find a completed run under a selected skill-relative results root.",
+    "evidence": "tests/studio/test_datasets.py::test_guided_full_replacement_and_retained_refinement"
   },
   {
     "key": "tier3 validate",
-    "status": "partial",
-    "equivalent": "Validate the private skill snapshot and inspect dataset checks. This journey covers the default contract only.",
-    "evidence": "tests/studio/test_datasets.py::test_generate_and_validate_local_draft"
+    "status": "implemented",
+    "equivalent": "Validate the draft, inspect checks and the strict verdict.",
+    "evidence": "tests/studio/test_datasets.py::test_harbor_contract_warning_changes_only_strict_verdict"
+  },
+  {
+    "key": "tier3 validate:skill_path",
+    "status": "implemented",
+    "equivalent": "The active project draft supplies the skill.",
+    "evidence": "tests/studio/test_datasets.py::test_harbor_contract_warning_changes_only_strict_verdict"
+  },
+  {
+    "key": "tier3 validate:as_json",
+    "status": "implemented",
+    "equivalent": "Expand JSON results with engine check path, message and severity.",
+    "evidence": "tests/studio/test_datasets.py::test_harbor_contract_warning_changes_only_strict_verdict"
+  },
+  {
+    "key": "tier3 validate:strict",
+    "status": "implemented",
+    "equivalent": "A warning passes normally but fails a strict draft validation.",
+    "evidence": "tests/studio/test_datasets.py::test_harbor_contract_warning_changes_only_strict_verdict"
+  },
+  {
+    "key": "tier3 validate:harbor_contract",
+    "status": "implemented",
+    "equivalent": "Statically validate repository grader requirements without executing the grader.",
+    "evidence": "tests/studio/test_datasets.py::test_harbor_contract_warning_changes_only_strict_verdict"
   },
   {
     "key": "tier3 migrate-dataset",
     "status": "partial",
-    "equivalent": "Convert a legacy collection and publish a new dataset without altering the source. Destinations are constrained to dataset paths.",
+    "equivalent": "Convert a selected legacy file and retain the source.",
+    "evidence": "tests/studio/test_datasets.py::test_migrate_legacy_then_review_routing_without_losing_authored_fields"
+  },
+  {
+    "key": "tier3 migrate-dataset:source",
+    "status": "partial",
+    "equivalent": "Select an existing dataset within the pinned draft.",
+    "evidence": "tests/studio/test_datasets.py::test_migrate_legacy_then_review_routing_without_losing_authored_fields"
+  },
+  {
+    "key": "tier3 migrate-dataset:skill_name",
+    "status": "implemented",
+    "equivalent": "Write the explicitly selected target identity.",
     "evidence": "tests/studio/test_datasets.py::test_migrate_legacy_then_review_routing_without_losing_authored_fields"
   },
   {
     "key": "tier3 migrate-dataset:destination",
     "status": "partial",
-    "equivalent": "Stage a new JSON/YAML destination under the selected skill; verified for canonical JSON.",
+    "equivalent": "Stage a new canonical JSON or named YAML dataset; host paths are unavailable.",
     "evidence": "tests/studio/test_datasets.py::test_migrate_legacy_then_review_routing_without_losing_authored_fields"
   },
   {
     "key": "tier3 import-traces",
     "status": "partial",
-    "equivalent": "Upload a bounded session export and review redacted candidates in the private draft. Output is draft-scoped.",
-    "evidence": "tests/studio/test_datasets.py::test_review_export_before_publishing_redacted_fixtures"
+    "equivalent": "Review bounded, redacted exports privately before acceptance.",
+    "evidence": "tests/studio/test_datasets.py::test_replace_trace_review_and_explicit_native_acceptance"
   },
   {
     "key": "tier3 import-traces:export",
     "status": "implemented",
-    "equivalent": "Choose an export file from the browser rather than a host path.",
-    "evidence": "tests/studio/test_datasets.py::test_review_export_before_publishing_redacted_fixtures"
+    "equivalent": "Upload JSON or JSONL instead of a host path.",
+    "evidence": "tests/studio/test_datasets.py::test_replace_trace_review_and_explicit_native_acceptance"
+  },
+  {
+    "key": "tier3 import-traces:force",
+    "status": "implemented",
+    "equivalent": "Explicit replacement required when a draft already has a review.",
+    "evidence": "tests/studio/test_datasets.py::test_replace_trace_review_and_explicit_native_acceptance"
+  },
+  {
+    "key": "tier3 import-traces:dry_run",
+    "status": "implemented",
+    "equivalent": "Preview a forced replacement while retaining the prior candidates.",
+    "evidence": "tests/studio/test_datasets.py::test_replace_trace_review_and_explicit_native_acceptance"
+  },
+  {
+    "key": "tier3 import-traces:output",
+    "status": "partial",
+    "equivalent": "Review is private to the current draft, not an arbitrary host directory.",
+    "evidence": "tests/studio/test_datasets.py::test_replace_trace_review_and_explicit_native_acceptance"
+  },
+  {
+    "key": "tier3 import-traces:skill_path",
+    "status": "implemented",
+    "equivalent": "The selected skill draft binds the imported candidates.",
+    "evidence": "tests/studio/test_datasets.py::test_replace_trace_review_and_explicit_native_acceptance"
   },
   {
     "key": "tier3 accept-traces",
+    "status": "implemented",
+    "equivalent": "Review each candidate before staging; observed output requires a successful trace.",
+    "evidence": "tests/studio/test_datasets.py::test_replace_trace_review_and_explicit_native_acceptance"
+  },
+  {
+    "key": "tier3 accept-traces:review_dir",
     "status": "partial",
-    "equivalent": "Publish an independently reviewed expectation and its fixtures. Native Harbor opt-in and observed-output decisions are not exercised in this journey.",
-    "evidence": "tests/studio/test_datasets.py::test_review_export_before_publishing_redacted_fixtures"
+    "equivalent": "Use the active draft’s retained review; arbitrary host paths are not supported.",
+    "evidence": "tests/studio/test_datasets.py::test_replace_trace_review_and_explicit_native_acceptance"
+  },
+  {
+    "key": "tier3 accept-traces:allow_native_harbor",
+    "status": "implemented",
+    "equivalent": "Explicit opt-in required for native tasks; observed output is still checked.",
+    "evidence": "tests/studio/test_datasets.py::test_replace_trace_review_and_explicit_native_acceptance"
+  },
+  {
+    "key": "tier3 accept-traces:skill_path",
+    "status": "implemented",
+    "equivalent": "Only the draft skill receives accepted cases.",
+    "evidence": "tests/studio/test_datasets.py::test_replace_trace_review_and_explicit_native_acceptance"
   },
   {
     "key": "tier3 accept-traces:dry_run",
     "status": "implemented",
-    "equivalent": "Preview additions before staging them; inspection does not consume the candidates.",
+    "equivalent": "Preview the number of additions before staging accepted cases and fixtures.",
     "evidence": "tests/studio/test_datasets.py::test_review_export_before_publishing_redacted_fixtures"
   }
 ]

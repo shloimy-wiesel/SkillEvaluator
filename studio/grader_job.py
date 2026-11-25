@@ -86,7 +86,19 @@ def evaluate(ctx, options):
                 if public_identity(current) != options.chat:
                     raise WorkspaceError("Chat settings changed since this run was queued.")
                 env.update(current)
+                if ca := os.environ.get("SSL_CERT_FILE"):
+                    env["SSL_CERT_FILE"] = ca
             code, payload = invoke([*args, "--output", str(Path(temp) / "output")], temp, env, live=True)
+            if "metrics" in payload:
+                from skillevaluator.tier3.grader_validation import gate_failures
+
+                payload["threshold_failures"] = gate_failures(
+                    payload,
+                    {
+                        name: getattr(options, "max_" + name)
+                        for name in ("false_pass_rate", "false_fail_rate", "unjudgeable_rate")
+                    },
+                )
             output = Path(temp) / "output"
             with ZipFile(ctx.artifacts / "qualification.zip", "w", ZIP_DEFLATED) as archive:
                 for path in sorted(output.rglob("*")):

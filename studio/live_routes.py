@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 
-from .live_job import LIVE, Controls, snapshot
+from .live_job import COMPLETED, LIVE, Controls, snapshot
 from .runs import project_for
 from .workspace import WorkspaceError
 
@@ -15,7 +15,15 @@ def render(request, project, error=None):
     return request.app.state.templates.TemplateResponse(
         request=request,
         name="live/index.html",
-        context={"project": project, "error": error},
+        context={
+            "project": project,
+            "error": error,
+            "prior": [
+                row
+                for row in request.app.state.jobs.history(project.id)
+                if row["kind"] == LIVE.kind and row["status"] in COMPLETED and row["folder"] == project.folder
+            ],
+        },
         status_code=422 if error else 200,
     )
 
@@ -32,6 +40,8 @@ async def queue(request: Request, project_id: str):
     data = {k: v for k, v in form.items() if k not in {"sha", "agents"} and v != ""}
     try:
         controls = Controls.model_validate({**data, "agents": form.getlist("agents")})
+        if controls.grading_mode not in (None, "default") and not controls.sandbox_grader_consent:
+            raise WorkspaceError("Repository grading requires explicit sandbox consent.")
         options = snapshot(request.app.state.workspace, project_id, controls)
         run_id = request.app.state.jobs.enqueue(project, form.get("sha", ""), LIVE, options)
     except ValidationError:

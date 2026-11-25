@@ -67,6 +67,12 @@
 {% for key, label in [('prompt','Author guidance file'),('from_results','Completed results folder'),('results_dir','Results root')] %}
 <label>{{ label }} (optional)<input name="{{ key }}" placeholder="Relative to selected skill"></label>{% endfor %}
 <button name="action" value="generate">Generate preview</button></form></details>
+<h3>Collect a trajectory</h3>
+<p>Run one case from the committed default dataset at this draft’s revision, with the project chat profile, standard grader and an isolated Docker sandbox. Publish new cases first. Return to this draft to preview refinement.</p>
+<form method="post">{{ token() }}<label><input type="checkbox" name="sandbox_consent"> Allow one paid sandbox trial</label>
+<button name="action" value="collect">Collect trajectory</button></form>
+{% if draft.state.collection %}<p><a href="{{ url_for('run_detail', project_id=project.id, run_id=draft.state.collection) }}">Collection run</a></p>
+<form method="post">{{ token() }}<button name="action" value="refine_collected">Preview collected refinement</button></form>{% endif %}
 {% if generated %}<h3>Generated preview</h3>{% for c in generated.evals %}<article><b>{{ c.id }}</b><p>{{ c.prompt }}</p><p>{{ c.expected_output }}</p></article>{% endfor %}
 <details><summary>All generated fields</summary><pre>{{ generated|tojson(indent=2) }}</pre></details>
 <form method="post">{{ token() }}<button name="action" value="use_generation">Use generated cases</button></form>{% endif %}

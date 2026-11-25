@@ -1,6 +1,7 @@
 """Translate a bounded browser upload and human decisions into the engine review contract."""
 
 import json
+import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -45,9 +46,18 @@ def traces(draft, form):
         candidate["review"].update(review_fields)
         for ref in candidate["files"]:
             safe_ref(ref)
-    write_json(review / "candidates.json", doc)
     dry = form["action"] == "preview_accept"
-    result = accept_traces(draft.skill, review, dry_run=dry, allow_native_harbor="allow_native" in form)
+    # Invalid or unconsented decisions must not overwrite the resumable review.
+    with TemporaryDirectory(dir=draft.root) as tmp:
+        proposed = Path(tmp)
+        write_json(proposed / "candidates.json", doc)
+        for candidate in doc["candidates"]:
+            for ref in candidate["files"]:
+                target = proposed / ref
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(review / ref, target)
+        result = accept_traces(draft.skill, proposed, dry_run=dry, allow_native_harbor="allow_native" in form)
+    write_json(review / "candidates.json", doc)
     if result["added"] and not dry:
         draft.state["path"] = CANONICAL
         additions = set(result["added"])

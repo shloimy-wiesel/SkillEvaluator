@@ -173,11 +173,10 @@ def test_gitlab_all_tier_review(page, private_remote, tmp_path):
         playwright.expect(page.get_by_text("File: more-skills/other/SKILL.md", exact=False)).to_be_visible(timeout=1500)
 
 
-@pytest.mark.parametrize("transport", ["contract", "persisted"])
-def test_read_gitlab_pipeline_and_create_review_requests(
-    page, private_remote, api_handler, tmp_path, monkeypatch, transport
-):
+@pytest.fixture(params=["contract", "persisted"])
+def gitlab_host(page, private_remote, api_handler, tmp_path, monkeypatch, *, request):
     import json
+    import ssl
     from types import SimpleNamespace
     from urllib.parse import urlencode
     from urllib.request import Request, urlopen
@@ -210,7 +209,7 @@ def test_read_gitlab_pipeline_and_create_review_requests(
 
     # #18 owns persistence and TLS transport. Exercise its public consumer contract
     # with an actual prefix/port/CA-bound HTTP server and distinct API credential.
-    def request(method, suffix="", *, query=None, payload=None):
+    def api_request(method, suffix="", *, query=None, payload=None):
         address = root.split("/install/gitlab")[0] + endpoint + suffix + ("?" + urlencode(query) if query else "")
         req = Request(
             address,
@@ -218,12 +217,15 @@ def test_read_gitlab_pipeline_and_create_review_requests(
             method=method,
             headers={"PRIVATE-TOKEN": api_token},
         )
-        with urlopen(req, timeout=3) as response:
+        with urlopen(
+            req, timeout=3, context=ssl.create_default_context(cafile=tmp_path / "certificate.pem")
+        ) as response:
             return json.load(response)
 
     lab = SimpleNamespace(
-        root=root, namespace="group/nested/handbook", web_url=url.removesuffix(".git"), request=request
+        root=root, namespace="group/nested/handbook", web_url=url.removesuffix(".git"), request=api_request
     )
+    transport = request.param
     if transport == "contract":
         monkeypatch.setattr("studio.ci_adapter.configured_instance", lambda _ws, p: lab if p.remote == url else None)
     else:
@@ -246,11 +248,104 @@ def test_read_gitlab_pipeline_and_create_review_requests(
             page.get_by_role("button", name="Save API token").click()
             page.goto(detail)
 
-    host_api["GET", endpoint] = lambda _: (200, {"default_branch": "main"})
-    host_api["GET", endpoint + "/pipelines?ref=main&per_page=1"] = lambda _: (
+    sha = subprocess.check_output(["git", "rev-parse", "main"], cwd=remote, text=True).strip()
+    pipeline = {"id": 17, "project_id": 9, "sha": sha, "ref": "main", "status": "pending"}
+    host_api["GET", endpoint] = lambda _: (200, {"id": 9, "default_branch": "main"})
+    host_api["GET", endpoint + f"/pipelines?ref=main&sha={sha}&per_page=20"] = lambda _: (
         200,
-        [{"id": 17, "status": "pending", "web_url": "https://gitlab.com/untrusted"}],
+        [pipeline, {**pipeline, "id": 16, "status": "failed"}],
     )
+    host_api["GET", endpoint + "/pipelines/17/jobs?per_page=50&page=1"] = lambda _: (
+        200,
+        [
+            {
+                "id": 23,
+                "pipeline": pipeline,
+                "name": "verify handbook",
+                "status": "success",
+                "web_url": "https://gitlab.com/untrusted",
+                "runner": {"description": "private runner detail"},
+            }
+        ],
+    )
+    host_api["GET", endpoint + "/pipelines/16/jobs?per_page=50&page=1"] = lambda _: (
+        200,
+        [{"id": 22, "pipeline": {**pipeline, "id": 16}, "name": "previous attempt", "status": "failed"}],
+    )
+
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect_project()
+        page.get_by_role("link", name="Repository CI").click()
+        page.get_by_role("link", name="Advanced CI setup").click()
+        page.get_by_label("Evaluation tiers").select_option("all")
+        yield SimpleNamespace(
+            api=host_api,
+            endpoint=endpoint,
+            lab=lab,
+            pipeline=pipeline,
+            api_token=api_token,
+            key=key,
+            base=base,
+            connect=connect_project,
+            remote=remote,
+        )
+
+
+def test_selected_gitlab_pipeline_jobs(page, gitlab_host):
+    host = gitlab_host
+    page.get_by_role("button", name="Read live status").click()
+    job = page.get_by_role("row").filter(has_text="verify handbook")
+    playwright.expect(job.get_by_role("cell", name="success")).to_be_visible()
+    playwright.expect(job.get_by_role("link")).to_have_attribute("href", host.lab.web_url + "/-/jobs/23")
+    for private in ("private runner detail", "gitlab.com/untrusted", host.api_token, host.key):
+        assert private not in page.content()
+    page.get_by_label("Pipeline for this revision").select_option("16")
+    page.get_by_role("button", name="Read live status").click()
+    playwright.expect(page.get_by_role("row").filter(has_text="previous attempt")).to_contain_text("failed")
+    playwright.expect(job).to_have_count(0)
+    # A pipeline can disappear from the authorized list between selection and submit.
+    sha = host.pipeline["sha"]
+    host.api["GET", host.endpoint + f"/pipelines?ref=main&sha={sha}&per_page=20"] = lambda _: (200, [host.pipeline])
+    page.get_by_role("button", name="Read live status").click()
+    playwright.expect(page.get_by_role("alert")).to_contain_text("not available for this project and revision")
+    playwright.expect(page.get_by_role("table", name="Pipeline jobs")).to_have_count(0)
+
+
+def test_project_status_adapter_bounds_and_validates_jobs(gitlab_host, tmp_path):
+    from studio.ci_adapter import worker
+    from studio.workspace import Workspace, WorkspaceError
+
+    host = gitlab_host
+    ws = Workspace(tmp_path / "volume")
+    (project,) = ws.projects()
+
+    def inspect():
+        return worker(ws, project, "status", platform="gitlab", tiers="all", pipeline_id=17)
+
+    jobs = host.endpoint + "/pipelines/17/jobs?per_page=50&page="
+    job = {"id": 1, "pipeline": host.pipeline, "name": "verify", "status": "running"}
+    for number in (1, 2):
+        host.api["GET", jobs + str(number)] = lambda _, n=number: (
+            200,
+            [{**job, "id": (n - 1) * 50 + i + 1} for i in range(50)],
+        )
+    rows = inspect()["jobs"]
+    assert len(rows) == 100 and rows[-1]["url"] == host.lab.web_url + "/-/jobs/100"
+    for changes in ({"project_id": 10}, {"sha": "0" * 40}, {"id": 16}):
+        host.api["GET", jobs + "1"] = lambda _, c=changes: (200, [{**job, "pipeline": {**host.pipeline, **c}}])
+        with pytest.raises(WorkspaceError, match="outside the selected pipeline"):
+            inspect()
+    host.api["GET", jobs + "1"] = lambda _: (200, [{**job, "id": 2**63}])
+    with pytest.raises(WorkspaceError, match="invalid resource identifier"):
+        inspect()
+
+
+def test_read_gitlab_pipeline_and_create_review_requests(page, gitlab_host):
+    import json
+
+    host = gitlab_host
+    lab, host_api, endpoint, remote = host.lab, host.api, host.endpoint, host.remote
     requests = []
 
     def create(req):
@@ -259,61 +354,55 @@ def test_read_gitlab_pipeline_and_create_review_requests(
         return 201, {"iid": 7, "web_url": "https://gitlab.com/untrusted"}
 
     host_api["POST", endpoint + "/merge_requests"] = create
-    with running(tmp_path / "volume") as base:
-        page.goto(base)
-        connect_project()
-        page.get_by_role("link", name="Repository CI").click()
-        page.get_by_role("link", name="Advanced CI setup").click()
-        page.get_by_label("Evaluation tiers").select_option("all")
-        page.get_by_label("Publication mode").select_option("pr")
-        page.get_by_role("button", name="Read live status").click()
-        playwright.expect(page.get_by_role("status")).to_contain_text("Latest pipeline: pending")
-        playwright.expect(page.get_by_role("status")).to_contain_text(lab.web_url + "/-/pipelines/17")
-        page.get_by_role("button", name="Review files").click()
-        feedback = yaml.safe_load(page.get_by_label(".gitlab/skill-feedback.yml", exact=True).inner_text())["include"][
-            0
-        ]["inputs"]
-        assert feedback["api-url"] == root + "/api/v4" and feedback["project-id"] == "group/nested/handbook"
-        assert not requests
-        page.get_by_role("button", name="Apply reviewed setup").click()
-        playwright.expect(page.get_by_role("status")).to_contain_text("/merge_requests/7", timeout=3000)
-        branch = requests[0]["source_branch"]
-        assert requests[0]["target_branch"] == "main"
-        subprocess.run(["git", "update-ref", "refs/heads/main", branch], cwd=remote, check=True)
-        # Reconnect at the merged default branch.
-        page.goto(base)
-        connect_project()
-        page.get_by_role("link", name="Repository CI").click()
-        page.get_by_role("button", name="Review demo").click()
-        page.get_by_role("button", name="Create reviewed PR/MR").click()
-        playwright.expect(page.get_by_role("status")).to_contain_text("/merge_requests/7")
-        assert requests[1]["source_branch"] == "ci/skillevaluator-all-tiers-test"
-        assert b"onboarding demo" in subprocess.check_output(
-            ["git", "show", requests[1]["source_branch"] + ":skills/triage/SKILL.md"], cwd=remote
-        )
+    page.get_by_label("Publication mode").select_option("pr")
+    page.get_by_role("button", name="Read live status").click()
+    playwright.expect(page.get_by_role("status")).to_contain_text("Latest pipeline: pending")
+    playwright.expect(page.get_by_role("status")).to_contain_text(lab.web_url + "/-/pipelines/17")
+    page.get_by_role("button", name="Review files").click()
+    feedback = yaml.safe_load(page.get_by_label(".gitlab/skill-feedback.yml", exact=True).inner_text())["include"][0][
+        "inputs"
+    ]
+    assert feedback["api-url"] == lab.root + "/api/v4" and feedback["project-id"] == "group/nested/handbook"
+    assert not requests
+    page.get_by_role("button", name="Apply reviewed setup").click()
+    playwright.expect(page.get_by_role("status")).to_contain_text("/merge_requests/7", timeout=3000)
+    branch = requests[0]["source_branch"]
+    assert requests[0]["target_branch"] == "main"
+    subprocess.run(["git", "update-ref", "refs/heads/main", branch], cwd=remote, check=True)
+    # Reconnect at the merged default branch.
+    page.goto(host.base)
+    host.connect()
+    page.get_by_role("link", name="Repository CI").click()
+    page.get_by_role("button", name="Review demo").click()
+    page.get_by_role("button", name="Create reviewed PR/MR").click()
+    playwright.expect(page.get_by_role("status")).to_contain_text("/merge_requests/7")
+    assert requests[1]["source_branch"] == "ci/skillevaluator-all-tiers-test"
+    assert b"onboarding demo" in subprocess.check_output(
+        ["git", "show", requests[1]["source_branch"] + ":skills/triage/SKILL.md"], cwd=remote
+    )
 
-        demo_head = requests[1]["source_branch"]
-        sha = subprocess.check_output(["git", "rev-parse", demo_head], cwd=remote, text=True).strip()
-        host_api["GET", endpoint + "/merge_requests?state=opened&source_branch=ci%2Fskillevaluator-all-tiers-test"] = (
-            lambda _: (
-                200,
-                [
-                    {
-                        "iid": 7,
-                        "source_branch": demo_head,
-                        "target_branch": "main",
-                        "sha": sha,
-                        "source_project_id": 17,
-                        "target_project_id": 17,
-                        "web_url": url.removesuffix(".git") + "/-/merge_requests/7",
-                    }
-                ],
-            )
+    demo_head = requests[1]["source_branch"]
+    sha = subprocess.check_output(["git", "rev-parse", demo_head], cwd=remote, text=True).strip()
+    host_api["GET", endpoint + "/merge_requests?state=opened&source_branch=ci%2Fskillevaluator-all-tiers-test"] = (
+        lambda _: (
+            200,
+            [
+                {
+                    "iid": 7,
+                    "source_branch": demo_head,
+                    "target_branch": "main",
+                    "sha": sha,
+                    "source_project_id": 17,
+                    "target_project_id": 17,
+                    "web_url": lab.web_url + "/-/merge_requests/7",
+                }
+            ],
         )
-        page.get_by_role("button", name="Review demo").click()
-        page.get_by_role("button", name="Create reviewed PR/MR").click()
-        playwright.expect(page.get_by_role("status")).to_contain_text("/merge_requests/7", timeout=1500)
-        assert len(requests) == 2
+    )
+    page.get_by_role("button", name="Review demo").click()
+    page.get_by_role("button", name="Create reviewed PR/MR").click()
+    playwright.expect(page.get_by_role("status")).to_contain_text("/merge_requests/7", timeout=1500)
+    assert len(requests) == 2
 
 
 def test_github_hosted_setup_review_and_receipt(page, github_remote, tmp_path):
