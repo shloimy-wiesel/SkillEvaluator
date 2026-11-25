@@ -42,22 +42,35 @@ def test_feature_inputs_are_project_scoped_json(page, private_remote, tmp_path, 
         assert page.request.get(base + "/api/v1/projects/missing/" + feature).status == 404
 
 
-def test_active_history_refresh_preserves_next_launch_draft(page, private_remote, tmp_path):
+def test_active_history_retries_failed_refresh_and_preserves_next_launch_draft(page, private_remote, tmp_path):
     with running(tmp_path / "volume") as base:
         page.goto(base)
         connect(page, *private_remote, skill="skills/triage")
         endpoint = page.url.replace(base, base + "/api/v1") + "/runs"
         view = page.request.get(endpoint).json()
         run = {"id": "fixture", "sha": view["project"]["revision"], "kind": "tier1-static", "created": "2026-11-25"}
+        statuses = iter(["running", None, "passed"])
+        reads = []
 
         def respond(route):
-            route.fulfill(json={**view, "runs": [run]})
+            status = next(statuses, "unexpected read")
+            reads.append(status)
+            if status is None:
+                route.fulfill(status=503, json={"detail": {"message": "Worker temporarily unavailable"}})
+            else:
+                route.fulfill(json={**view, "runs": [{**run, "status": status}]})
 
-        run["status"] = "running"
+        page.clock.install()
         page.route(endpoint, respond)
         page.get_by_role("link", name="Run history").click()
         page.get_by_label("Commit SHA").fill("next revision")
         playwright.expect(page.locator("#history")).to_contain_text("running")
-        run["status"] = "passed"
-        playwright.expect(page.locator("#history")).to_contain_text("passed")
+        alert = page.locator("#history").get_by_role("alert")
+        playwright.expect(alert).to_contain_text("Worker temporarily unavailable")
+        playwright.expect(page.locator("#history")).to_contain_text("running")
         playwright.expect(page.get_by_label("Commit SHA")).to_have_value("next revision")
+        playwright.expect(page.locator("#history")).to_contain_text("passed")
+        playwright.expect(alert).to_have_count(0)
+        playwright.expect(page.get_by_label("Commit SHA")).to_have_value("next revision")
+        page.clock.fast_forward(60_000)
+        assert reads == ["running", None, "passed"]

@@ -67,7 +67,7 @@ const RunStatus = ({ initial, path }: { initial: Status; path: string }) => {
       <output>
         {run.status} · {run.progress}
       </output>
-      {problem && <p role="alert">{problem} Reopen this run to retry.</p>}
+      {problem && <p role="alert">{problem} Retrying automatically.</p>}
       <dl>
         <dt>Commit</dt>
         <dd>
