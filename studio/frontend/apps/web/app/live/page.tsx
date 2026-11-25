@@ -1,8 +1,11 @@
 "use client";
 
+import { Fragment, useState } from "react";
+
 import { QueueForm, RunDocument } from "@/components/run-workspace/document";
 import { Numeric, Select, Toggle } from "@/components/run-workspace/fields";
 import type { Project } from "@/lib/studio-api";
+import { useResource } from "@/lib/studio-api";
 
 interface Settings {
   project: Project;
@@ -82,6 +85,73 @@ const Trials = ({ judge }: { judge: string | null }) => (
   </details>
 );
 
+const ProfileChoices = ({ profiles }: Pick<Settings, "profiles">) => (
+  <Select name="sandbox_profile" label="Sandbox profile">
+    <option value="generated">Generated Harbor tasks</option>
+    {profiles.map(({ key, label, reason }) => (
+      <option key={key} value={key} disabled={Boolean(reason)}>
+        {label}
+        {Boolean(reason) && ` — ${reason}`}
+      </option>
+    ))}
+  </Select>
+);
+
+const RevisionProfiles = ({ path }: { path: string }) => {
+  const { data, error } = useResource<Settings["profiles"]>(path);
+
+  return (
+    <>
+      <ProfileChoices profiles={data ?? []} />
+      {error !== undefined && <p role="alert">{error}</p>}
+    </>
+  );
+};
+
+const fullSha = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
+
+const RevisionInputs = ({
+  project,
+  profiles,
+}: Pick<Settings, "project" | "profiles">) => {
+  const [draft, setDraft] = useState<string>();
+  const sha = draft ?? project.revision;
+  let choices = <ProfileChoices profiles={[]} />;
+
+  if (sha === project.revision) {
+    choices = <ProfileChoices profiles={profiles} />;
+  } else if (fullSha.test(sha)) {
+    choices = (
+      <RevisionProfiles
+        path={`/projects/${project.id}/live/profiles?sha=${sha}`}
+      />
+    );
+  }
+
+  return (
+    <>
+      <label>
+        Commit SHA
+        <input
+          name="sha"
+          value={sha}
+          onChange={(event) => {
+            setDraft(event.target.value);
+          }}
+          required
+        />
+      </label>
+      <Fragment key={sha}>
+        {choices}
+        <Toggle
+          name="reviewed_inputs"
+          label="I reviewed the pinned task inputs and consent to running them in the selected paid sandbox"
+        />
+      </Fragment>
+    </>
+  );
+};
+
 const settings = (
   { project, judge, profiles, prior }: Settings,
   path: string
@@ -94,27 +164,11 @@ const settings = (
       operator-managed Docker sandbox before starting paid trials.
     </p>
     <QueueForm path={path} button="Queue live evaluation" lists={["agents"]}>
-      <label>
-        Commit SHA
-        <input name="sha" defaultValue={project.revision} required />
-      </label>
-      <Select name="sandbox_profile" label="Sandbox profile">
-        <option value="generated">Generated Harbor tasks</option>
-        {profiles.map(({ key, label, reason }) => (
-          <option key={key} value={key} disabled={Boolean(reason)}>
-            {label}
-            {Boolean(reason) && ` — ${reason}`}
-          </option>
-        ))}
-      </Select>
+      <RevisionInputs project={project} profiles={profiles} />
       <p>
         Native Harbor requires the stock single-step task scaffold. Gym requires
         the pinned Gym worker, Docker and a Codex Responses-compatible provider.
       </p>
-      <Toggle
-        name="reviewed_inputs"
-        label="I reviewed the pinned task inputs and consent to running them in the selected paid sandbox"
-      />
       <Select name="workflow" label="Workflow">
         <option value="evaluate">Evaluate existing cases</option>
         <option value="alias">
