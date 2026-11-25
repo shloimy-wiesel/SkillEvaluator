@@ -175,7 +175,8 @@ def test_run_shipped_verifier_retains_attempt_evidence(page, tmp_path, private_r
             assert not any(b"test-only-key" in archive.read(name) for name in archive.namelist())
 
 
-def test_authored_suite_is_checked_as_evidence_only(page, tmp_path, private_remote):
+def publish_project_suite(tmp_path):
+    import json
     import shutil
 
     from skillevaluator.tier3.grader_validation import REFERENCE_SUITE
@@ -183,6 +184,10 @@ def test_authored_suite_is_checked_as_evidence_only(page, tmp_path, private_remo
     seed = tmp_path / "seed"
     suite = seed / "skills/triage/labels"
     shutil.copytree(REFERENCE_SUITE, suite)
+    manifest = suite / "suite.json"
+    data = json.loads(manifest.read_text())
+    next(case for case in data["cases"] if case["id"] == "missing")["id"] = "project-missing"
+    manifest.write_text(json.dumps(data))
     # A Python file beside the manifest is neither an import source nor a verifier.
     (suite / "json.py").write_text("raise RuntimeError('must not be imported')\n")
     subprocess.run(["git", "add", "."], cwd=seed, check=True)
@@ -190,17 +195,55 @@ def test_authored_suite_is_checked_as_evidence_only(page, tmp_path, private_remo
         ["git", "-c", "user.name=test", "-c", "user.email=t@example.org", "commit", "-m", "suite"], cwd=seed, check=True
     )
     subprocess.run(["git", "push", str(tmp_path / "server/handbook.git"), "main"], cwd=seed, check=True)
+
+
+def test_authored_suite_requires_consent_and_sandbox(page, tmp_path, private_remote, monkeypatch):
+    monkeypatch.delenv("STUDIO_LIVE_ENABLED", raising=False)
+    publish_project_suite(tmp_path)
     with running(tmp_path / "volume") as base:
         page.goto(base)
         connect(page, *private_remote, skill="skills/triage")
         page.get_by_role("link", name="Evaluation assets").click()
         page.get_by_label("Suite", exact=True).select_option("labels/suite.json")
         page.get_by_role("button", name="Run qualification").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("bundled reference suite")
+        playwright.expect(page.get_by_role("alert")).to_contain_text("consent")
+        page.get_by_label("Suite", exact=True).select_option("labels/suite.json")
+        page.get_by_label("Allow this project suite").check()
+        page.get_by_role("button", name="Run qualification").click()
+        playwright.expect(page.get_by_role("alert")).to_contain_text("isolated Docker worker")
         page.get_by_label("Suite", exact=True).select_option("labels/suite.json")
         page.get_by_label("Case IDs").fill("arithmetic")
         page.get_by_role("button", name="Check suite").click()
         playwright.expect(page.get_by_role("main")).to_contain_text("Suite valid: 1 assessment cases.", timeout=8000)
+
+
+def test_project_suite_returns_isolated_attempts(page, tmp_path, private_remote, monkeypatch):
+    import os
+    from io import BytesIO
+    from zipfile import ZipFile
+
+    import pytest
+
+    if not (image := os.environ.get("STUDIO_TEST_GRADER_IMAGE")):
+        pytest.skip("Set STUDIO_TEST_GRADER_IMAGE to a local trusted live evaluator image")
+    monkeypatch.setenv("STUDIO_LIVE_ENABLED", "1")
+    monkeypatch.setenv("STUDIO_GRADER_IMAGE", image)
+    publish_project_suite(tmp_path)
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        page.get_by_role("link", name="Evaluation assets").click()
+        page.get_by_label("Suite", exact=True).select_option("labels/suite.json")
+        page.get_by_label("Allow this project suite").check()
+        page.get_by_label("Case IDs").fill("project-missing")
+        page.get_by_label("Repeats").fill("1")
+        page.get_by_role("button", name="Run qualification").click()
+        playwright.expect(page.get_by_role("status")).to_contain_text("passed", timeout=20000)
+        report = page.request.get(page.get_by_role("link", name="Download JSON").get_attribute("href")).json()
+        assert report["coverage"]["attempts"] == 1 and report["provenance"]["case_ids"] == ["project-missing"]
+        response = page.request.get(page.get_by_role("link", name="Download attempt evidence").get_attribute("href"))
+        with ZipFile(BytesIO(response.body())) as archive:
+            assert b"insufficient_evidence" in archive.read("project-missing/attempt-1/expected-vs-observed.json")
 
 
 def test_valid_preflight_does_not_pass_a_live_rate_gate(page, tmp_path, private_remote):

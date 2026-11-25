@@ -157,15 +157,15 @@
   },
   {
     "key": "tier3 validate-grader",
-    "status": "partial",
-    "equivalent": "Project suites support preflight; live qualification runs only the shipped suite.",
-    "evidence": "tests/studio/test_assets.py::test_run_shipped_verifier_retains_attempt_evidence"
+    "status": "implemented",
+    "equivalent": "Qualify the shipped verifier against the bundled suite or a pinned project suite with explicit sandbox consent; retain native reports and attempt evidence.",
+    "evidence": "tests/studio/test_assets.py::test_project_suite_returns_isolated_attempts"
   },
   {
     "key": "tier3 validate-grader:suite_dir",
-    "status": "partial",
-    "equivalent": "Select a committed manifest for preflight; only the bundled suite is available for live qualification.",
-    "evidence": "tests/studio/test_assets.py::test_authored_suite_is_checked_as_evidence_only"
+    "status": "implemented",
+    "equivalent": "Qualify the shipped verifier against the bundled suite or a pinned project suite with explicit sandbox consent; retain native reports and attempt evidence.",
+    "evidence": "tests/studio/test_assets.py::test_project_suite_returns_isolated_attempts"
   },
   {
     "key": "tier3 validate-grader:check_suite",
