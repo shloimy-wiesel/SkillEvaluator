@@ -34,10 +34,19 @@ def test_self_managed_author_reopens_and_pushes(page, private_remote, tmp_path, 
         connect(page, root + "/engineering/platform/handbook.git", git_token, "skills/triage")
         playwright.expect(page.get_by_role("heading", name="handbook")).to_be_visible()
         page.get_by_role("link", name="GitLab access").click(timeout=1500)
+        view = page.request.get(page.url.replace("/projects/", "/api/v1/projects/"))
+        assert view.ok and view.json()["namespace"] == "engineering/platform/handbook"
         page.get_by_role("button", name="Check project API access").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("separate GitLab API token")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("separate GitLab API token")
         page.get_by_label("GitLab API token").fill("fixture-read-api")
         page.get_by_role("button", name="Save API token").click()
+        playwright.expect(page.get_by_role("status")).to_have_text("API token saved.")
+        playwright.expect(page.get_by_label("GitLab API token")).to_have_value("")
+        assert page.request.get(view.url).json() == {
+            "root": root,
+            "namespace": "engineering/platform/handbook",
+            "web_url": root + "/engineering/platform/handbook",
+        }
     with running(volume) as base:
         page.goto(base)
         page.get_by_role("link", name="handbook").click()
@@ -51,6 +60,10 @@ def test_self_managed_author_reopens_and_pushes(page, private_remote, tmp_path, 
             == root + "/engineering/platform/handbook/-/merge_requests"
         )
         assert "fixture-read-api" not in page.content()
+        page.get_by_role("button", name="Save API token").click()
+        playwright.expect(page.get_by_role("status")).to_have_text("API token removed.")
+        page.get_by_role("button", name="Check project API access").click()
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("separate GitLab API token")
         page.goto(detail)
         page.get_by_role("link", name="Edit skill").click()
         page.get_by_label("New branch name").fill("review/private")
@@ -103,5 +116,5 @@ def test_credentials_do_not_follow_git_or_api_redirects(page, private_remote, tm
         page.get_by_label("GitLab API token").fill("fixture-api")
         page.get_by_role("button", name="Save API token").click()
         page.get_by_role("button", name="Check project API access").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("redirected")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("redirected")
     assert leaked == []
