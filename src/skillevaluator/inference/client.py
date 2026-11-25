@@ -608,6 +608,7 @@ class LLMClient:
         retry_base_delay: float | None = None,
         retry_max_delay: float | None = None,
         http_client: Any = None,
+        provider_config: ProviderConfig | None = None,
         timeout: float | None = None,
     ) -> None:
         self._model = model
@@ -630,7 +631,7 @@ class LLMClient:
         # bound is passed explicitly instead of inherited from the client.
         self._timeout = timeout
         self._client: Any = None
-        self._provider_config: ProviderConfig | None = None
+        self._provider_config = provider_config
         self._provider_config_lock = threading.Lock()
         self.last_failure: str | None = None
         # Per thread, because one client can serve concurrent calls.

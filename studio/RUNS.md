@@ -1,5 +1,7 @@
 # Evaluation runs
 
+For model-backed Tier 2 runs, see [Evaluate overlap](OVERLAP.md).
+
 Open **Evaluation runs** on a project. The form starts with the project's
 current full commit SHA; an older commit already in the project clone works
 too. Queue the checks, then close the tab if desired. Follow the SHA in run
