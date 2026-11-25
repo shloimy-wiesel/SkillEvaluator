@@ -162,8 +162,13 @@ def deployment(tmp_path, private_remote):
     volume = f"studio-test-{uuid4().hex}"
     subprocess.run(["docker", "volume", "create", volume], check=True)
 
+    previous_image = os.environ.get("STUDIO_TEST_PREVIOUS_IMAGE")
+
     @contextmanager
     def container():
+        nonlocal previous_image
+        boot_image = previous_image or image
+        previous_image = None
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]
@@ -180,7 +185,7 @@ def deployment(tmp_path, private_remote):
                 f"{ca}:/fixture-ca.pem:ro",
                 "-e",
                 "GIT_SSL_CAINFO=/fixture-ca.pem",
-                image,
+                boot_image,
                 "uvicorn",
                 "studio.app:create_app",
                 "--factory",
@@ -217,6 +222,10 @@ def test_author_reopens_private_skill_after_replacement(page, tmp_path, private_
         playwright.expect(page.get_by_role("heading", name="handbook")).to_be_visible()
         assert token not in page.content()
     with deployment() as second:
+        if os.environ.get("STUDIO_TEST_PREVIOUS_IMAGE"):
+            projects = page.request.get(second + "/api/v1/projects")
+            assert projects.ok, "The replacement must expose the React project's public API."
+            assert token not in projects.text()
         page.goto(second)
         page.get_by_role("link", name="handbook").click()
         playwright.expect(page.get_by_text("skills/triage", exact=True)).to_be_visible()

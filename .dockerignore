@@ -34,3 +34,9 @@ SECURITY.md
 SUPPORT.md
 sonar-project.properties
 .studio-data/
+**/node_modules/
+**/.next/
+**/.turbo/
+**/.git/
+studio/frontend/apps/web/out/
+**/*.tsbuildinfo
