@@ -15,7 +15,11 @@ def test_compare_branch_to_commit_without_switching(page, tmp_path, private_remo
     with running(tmp_path / "volume") as base:
         page.goto(base)
         connect(page, *private_remote, skill="skills/triage")
-        page.get_by_role("link", name="Compare revisions").click(timeout=1500)
+        with page.expect_response(
+            lambda r: "/api/v1/projects/" in r.url and r.url.endswith("/compare"), timeout=5000
+        ) as view:
+            page.get_by_role("link", name="Compare revisions").click(timeout=1500)
+        assert view.value.json()["current"] == "main"
         page.get_by_label("Prior revision").fill(main)
         page.get_by_label("Current revision").fill("candidate")
         page.get_by_role("button", name="Compare revisions").click()
@@ -138,3 +142,12 @@ def test_download_scoped_native_trends_and_version_report(page, tmp_path, privat
         assert json.loads(download("History JSON"))["rows"] == []
         assert json.loads(download("Comparison JSON"))["agents"]["opencode"]["delta"] == -0.6
         assert page.request.get(page.url + "&scope=" + "f" * 32).status == 422
+
+        result = next((volume / "artifacts" / project / ("b" * 32)).rglob("result.json"))
+        evidence = json.loads(result.read_text())
+        evidence["agents"]["opencode"]["model"] = "=model-" + private_remote[1]
+        result.write_text(json.dumps(evidence))
+        response = page.request.get(f"{base}/api/v1/projects/{project}/results/history?download=csv")
+        models = [r["model"] for r in csv.DictReader(response.text().splitlines())]
+        assert "'=model-<redacted>" in models
+        assert private_remote[1] not in response.text()

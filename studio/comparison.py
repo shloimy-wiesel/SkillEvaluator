@@ -5,13 +5,16 @@ import re
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from .comparison_evidence import retained_evidence
+from .frontend_routes import document
+from .result_routes import route_pair
+from .retained import mask_strings, scrubber
 from .runs import project_for
 from .workspace import WorkspaceError
 
-router = APIRouter(prefix="/projects/{project_id}/compare")
+pages, api = route_pair("/projects/{project_id}/compare")
 SHA = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
 MAX_DIFF_LINES = 2000
 
@@ -79,8 +82,8 @@ def changed_files(ws, project, left, right):
             file["notice"] = f"Line diff omitted: the two previews exceed {MAX_DIFF_LINES:,} combined lines."
         else:
             edits = SequenceMatcher(None, a, b).get_opcodes()
-            file["prior"] = [(op, "".join(a[i:j])) for op, i, j, _, _ in edits if i != j]
-            file["current"] = [(op, "".join(b[i:j])) for op, _, _, i, j in edits if i != j]
+            file["prior"] = [[op, "".join(a[i:j])] for op, i, j, _, _ in edits if i != j]
+            file["current"] = [[op, "".join(b[i:j])] for op, _, _, i, j in edits if i != j]
         files.append(file)
     return files, len(parts) // 2
 
@@ -114,7 +117,8 @@ def review_results(ws, project, sides):
     return {"status": "unavailable", "reasons": [reason]}
 
 
-@router.get("", name="compare_revisions")
+@pages.get("", name="compare_revisions")
+@api.get("")
 def compare(
     request: Request, project_id: str, *, prior: str = "", current: str = "", prior_run: str = "", current_run: str = ""
 ):
@@ -142,11 +146,27 @@ def compare(
                     "report": json.loads(row["report"] or "{}") if row else {},
                 }
             )
+        if not request.url.path.startswith("/api/v1/"):
+            return document(request, "compare.html")
         left, right = context["sides"]
         context["files"], context["count"] = changed_files(ws, project, left["sha"], right["sha"])
         context["comparison"] = review_results(ws, project, context["sides"])
     except WorkspaceError as exc:
-        context["error"] = str(exc)
-    return request.app.state.templates.TemplateResponse(
-        request=request, name="comparison/index.html", context=context, status_code=422 if "error" in context else 200
-    )
+        raise HTTPException(422, str(exc)) from exc
+    for side in context["sides"]:
+        side["choices"] = [dict(r) for r in side["choices"]]
+        row = side.pop("row")
+        side["run_id"] = row["id"] if row else None
+        side["results"] = [
+            {key: result.get(key) for key in ("validator", "status")}
+            for result in side.pop("report").get("results", [])
+        ]
+    scrub = scrubber(ws, project_id)
+    for key in ("files", "comparison", "sides"):
+        context[key] = mask_strings(context[key], scrub)
+    return context
+
+
+router = APIRouter()
+router.include_router(pages)
+router.include_router(api)
