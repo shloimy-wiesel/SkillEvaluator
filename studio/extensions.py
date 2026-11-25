@@ -11,6 +11,7 @@ from .experiment_routes import router as experiment_router
 from .expert import EXPERT
 from .expert import router as expert_router
 from .grader_job import GRADER
+from .history import router as history_router
 from .live_job import LIVE
 from .live_routes import router as live_router
 from .overlap import OVERLAP
@@ -28,8 +29,9 @@ ROUTERS = (
     assets_router,
     dataset_router,
     live_router,
-    review_router,
     comparison_router,
+    history_router,
+    review_router,
     overlap_router,
     expert_router,
     advanced_ci_router,
@@ -37,6 +39,7 @@ ROUTERS = (
 )
 PROJECT_LINKS = (
     ("Compare revisions", "compare_revisions"),
+    ("Skill lift history", "skill_history"),
     ("Edit skill", "skill_editor"),
     ("Datasets", "datasets"),
     ("Provider settings", "provider_settings"),
