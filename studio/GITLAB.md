@@ -101,3 +101,9 @@ reviewed push, runner execution and status transport. It does **not**
 execute the generated evaluator includes, call a model, run MR feedback,
 or verify reports or artifacts. The test remains skipped in ordinary
 pytest runs.
+
+Observed 2026-11-25 on CE 18.11.3 with Runner 18.11.0: for
+`/forge/engineering2/platform/handbook`, Chromium showed pipeline `#1`
+as `success`. The Studio adapter returned job `#1` (`studio-smoke`),
+`success`, runner ID `2`, commit `cd99d55f3ed5f45b4f98cbc886d95fc863fefb94`.
+These IDs belonged only to the disposable instance.
