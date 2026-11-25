@@ -375,8 +375,10 @@ def test_focused_collection_evaluates_both_selected_members(evaluate, tmp_path, 
         (path / "SKILL.md").write_text(
             f"---\nname: {name}\ndescription: Help route requests.\n---\nWrite to boss@company.com\n"
         )
-        (path / "scripts/invalid.py").write_text("def no_paren:\n")
+        (path / "scripts/flat.py").write_text("print('route')\n")
     _, report = evaluate(action, target="collection")
     rows = str(report["results"])
     assert "first-member" in rows and "second-member" in rows
     assert "skills/sample" not in rows
+    if action.endswith("lint-scripts"):
+        assert sum(f["check_name"] == "flat_script" for f in report["results"][0]["findings"]) == 2

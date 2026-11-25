@@ -3,6 +3,24 @@ from test_workspace import connect, playwright, running
 
 pytest_plugins = ("test_workspace",)
 
+ALL_REPORTS = ["cli", "json", "html", "markdown", "sarif", "junit", "github"]
+
+
+def assert_native_bundle(page, expected):
+    import xml.etree.ElementTree as ET
+
+    def download(label):
+        link = page.get_by_role("link", name=f"Download native {label}", exact=True)
+        return page.request.get(link.get_attribute("href"))
+
+    assert expected.lower() in download("Markdown").text().lower()
+    assert expected.lower() in download("HTML").text().lower()
+    assert any(expected.lower() in r["validator"].lower() for r in download("JSON").json()["results"])
+    assert download("SARIF").json()["version"] == "2.1.0"
+    suites = ET.fromstring(download("JUnit").text()).findall("testsuite")
+    assert any(expected.lower() in s.attrib["name"].lower() for s in suites)
+    assert "::notice" in page.locator("body").text_content()
+
 
 def publish(tmp_path, files):
     import subprocess
@@ -128,6 +146,11 @@ def test_author_runs_only_quality_and_downloads_requested_evidence(page, private
         assert len(report["results"]) == 1
         assert "quality" in report["results"][0]["validator"].lower()
         assert page.get_by_role("link", name="Download native HTML").count() == 0
+        page.go_back()
+        page.get_by_label("Reports").select_option(ALL_REPORTS)
+        page.get_by_role("button", name="Queue check").click()
+        playwright.expect(page.get_by_role("status")).to_contain_text("failed", timeout=20000)
+        assert_native_bundle(page, "quality")
 
 
 @pytest.mark.parametrize("action", ["validate", "tier1", "tier1-validate"])
@@ -184,7 +207,7 @@ def test_focused_command_keeps_own_scope(page, private_remote, tmp_path, action,
             page.get_by_label("Harnesses", exact=True).select_option("codex", timeout=2000)
             page.get_by_label("Write harness JSON").check()
         else:
-            page.get_by_label("Reports").select_option("json", timeout=2000)
+            page.get_by_label("Reports").select_option(ALL_REPORTS, timeout=2000)
         page.get_by_role("button", name="Queue check").click()
         link = page.get_by_role("link", name="Download native JSON")
         playwright.expect(link).to_be_visible(timeout=30000)
@@ -194,6 +217,7 @@ def test_focused_command_keeps_own_scope(page, private_remote, tmp_path, action,
             assert "claude-code" not in str(report["harness_compatibility"])
         else:
             assert expected.lower() in report["results"][0]["validator"].lower()
+            assert_native_bundle(page, expected)
 
 
 @pytest.mark.parametrize("action", ["rubric-eval", "tier1-rubric-eval", "tier1", "tier1-validate"])
@@ -263,7 +287,7 @@ def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, l
             else:
                 page.get_by_label("Target directory").select_option("skills")
             page.get_by_label("Minimum score").fill("90")
-            page.get_by_label("Reports").select_option("json")
+            page.get_by_label("Reports").select_option(ALL_REPORTS)
             page.get_by_role("button", name="Queue check").click()
             playwright.expect(page.get_by_role("status")).to_contain_text("failed", timeout=30000)
             run = page.url
@@ -279,6 +303,7 @@ def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, l
             assert any("rubric" in r["validator"].lower() and r["status"] == "failed" for r in native["results"])
             if not workflow:
                 assert all(name in str(native["results"]) for name in ("triage", "second"))
+                assert_native_bundle(page, "rubric")
             assert "frozen-secret" not in page.content()
             assert b"frozen-secret" not in (tmp_path / "volume/studio.sqlite3").read_bytes()
         finally:
