@@ -131,3 +131,58 @@ labels and custom harness profiles are not supported by this skill-scoped
 job. Select **Record the pinned revision** to stamp the actual SHA on the
 benchmark. The option audit registers evidence for individually tested
 bindings; the presence of a form is not a whole-command parity claim.
+
+## Live Tier 3
+
+Open **Live Tier 3** from a project. Select a full commit, the dataset (blank
+discovers the skill's conventional dataset at that commit), agent(s), grading
+and comparison arms. Blank numeric fields preserve engine/config defaults;
+zero is an explicit budget. A USD limit also needs a committed model price
+JSON path. The chat profile selects the judge; the agent model override is
+independent. Use a key-backed provider whose saved credential can serve every
+selected agent; Studio does not borrow unrelated ambient keys.
+
+**Evaluate** requires cases unless you explicitly enable autopilot. **Direct
+Tier 3** runs the native workflow: preflight options and environment, then use
+existing cases or prepare one starter. Generated cases are private run inputs;
+they do not change Git. Rerun reuses the retained generated dataset once it is
+available and always uses the original encrypted profile, commit and options.
+Use a fresh submission to evaluate a new profile or generate a new starter.
+
+The Harbor preset supports Docker and Kata (requires a configured Kata runtime),
+isolated skill workspaces, standard and in-container custom grading, pinned
+`evals/files` inputs, and safe declarative trial settings in `evals/config.yml`.
+It does not accept host execution, repository-defined environments, arbitrary
+setup commands, or native task bundles. A partial or unscored run is not a
+measured failure. A neutral skill verdict can have CLI exit code zero.
+
+### Finding evidence for comparison, feedback and experiments
+
+1. Look up the Studio run with `jobs.get(project_id, run_id)`. Require
+   `kind == "tier3-live-v1"` and a terminal row with `report` before using
+   files. The Studio run ID and the native engine run ID are different.
+2. Parse `row["report"]`: scored runs use `JSONReporter` and its canonical
+   `tier3` payload, including the engine summary, agent/arm evidence and
+   `evaluated_source.commit`. Missing measurements are absent. Preflight or
+   incomplete outputs can have no canonical evaluation payload.
+3. Under the private `artifacts/<project_id>/<run_id>/tier3/` root there is
+   one real `<native-run-id>/` directory. Ignore the `latest` alias. Use its
+   `result.json`, `run_config.json`, `<agent>/<arm>/summary.json`, engine
+   feedback, report and dataset snapshot with the existing native readers.
+   The selected/generated source dataset is also retained as `dataset.<ext>`
+   beside `tier3/`. Use only authorized paths resolved under this run's root.
+4. Compare actual dataset identities, agents/models, grading, arms, attempt
+   policy, execution status and coverage from native evidence. The opaque
+   `profile_id` is a private credential snapshot reference, not a benchmark
+   dimension. The engine provenance key is `<volume>/tier3-output.key`; for
+   a trusted offline reader use `SKILLEVALUATOR_OUTPUT_PROVENANCE_KEY_FILE`
+   pointing to that file. Do not download it or copy it into trial containers.
+
+See [the live image instructions](README.md#live-tier-3-image) to enable the
+backend. A deterministic browser suite uses a fixture runner. With the Tier 3
+extra and an accessible local Docker daemon, exercise the real authenticated
+engine catalog and Docker preflight without a paid trial:
+
+```sh
+STUDIO_TEST_LIVE_RUNTIME=1 python -m pytest -q tests/studio/test_live.py
+```

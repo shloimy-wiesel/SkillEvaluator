@@ -7,6 +7,9 @@
 <dt>Configuration</dt><dd><code>{{ run.options }}</code></dd>
 {% if run.exit_code is not none %}<dt>Gate exit code</dt><dd>{{ run.exit_code }}</dd>{% endif %}</dl>
 {% if report %}<h2>Results</h2>
+{% if report.tier3 %}<p>Tier 3 verdict: {{ report.tier3.verdict|default("unavailable", true) }} · Execution: {{ report.tier3.execution_status }}</p>
+{% if report.tier3.summary %}<details><summary>Evaluation summary</summary><pre>{{ report.tier3.summary|tojson(indent=2) }}</pre></details>{% endif %}{% endif %}
+{% for reason in report.execution_errors|default([],true) %}<p>{{ reason }}</p>{% endfor %}
 {% if run.kind == 'validate-grader' %}
 {% if report.diagnostic %}<p>{{ report.diagnostic }}</p>{% endif %}
 {% if report.status == 'valid' %}<p>Suite valid: {{ report.cases }} {{ report.split }} cases.</p>{% endif %}
