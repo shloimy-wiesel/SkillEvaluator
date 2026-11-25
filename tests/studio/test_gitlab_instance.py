@@ -69,6 +69,9 @@ def test_reviewed_setup_runs_keyless_job(page, tmp_path):
         status = page.get_by_role("status")
         playwright.expect(status).to_contain_text(f"{lab.web_url}/-/pipelines/{pipeline['id']}")
         playwright.expect(status).to_contain_text("Latest pipeline: success")
+        row = page.get_by_role("table", name="Pipeline jobs").get_by_role("row").filter(has_text="studio-smoke")
+        playwright.expect(row.get_by_role("link", name="studio-smoke", exact=True)).to_be_visible()
+        playwright.expect(row.get_by_role("cell", name="success", exact=True)).to_be_visible()
         (job,) = lab.request("GET", f"/pipelines/{pipeline['id']}/jobs")
         assert (job["name"], job["status"], job["commit"]["id"], job["runner"]["id"]) == (
             "studio-smoke",

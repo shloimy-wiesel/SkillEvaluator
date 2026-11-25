@@ -2,12 +2,21 @@
 <a href="{{ url_for('repository_ci',project_id=project.id) }}">Repository CI</a><h1>Advanced CI setup</h1>
 <p>{{ project.remote }} · {{ project.branch }} at {{ project.revision }}</p>
 {% if notice %}<pre role="status">{{ notice }}</pre>{% endif %}{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+{% if jobs is defined and jobs is not none %}
+<h2>Jobs for pipeline #{{ selected }}</h2>
+{% if jobs %}<table aria-label="Pipeline jobs"><thead><tr><th>Job</th><th>Status</th></tr></thead><tbody>
+{% for job in jobs %}<tr><td><a href="{{ job.url }}">{{ job.name }}</a></td><td>{{ job.status }}</td></tr>{% endfor %}
+</tbody></table>{% if jobs|length == 100 %}<p>Showing the first 100 jobs.</p>{% endif %}
+{% else %}<p>No jobs reported for this pipeline.</p>{% endif %}{% endif %}
 <form method="post"><input type="hidden" name="branch" value="{{ project.branch }}"><input type="hidden" name="revision" value="{{ project.revision }}">
 {% macro select(key,title,values) %}<label>{{title}} <select name="{{key}}" aria-label="{{title}}">{% for v in values %}<option value="{{v}}" {% if form[key]==v %}selected{% endif %}>{{v or 'Automatic'}}</option>{% endfor %}</select></label>{% endmacro %}
 {% macro field(key,title,type='text') %}<label>{{title}} <input type="{{type}}" name="{{key}}" value="{{form[key]}}"></label>{% endmacro %}
 {% macro flag(key,title) %}<label><input type="checkbox" name="{{key}}" value="true" {% if form[key] %}checked{% endif %}> {{title}}</label>{% endmacro %}
 {{select('platform','Host platform',['auto','github','gitlab'])}}{{select('tiers','Evaluation tiers',['one','all'])}}
 <p>Tier 1 alone requires GitHub. All tiers use a bundled pinned release. The deprecated Tier 3 required option has no effect. Tier 1 blocks; Tiers 2 and 3 are advisory and require CI credentials, protected runners and datasets.</p>
+{% if pipelines %}<label>Pipeline for this revision <select name="pipeline_id">
+{% for pipeline in pipelines %}<option value="{{ pipeline.id }}" {% if selected == pipeline.id %}selected{% endif %}>#{{ pipeline.id }} · {{ pipeline.status }}</option>{% endfor %}
+</select></label>{% if pipelines|length == 20 %}<p>Showing the latest 20 pipelines.</p>{% endif %}{% endif %}
 <button name="action" value="status">Read live status</button>
 <p>Discovered roots: {% for r in roots %}<code>{{r.root}}</code> {% endfor %} · Leave blank for CLI defaults.</p>
 <label>Scan roots (one per line)<textarea name="paths">{{form.paths}}</textarea></label>

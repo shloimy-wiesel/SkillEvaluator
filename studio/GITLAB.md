@@ -36,6 +36,14 @@ safe link bases; construct individual links using validated numeric IDs.
 Failures raise author-displayable `WorkspaceError`. Do not follow URLs
 returned by a remote or retry against a public host.
 
+In **Advanced CI setup → Read live status**, the latest pipeline for the
+open default-branch revision is selected first. To inspect another attempt,
+choose **Pipeline for this revision** and read status again. Studio lists
+up to 20 pipelines and the first 100 jobs of the selected pipeline. Each
+row shows the job name, status and a link on the configured GitLab project.
+Job traces, runner details, variables and artifacts are not fetched separately
+or displayed.
+
 ## Verification
 
 `python -m pytest -q tests/studio/test_gitlab.py` runs Chromium, real smart
@@ -91,10 +99,10 @@ The browser selects **Advanced CI setup → All tiers → Save → Review files
 → Apply reviewed setup**. GitLab runs the fixture's `smoke-ci.yml` when
 the reviewed `.gitlab-ci.yml` appears. The job checks out the private repo,
 checks for the generated file and skill, and checks its UID and socket
-isolation. **Read live status** must show `success` and the pipeline URL
-for that exact pushed SHA. Studio has no job-list UI: the test uses the
-same project-bound Studio API adapter, with a separate `read_api` token,
-to assert the job's name, success, commit and assigned runner ID.
+isolation. **Read live status** must show the successful pipeline for that
+exact pushed SHA and a `studio-smoke` job row with status `success`. The
+test also checks the job's commit and assigned runner ID through the
+project-bound Studio API adapter with a separate `read_api` token.
 
 The project-level CI file override is intentional: this verifies the
 reviewed push, runner execution and status transport. It does **not**
