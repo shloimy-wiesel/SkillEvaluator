@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import Form, Request
+from fastapi import Form, Query, Request
 
 from skillevaluator.provider_config import resolve_llm_provider
 
@@ -34,16 +34,27 @@ def settings(request: Request, project_id: str):
     return {
         "project": project,
         "judge": judge,
-        "profiles": [
-            {"key": key, "label": label, "reason": availability(project.id, project.folder, project.revision, key)}
-            for key, label in LABELS.items()
-        ],
+        "profiles": profiles_for(project, project.revision),
         "prior": [
             dict(row)
             for row in request.app.state.jobs.history(project.id)
             if row["kind"] == LIVE.kind and row["status"] in COMPLETED and row["folder"] == project.folder
         ],
     }
+
+
+def profiles_for(project, sha):
+    return [
+        {"key": key, "label": label, "reason": availability(project.id, project.folder, sha, key)}
+        for key, label in LABELS.items()
+    ]
+
+
+@api.get("/profiles")
+def revision_profiles(
+    request: Request, project_id: str, sha: Annotated[str, Query(pattern=r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")]
+):
+    return profiles_for(project_for(request, project_id), sha)
 
 
 class Submission(Controls):

@@ -67,7 +67,7 @@ const HistoryView = ({ initial, path }: { initial: History; path: string }) => {
       </details>
       <section id="history">
         <h2>Run history</h2>
-        {problem && <p role="alert">{problem} Reopen history to retry.</p>}
+        {problem && <p role="alert">{problem} Retrying automatically.</p>}
         {runs.length === 0 && (
           <p>
             <b>No runs yet.</b> Queue a check to see its results here.

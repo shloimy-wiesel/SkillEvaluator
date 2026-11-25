@@ -9,10 +9,10 @@ import { api, messageOf } from "@/lib/studio-api";
 export const isActive = (status: string) =>
   status === "queued" || status === "running";
 
-const afterInterval = (read: () => Promise<void>) =>
+const afterInterval = (read: () => Promise<void>, delay = 1000) =>
   window.setTimeout(() => {
     void read();
-  }, 1000);
+  }, delay);
 
 /**
  * @param initial - First successful read of the view.
@@ -38,6 +38,7 @@ export const useActiveRuns = <T>(
 
         if (!controller.signal.aborted) {
           setData(next);
+          setProblem("");
 
           if (pending(next)) {
             timer = afterInterval(refresh);
@@ -46,6 +47,7 @@ export const useActiveRuns = <T>(
       } catch (error) {
         if (!controller.signal.aborted) {
           setProblem(messageOf(error));
+          timer = afterInterval(refresh, 2000);
         }
       }
     };

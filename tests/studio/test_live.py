@@ -437,6 +437,13 @@ def test_project_retained_selection_and_provenance(page, private_remote, tmp_pat
 
 def test_operator_sandbox_profile_needs_review_and_enabled_worker(page, private_remote, tmp_path, monkeypatch):
     import json
+    import subprocess
+
+    from test_datasets import seed_skill
+
+    approved = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tmp_path / "seed", text=True).strip()
+    seed_skill(tmp_path, {"notes.md": "Later project revision"})
+    monkeypatch.setattr("studio.live_job.PINNED_GYM", tmp_path / "absent-gym")
 
     with running(tmp_path / "volume") as base:
         settings = open_settings(page, base, private_remote)
@@ -447,18 +454,42 @@ def test_operator_sandbox_profile_needs_review_and_enabled_worker(page, private_
         profile = page.get_by_label("Sandbox profile")
         playwright.expect(profile).to_have_count(1, timeout=2000)
         assert profile.locator("option:enabled").count() == 1
-        approval = {"project": settings.split("/")[2], "folder": "skills/triage", "sha": sha, "profile": "gym-docker"}
+        assert sha != approved
+        approval = {
+            "project": settings.split("/")[2],
+            "folder": "skills/triage",
+            "sha": approved,
+            "profile": "gym-docker",
+        }
         monkeypatch.setenv("STUDIO_SANDBOX_APPROVALS", json.dumps([approval]))
         monkeypatch.setenv("STUDIO_LIVE_ENABLED", "1")
         monkeypatch.setenv("STUDIO_EVALUATOR_CONTAINER_REVISION", "a" * 40)
         page.reload()
+        gym = profile.locator('option[value="gym-docker"]')
+        playwright.expect(gym).to_be_disabled()
+        page.get_by_label("Commit SHA").fill(approved)
+        playwright.expect(gym).to_be_enabled()
         profile.select_option("gym-docker")
         page.get_by_role("button", name="Queue live evaluation").click()
         playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("review")
         page.get_by_label("I reviewed the pinned task inputs").check()
-        page.get_by_label("Commit SHA").fill("b" * 40)
+        page.get_by_label("Commit SHA").fill(sha)
+        playwright.expect(gym).to_be_disabled()
+        playwright.expect(profile).to_have_value("generated")
+        playwright.expect(page.get_by_label("I reviewed the pinned task inputs")).not_to_be_checked()
+        rejected = page.request.post(
+            url.replace(base, base + "/api/v1"),
+            data={"sha": sha, "sandbox_profile": "gym-docker", "reviewed_inputs": True},
+        )
+        assert rejected.status == 422 and "approved" in rejected.text()
+        page.get_by_label("Commit SHA").fill(approved)
+        profile.select_option("gym-docker")
+        page.get_by_label("I reviewed the pinned task inputs").check()
         page.get_by_role("button", name="Queue live evaluation").click()
-        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("approved")
+        page.wait_for_url("**/runs/*")
+        saved = page.request.get(page.url.replace(base, base + "/api/v1")).json()["run"]
+        assert saved["sha"] == approved
+        assert json.loads(saved["options"])["sandbox_profile"] == "gym-docker"
 
 
 def test_native_profile_stages_reviewed_scaffold_with_the_engine(tmp_path):
