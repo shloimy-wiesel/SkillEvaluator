@@ -64,3 +64,8 @@ Remaining: multiple scan roots, hosted report and Pages configuration, setup
 PR automation, live provider API results, automatic demo PR creation, GitLab
 and all-tier routing/options. No custom release descriptors, host paths,
 commands, or submitted YAML are accepted.
+
+[Experiments](RUNS.md#experiments) maps selection, fixed-suite interactions
+and external metrics to pinned jobs with native JSON exports. Interaction
+backend kwargs and raw Harbor jobs remain unbound. The browser interaction
+proof uses a fixture at the sandbox invocation boundary, not a paid live trial.

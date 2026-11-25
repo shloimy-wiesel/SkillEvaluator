@@ -1,0 +1,134 @@
+[
+  {
+    "key": "tier3 import-metrics",
+    "status": "implemented",
+    "equivalent": "Validate pinned external observations and retain the native JSON and Markdown without assigning a gate.",
+    "evidence": "tests/studio/test_experiments.py::test_imported_observations_preserve_source_and_never_assign_a_gate"
+  },
+  {
+    "key": "tier3 import-metrics:source",
+    "status": "implemented",
+    "equivalent": "Repository-relative observations JSON from the requested commit.",
+    "evidence": "tests/studio/test_experiments.py::test_imported_observations_preserve_source_and_never_assign_a_gate"
+  },
+  {
+    "key": "tier3 import-metrics:output_dir",
+    "status": "implemented",
+    "equivalent": "New private per-run evidence directory with both canonical exports.",
+    "evidence": "tests/studio/test_experiments.py::test_imported_observations_preserve_source_and_never_assign_a_gate"
+  },
+  {
+    "key": "tier3 select-decoys",
+    "status": "partial",
+    "equivalent": "Real selection using a project embedding profile and committed description catalog; portable collection roots only.",
+    "evidence": "tests/studio/test_experiments.py::test_select_decoys_retains_ranked_manifest_from_project_catalog"
+  },
+  {
+    "key": "tier3 select-decoys:skill_path",
+    "status": "implemented",
+    "equivalent": "Pinned connected skill is the selection target.",
+    "evidence": "tests/studio/test_experiments.py::test_select_decoys_retains_ranked_manifest_from_project_catalog"
+  },
+  {
+    "key": "tier3 select-decoys:catalog_path",
+    "status": "implemented",
+    "equivalent": "Committed catalog JSON, checked by the engine against the embedding profile.",
+    "evidence": "tests/studio/test_experiments.py::test_select_decoys_retains_ranked_manifest_from_project_catalog"
+  },
+  {
+    "key": "tier3 select-decoys:catalog_root",
+    "status": "partial",
+    "equivalent": "Committed catalog directory; must contain or lie under the target collection to keep the manifest portable.",
+    "evidence": "tests/studio/test_experiments.py::test_select_decoys_retains_ranked_manifest_from_project_catalog"
+  },
+  {
+    "key": "tier3 select-decoys:count",
+    "status": "implemented",
+    "equivalent": "Requested neighbor count; blank uses four.",
+    "evidence": "tests/studio/test_experiments.py::test_select_decoys_retains_ranked_manifest_from_project_catalog"
+  },
+  {
+    "key": "tier3 select-decoys:exclude",
+    "status": "implemented",
+    "equivalent": "One catalog-relative exclusion per line becomes a repeated --exclude.",
+    "evidence": "tests/studio/test_experiments.py::test_select_decoys_retains_ranked_manifest_from_project_catalog"
+  },
+  {
+    "key": "tier3 select-decoys:model",
+    "status": "implemented",
+    "equivalent": "Optional embedding model override passed independently of the saved profile model.",
+    "evidence": "tests/studio/test_experiments.py::test_select_decoys_retains_ranked_manifest_from_project_catalog"
+  },
+  {
+    "key": "tier3 select-decoys:output_path",
+    "status": "implemented",
+    "equivalent": "Retained native decoys.json and JSON download instead of a writable host destination.",
+    "evidence": "tests/studio/test_experiments.py::test_select_decoys_retains_ranked_manifest_from_project_catalog"
+  },
+  {
+    "key": "tier3 interact",
+    "status": "partial",
+    "equivalent": "CLI-backed fixed-suite experiment on Docker/Kata, verified at the sandbox invocation boundary with retained incomplete evidence. No host backend, native tasks, backend kwargs or raw jobs.",
+    "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
+  },
+  {
+    "key": "tier3 interact:skills",
+    "status": "partial",
+    "equivalent": "Two through 32 distinct, non-overlapping pinned skill folders; engine-visible skill projection only.",
+    "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
+  },
+  {
+    "key": "tier3 interact:eval_source",
+    "status": "partial",
+    "equivalent": "One reviewed, pinned skill suite shared across configurations; generated Harbor tasks only.",
+    "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
+  },
+  {
+    "key": "tier3 interact:agents",
+    "status": "partial",
+    "equivalent": "Provider default or selected codex, opencode and claude-code agents.",
+    "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
+  },
+  {
+    "key": "tier3 interact:model",
+    "status": "implemented",
+    "equivalent": "Optional global agent model override.",
+    "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
+  },
+  {
+    "key": "tier3 interact:env_mode",
+    "status": "partial",
+    "equivalent": "Docker or Kata only; rejects host execution.",
+    "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
+  },
+  {
+    "key": "tier3 interact:n_attempts",
+    "status": "implemented",
+    "equivalent": "Fixed attempts per case for each configuration; explicit two reaches the engine.",
+    "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
+  },
+  {
+    "key": "tier3 interact:n_concurrent",
+    "status": "implemented",
+    "equivalent": "Concurrent trial override; blank is omitted.",
+    "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
+  },
+  {
+    "key": "tier3 interact:metric",
+    "status": "implemented",
+    "equivalent": "Engine outcome metric; accuracy exercised as a non-default selection.",
+    "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
+  },
+  {
+    "key": "tier3 interact:results_dir",
+    "status": "implemented",
+    "equivalent": "Private retained root per experiment outside every input.",
+    "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
+  },
+  {
+    "key": "tier3 interact:as_json",
+    "status": "implemented",
+    "equivalent": "Download the retained interaction.json, including incomplete results, with project credentials redacted.",
+    "evidence": "tests/studio/test_experiments.py::test_interaction_pins_suite_and_retains_incomplete_evidence"
+  }
+]
