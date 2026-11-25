@@ -1,9 +1,11 @@
 # Studio extension contract
 
-From the repository root, install in a Python 3.12+ venv:
+From the repository root, install in a Python 3.12+ venv and build the
+browser documents using the frontend's pinned package manager:
 
 ```sh
 pip install -e . -r studio/requirements.txt
+(cd studio/frontend && corepack pnpm install --frozen-lockfile && corepack pnpm build)
 STUDIO_DATA_DIR="$PWD/.studio-data" uvicorn studio.app:create_app --factory
 ```
 
@@ -17,26 +19,27 @@ such as `/projects/{project_id}/datasets` and unique route names.
 
 Place the route name in the appropriate ordered task in `studio/navigation.py`
 to surface it under Authoring, Evaluation or Results. Unclassified registered
-entries remain reachable under Project tools. `base.html` provides a project
-breadcrumb when the template context contains `project`.
+entries remain reachable under Project tools.
 
 ```python
-router = APIRouter(prefix="/projects/{project_id}/datasets")
+from studio.frontend_routes import document
+
+router = APIRouter(prefix="/projects/{project_id}/notes")
 
 
-@router.get("", name="datasets_index")
+@router.get("", name="notes_index", include_in_schema=False)
 def index(request: Request, project_id: str):
     project = request.app.state.workspace.get(project_id)
     if project is None:
         raise HTTPException(404, "Unknown project")
-    return request.app.state.templates.TemplateResponse(
-        request=request, name="datasets/index.html", context={"project": project}
-    )
+    return document(request, "notes.html")
 ```
 
-Put Jinja files under `studio/templates/<feature>/`; extend `base.html` and
-override `title` and `content`. Use labelled forms, POST for mutations and
-redirect after a successful save. Do not introduce template-level secrets.
+Export `notes.html` from `studio/frontend/apps/web/app/notes/page.tsx`.
+Read project data at runtime from a scoped `/api/v1` endpoint. Use labelled
+forms, POST for mutations, and ordinary same-origin links for navigation.
+Return only displayable fields; credentials are write-only. See the
+[frontend guide](frontend/README.md) for the document and API contract.
 
 * `request.app.state.workspace` exposes `data_dir`, `db_path`, `projects()`,
   `get(id) -> Project | None`, `checkout(project) -> Path`, and
@@ -79,3 +82,6 @@ To verify actual container replacement on Linux, build the image from the
 quickstart and run `STUDIO_TEST_IMAGE=skillevaluator-studio python -m pytest
 -q tests/studio -k reopens`. This creates two successive containers sharing
 a temporary named volume and removes them and the volume after the journey.
+Set `STUDIO_TEST_PREVIOUS_IMAGE` as well to create the project with an older
+image and reopen it with `STUDIO_TEST_IMAGE`. Use a disposable volume, not
+a production data directory, for the upgrade test.
