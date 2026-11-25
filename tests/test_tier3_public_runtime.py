@@ -1877,7 +1877,7 @@ def test_verifier_refreshes_adc_token_on_401_for_vertex_openapi(monkeypatch: pyt
             return resp
         raise RuntimeError(f"Unexpected auth header: {auth_header}")
 
-    monkeypatch.setattr(verifier.urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(verifier, "_open_verifier_request", mock_urlopen)
 
     content, error, _provenance = verifier._call_public_llm_with_provenance(
         "Evaluate this trajectory",
@@ -1942,7 +1942,7 @@ def test_verifier_refreshes_adc_token_on_401_via_gcloud_cli(monkeypatch: pytest.
             return resp
         raise RuntimeError(f"Unexpected auth header: {auth_header}")
 
-    monkeypatch.setattr(verifier.urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(verifier, "_open_verifier_request", mock_urlopen)
 
     content, error, _provenance = verifier._call_public_llm_with_provenance(
         "Evaluate this trajectory",
@@ -1988,7 +1988,7 @@ def test_verifier_401_does_not_switch_principals_for_explicit_vertex_credential(
             fp=io.BytesIO(b'{"error": "Explicit token rejected"}'),
         )
 
-    monkeypatch.setattr(verifier.urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(verifier, "_open_verifier_request", mock_urlopen)
 
     content, error, _provenance = verifier._call_public_llm_with_provenance(
         "Evaluate this trajectory",
@@ -2031,7 +2031,7 @@ def test_verifier_401_does_not_retry_non_vertex_endpoints(monkeypatch: pytest.Mo
             fp=io.BytesIO(b'{"error": "Invalid API key"}'),
         )
 
-    monkeypatch.setattr(verifier.urllib.request, "urlopen", mock_urlopen)
+    monkeypatch.setattr(verifier, "_open_verifier_request", mock_urlopen)
 
     content, error, _provenance = verifier._call_public_llm_with_provenance(
         "Evaluate this trajectory",

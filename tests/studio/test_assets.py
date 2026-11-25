@@ -233,6 +233,7 @@ def test_valid_preflight_does_not_pass_a_live_rate_gate(page, tmp_path, private_
 
 def test_authenticated_judge_thresholds_use_measured_rates(page, tmp_path, private_remote, loopback_tls, monkeypatch):
     import json
+    import os
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     from threading import Thread
 
@@ -269,7 +270,8 @@ def test_authenticated_judge_thresholds_use_measured_rates(page, tmp_path, priva
             self.wfile.write(body)
 
     tls, ca = loopback_tls
-    monkeypatch.setenv("SSL_CERT_FILE", str(ca))
+    # The qualifier starts in a different, private working directory.
+    monkeypatch.setenv("SSL_CERT_FILE", os.path.relpath(ca))
     with ThreadingHTTPServer(("127.0.0.1", 0), Judge) as judge, running(tmp_path / "volume") as base:
         judge.socket = tls.wrap_socket(judge.socket, server_side=True)
         thread = Thread(target=judge.serve_forever)

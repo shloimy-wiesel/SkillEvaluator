@@ -332,7 +332,7 @@ def test_verifier_retries_leave_time_to_write_failure_artifacts(
         raise urllib.error.URLError("timed out")
 
     monkeypatch.setattr(verifier, "time", FakeTime())
-    monkeypatch.setattr(verifier.urllib.request, "urlopen", slow_timeout)
+    monkeypatch.setattr(verifier, "_open_verifier_request", slow_timeout)
 
     with pytest.raises(SystemExit) as exc_info:
         verifier.main()
@@ -369,7 +369,7 @@ def test_required_judge_deadline_interrupts_a_stalled_response_body(
             time.sleep(0.5)
             return b"late success"
 
-    monkeypatch.setattr(verifier.urllib.request, "urlopen", lambda *_args, **_kwargs: SlowResponse())
+    monkeypatch.setattr(verifier, "_open_verifier_request", lambda *_args, **_kwargs: SlowResponse())
     previous_handler = signal.getsignal(signal.SIGALRM)
     started = time.monotonic()
     result = verifier._call_required_judge("accuracy", lambda: verifier._urlopen_with_retry("test"))
@@ -809,8 +809,8 @@ def test_ragas_expired_setup_budget_does_not_create_a_scoring_coroutine(
 
     client = _install_fake_ragas(monkeypatch, Metric)
     monkeypatch.setattr(
-        verifier.urllib.request,
-        "urlopen",
+        verifier,
+        "_open_verifier_request",
         lambda *_args, **_kwargs: pytest.fail("an exhausted budget must prevent fallback HTTP requests"),
     )
 
@@ -899,8 +899,8 @@ def test_ragas_goal_judge_obeys_the_required_judge_time_budget(
 
     client = _install_fake_ragas(monkeypatch, FakeMetric)
     monkeypatch.setattr(
-        verifier.urllib.request,
-        "urlopen",
+        verifier,
+        "_open_verifier_request",
         lambda *_args, **_kwargs: pytest.fail("custom fallback must stop before another HTTP request"),
     )
 
