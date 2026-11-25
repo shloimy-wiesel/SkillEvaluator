@@ -2,6 +2,10 @@
 "use client";
 
 import { QueueForm, RunDocument } from "@/components/run-workspace/document";
+import {
+  isActive,
+  useActiveRuns,
+} from "@/components/run-workspace/use-active-runs";
 import type { Project } from "@/lib/studio-api";
 
 interface History {
@@ -16,7 +20,14 @@ interface History {
   }[];
 }
 
-const history = ({ project, runs, actions }: History) => {
+const pending = (view: History) =>
+  view.runs.some((run) => isActive(run.status));
+
+const HistoryView = ({ initial, path }: { initial: History; path: string }) => {
+  const {
+    data: { project, runs, actions },
+    problem,
+  } = useActiveRuns(initial, path, pending);
   const base = `/projects/${project.id}`;
 
   return (
@@ -55,6 +66,7 @@ const history = ({ project, runs, actions }: History) => {
       </details>
       <section id="history">
         <h2>Run history</h2>
+        {problem && <p role="alert">{problem} Reopen history to retry.</p>}
         {runs.length === 0 && (
           <p>
             <b>No runs yet.</b> Queue a check to see its results here.
@@ -72,6 +84,10 @@ const history = ({ project, runs, actions }: History) => {
     </>
   );
 };
+
+const history = (data: History, path: string) => (
+  <HistoryView initial={data} path={path} />
+);
 
 /** @returns The author-facing history document. */
 export default function Page() {

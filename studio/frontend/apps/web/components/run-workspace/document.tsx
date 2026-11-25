@@ -9,7 +9,9 @@ import type { Project } from "@/lib/studio-api";
 const subscribe = (listener: () => void) => {
   window.addEventListener("popstate", listener);
 
-  return () => {window.removeEventListener("popstate", listener);};
+  return () => {
+    window.removeEventListener("popstate", listener);
+  };
 };
 
 const currentPath = () => window.location.pathname + window.location.search;
@@ -82,6 +84,7 @@ export const QueueForm = ({
 
     const fields = new FormData(event.currentTarget);
     const repeated = new Set(lists);
+
     const entries = new Map<
       string,
       FormDataEntryValue | FormDataEntryValue[]

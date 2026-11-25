@@ -15,7 +15,7 @@ def test_live_requires_project_chat_profile(page, private_remote, tmp_path):
         connect(page, *private_remote, skill="skills/triage")
         page.get_by_role("link", name="Live Tier 3").click(timeout=2000)
         page.get_by_role("button", name="Queue live evaluation").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("chat provider")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("chat provider")
 
 
 def test_inherited_custom_mode_needs_consent_and_available_sandbox(page, private_remote, tmp_path, monkeypatch):
@@ -123,6 +123,7 @@ def test_direct_workflow_retains_evidence_and_reruns_original_profile(page, priv
         save_profile(panel, "https://chat.example/v1", "model-two", "replacement")
         page.goto(original)
         page.get_by_role("button", name="Rerun saved inputs").click()
+        page.wait_for_url(lambda url: url != original and "/runs/" in url)
         playwright.expect(page.get_by_role("status")).to_contain_text("neutral")
         assert len(calls) == 2
         assert "chat-secret" not in page.content()
@@ -266,7 +267,7 @@ def test_evaluate_selected_project_dataset_and_container_grader(
         page.get_by_label("Dataset path").fill("bench.json")
         page.get_by_label("Grading mode").select_option("custom_only", timeout=2000)
         page.get_by_role("button", name="Queue live evaluation").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("consent")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("consent")
         page.get_by_label("Workflow").select_option(workflow)
         page.get_by_label("Environment").select_option("kata")
         page.get_by_label("Comparison arms").select_option("baseline" if baseline_only else "skill")
@@ -450,11 +451,11 @@ def test_operator_sandbox_profile_needs_review_and_enabled_worker(page, private_
         page.reload()
         profile.select_option("gym-docker")
         page.get_by_role("button", name="Queue live evaluation").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("review")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("review")
         page.get_by_label("I reviewed the pinned task inputs").check()
         page.get_by_label("Commit SHA").fill("b" * 40)
         page.get_by_role("button", name="Queue live evaluation").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("approved")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("approved")
 
 
 def test_native_profile_stages_reviewed_scaffold_with_the_engine(tmp_path):

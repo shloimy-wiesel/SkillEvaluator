@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from fastapi import Form, HTTPException, Request
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from .expert_options import ACTIONS
 from .frontend_routes import document
@@ -44,6 +44,7 @@ def history(request: Request, project_id: str):
 
 
 class StaticSubmission(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     sha: str
     checks: Literal["both", "schema", "unicode"] = "both"
 

@@ -8,6 +8,17 @@ too. Queue the checks, then close the tab if desired. Follow the SHA in run
 history to see progress, the frozen inputs, gate exit code, findings, and
 downloadable engine JSON and Markdown. A failing gate still produces reports.
 
+The React launchers load their inputs from `GET /api/v1/projects/{id}/runs`,
+`/live`, `/overlap` (optional `sha`), or `/installation` (optional `topic`),
+all relative to the same project. POST JSON to the corresponding endpoint to
+queue work; `201 {id, href}` links to the canonical status document. Repeated
+inputs (`agents`, `formats`, `paths`) are arrays. Omit blank budget and policy
+overrides; explicit `false` and `0` remain distinct from inherited values.
+`GET /api/v1/projects/{id}/runs/{run_id}` returns progress, frozen run metadata,
+display models and the retained report (null until saved). The status document
+polls while active. POST its `/rerun` subresource to enqueue a new run using
+the saved inputs. Downloads keep their existing, project-scoped attachment URLs.
+
 **Scope:** this keyless Tier 1 preset runs the shipped schema and Unicode
 checks, together or individually, with the built-in `default` profile and
 `--no-llm`. Passing certifies only the selected checks, not a complete Tier 1

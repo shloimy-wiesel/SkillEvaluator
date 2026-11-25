@@ -41,6 +41,7 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         expect(page.get_by_role("heading", name=f"Edit {branch}")).to_be_visible()
         page.get_by_label("SKILL.md").fill(revision_a_text)
         press("Save and push")
+        expect(page.get_by_role("status")).to_contain_text("Pushed revision")
         overview()
         skill_sha = checkout_sha()
 
@@ -73,6 +74,7 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         link("Edit skill").click()
         page.get_by_label("SKILL.md").fill(fixed)
         press("Save and push")
+        expect(page.get_by_role("status")).to_contain_text("Pushed revision")
         overview()
         sha_b = checkout_sha()
         assert sha_b != sha_a

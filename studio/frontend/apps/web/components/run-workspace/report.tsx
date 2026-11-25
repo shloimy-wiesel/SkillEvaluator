@@ -159,7 +159,9 @@ export const Findings = ({
     {kind === "changed-files-v1" && (
       <>
         <h3>Changed-file results</h3>
-        <section aria-label="Check output"><pre>{report.output}</pre></section>
+        <section aria-label="Check output">
+          <pre>{report.output}</pre>
+        </section>
       </>
     )}
     {kind === "external-metrics-v1" && (

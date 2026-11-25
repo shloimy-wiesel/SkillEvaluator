@@ -37,7 +37,9 @@ const settings = (
       <Select name="topic" label="Help topic" options={topics} value={topic} />
       <button type="submit">Show help</button>
     </form>
-    <section aria-label="Installed command help"><pre>{help}</pre></section>
+    <section aria-label="Installed command help">
+      <pre>{help}</pre>
+    </section>
     <details>
       <summary>Diagnostic detail</summary>
       <dl>

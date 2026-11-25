@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import { QueueForm, RunDocument } from "@/components/run-workspace/document";
 import { Findings } from "@/components/run-workspace/report";
 import type { Report } from "@/components/run-workspace/report";
-import { api, messageOf } from "@/lib/studio-api";
+import {
+  isActive,
+  useActiveRuns,
+} from "@/components/run-workspace/use-active-runs";
 import type { Project } from "@/lib/studio-api";
 
 interface Status {
@@ -26,46 +27,11 @@ interface Status {
   report: Report | null;
 }
 
+const pending = (view: Status) => isActive(view.run.status);
+
 const RunStatus = ({ initial, path }: { initial: Status; path: string }) => {
-  const [data, setData] = useState(initial);
-  const [problem, setProblem] = useState("");
+  const { data, problem, active } = useActiveRuns(initial, path, pending);
   const { project, run, report, models } = data;
-  const active = run.status === "queued" || run.status === "running";
-  useEffect(() => {
-    const controller = new AbortController();
-    let timer: number | undefined;
-
-    const refresh = async () => {
-      try {
-        const next = await api<Status>(path, { signal: controller.signal });
-
-        if (!controller.signal.aborted) {
-          setData(next);
-
-          if (next.run.status === "queued" || next.run.status === "running") {
-            timer = window.setTimeout(() => {
-              void refresh();
-            }, 1000);
-          }
-        }
-      } catch (error) {
-        if (!controller.signal.aborted) {
-          setProblem(messageOf(error));
-        }
-      }
-    };
-
-    if (active) {
-      timer = window.setTimeout(() => {
-        void refresh();
-      }, 1000);
-    }
-
-    return () => {
-      controller.abort();
-      window.clearTimeout(timer);
-    };
-  }, [active, path]);
   // oxlint-disable-next-line react-doctor/no-unguarded-browser-global-in-render-or-hook-init -- RunDocument mounts its renderer only after client hydration.
   const base = `${window.location.origin}/projects/${project.id}`;
   const diag = report?.diagnostics;
@@ -157,7 +123,10 @@ const RunStatus = ({ initial, path }: { initial: Status; path: string }) => {
         />
       )}
       {!active && (
-        <QueueForm path={`${path}/rerun`} button="Rerun saved inputs" />
+        <QueueForm
+          path={`/projects/${project.id}/runs/${run.id}/rerun`}
+          button="Rerun saved inputs"
+        />
       )}
     </>
   );
