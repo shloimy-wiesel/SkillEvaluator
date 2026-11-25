@@ -4,6 +4,20 @@ Open **Evaluation assets** on the project branch. Choose **Custom grader** or **
 
 The forms run the CLI's starter generators on a temporary copy of the committed skill manifest and `evals/` blobs. Neither preview nor push executes the generated graders, test scripts, or Dockerfiles. Studio accepts up to 16 MiB / 1024 regular files in `evals/`. An existing starter requires explicit overwrite. Force can remove the old grader language or replace an entire native case; review the deletions.
 
+### Project HTTP contract
+
+The React document remains at `/projects/{project_id}/assets`. Its JSON API root is `/api/v1/projects/{project_id}/assets`.
+
+| Request | Result |
+| --- | --- |
+| `GET` at the API root | Public project coordinates, branch and revision, plus committed skill-relative JSON filenames. |
+| `POST /scaffold` | Send `branch`, `revision`, `kind` (`grader` or `harbor`), `language`, `mode`, and optional `config`, `force`, `case_id`. `action: "preview"` returns `{diff}` without a write. `action: "save"` with the reviewed inputs returns `{revision}` after a successful push. |
+| `POST /qualify` | Send `branch`, `revision`, `action` (`check` or `qualify`) and the qualification controls described below. `cases` is an array of IDs. Omit unset rate gates or use `null`; zero is an active gate. Returns `202 {run_id}`; open `/projects/{project_id}/runs/{run_id}` for progress and exports. |
+
+Stale revisions return `409`; invalid input returns `422`. Both use `detail: {code, message}`. The evidence link remains a direct byte download at `/projects/{project_id}/assets/evidence/{run_id}`: it serves `grader-validation.zip` for a completed project-scoped run with attempt evidence, or `404` if unavailable.
+
+### Controls and defaults
+
 | Action | CLI equivalent and defaults |
 | --- | --- |
 | Custom grader | `init-custom-grader` (also under `tier3`). Skill = project folder. Python, `default_plus_custom`, no force. Clearing **Update evaluation configuration** sets `--no-config`. |
