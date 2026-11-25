@@ -14,6 +14,8 @@ that partial features have acquired new capabilities.
 | Frozen dataset content | `4db547b` test against `087eaa3` standard image | The editor reopened dataset B (“Route a routine ticket to the help desk”); the original JSON export still quoted the exact A prompt (“Route an urgent ticket marked ⚠️”). Passed in 16.90 s. |
 | Real GitLab | `087eaa3` | Two tests passed in 18.71 s on a fresh private GitLab CE 18.11.3 with a custom port, installation prefix, nested groups and separate credentials. Reviewed CI publication produced a successful Runner 18.11.0 job; a separate branch edit/push produced a merge request. |
 | Small screens | `64f47b3` | Real Chromium at 320, 375 and 1440 px; no page overflow or off-origin requests on the library, overview and provider views. [Desktop](../docs/studio/screenshots/project-desktop.png) · [Phone](../docs/studio/screenshots/projects-phone.png). |
+| Post-review images and acceptance | `56acbe5` | Both image targets built. The full frozen-dataset A/B journey passed again (15.86 s), as did a pre-React volume upgrade (6.90 s). Compose and Harbor in the live target reported v2.40.3 and 0.25.0. |
+| Final full Studio and golden suites | `960ee12` | **483 passed, 6 opt-in tests skipped, 0 failed** across five shards, including all 239 golden tests and Docker-backed grader qualification. Frontend lint, forced typecheck and production export passed on the identical frontend tree at `c108ebd`. The skipped GitLab and live-runtime paths were exercised separately as described above. |
 
 ## Reproduce
 
