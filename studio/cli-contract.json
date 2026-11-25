@@ -3,6 +3,6 @@
   "entry_point": "skillevaluator.cli:cli",
   "direct_workflows": ["tier1", "tier2", "tier3"],
   "baseline_revision": "ff69db2",
-  "verification": "source audit; installed distribution not verified",
+  "verification": "editable checkout 1.2.1, locked development environment, tests/golden/test_cli_surface.py: 3 passed; published wheel not verified",
   "coverage_status": "specified, not implemented"
 }
