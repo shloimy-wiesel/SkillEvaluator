@@ -91,3 +91,8 @@ branch tip and complete Git tree still match the reviewed change. A failed API r
 review branch available. Hosted configuration can also finish partially; the
 wizard reports confirmed steps. No live hosted evaluation is claimed by the
 fixture tests.
+
+[Experiments](RUNS.md#experiments) maps selection, fixed-suite interactions
+and external metrics to pinned jobs with native JSON exports. Interaction
+backend kwargs and raw Harbor jobs remain unbound. The browser interaction
+proof uses a fixture at the sandbox invocation boundary, not a paid live trial.
