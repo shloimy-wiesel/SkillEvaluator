@@ -7,6 +7,7 @@ import subprocess
 import time
 import urllib.request
 
+from test_providers import save_profile
 from test_workspace import connect, playwright, running
 
 pytest_plugins = ("test_workspace",)
@@ -54,6 +55,13 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         overview()
         sha_a = checkout_sha()
         assert re.fullmatch(r"[0-9a-f]{40}", sha_a) and sha_a != skill_sha
+        link("Provider settings").click()
+        roles = ("Chat", "Embeddings")
+        for role in roles:
+            panel = page.get_by_role("region", name=role, exact=True)
+            save_profile(panel, f"https://{role.lower()}.private/v1", f"{role}-fixture", f"{role}-secret")
+            expect(panel.get_by_text("Key stored", exact=True)).to_be_visible()
+        overview()
         link("Evaluation runs").click()
         expect(page.get_by_label("Commit SHA")).to_have_value(sha_a)
         page.get_by_label("Static checks").select_option(label="Schema only")
@@ -76,6 +84,20 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         page.goto(second)
         link("handbook").click()
         assert checkout_sha() == sha_b
+        link("Provider settings").click()
+        profile_response = page.request.get(page.url.replace(second, second + "/api/v1"))
+        assert profile_response.ok
+        for role in roles:
+            panel = page.get_by_role("region", name=role, exact=True)
+            expect(panel.get_by_label("Model", exact=True)).to_have_value(f"{role}-fixture")
+            expect(panel.get_by_label("Base URL")).to_have_value(f"https://{role.lower()}.private/v1")
+            expect(panel.get_by_text("Key stored", exact=True)).to_be_visible()
+            expect(panel.get_by_label("API key")).to_have_value("")
+            assert f"{role}-secret" not in page.content()
+            assert f"{role}-secret" not in profile_response.text()
+            public_profile = profile_response.json()["profiles"][role.lower()]
+            assert public_profile["has_key"] and "key" not in public_profile
+        overview()
         link("Edit skill").click()
         expect(page.get_by_label("SKILL.md")).to_have_value(fixed)
         overview()
@@ -98,6 +120,9 @@ def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, 
         link("Run history").click()
         expect(page.get_by_text("No runs yet.")).to_be_visible()
         expect(link(sha_a)).to_have_count(0)
+        foreign_detail = page.url.split("#")[0] + "/" + original_run.rsplit("/", 1)[1]
+        assert page.request.get(foreign_detail).status == 404
+        assert page.request.get(foreign_detail.replace(second, second + "/api/v1")).status == 404
 
 
 def test_failed_gate_and_exports_survive_reopening_at_exact_commit(page, private_remote, tmp_path):

@@ -14,7 +14,7 @@ def test_installed_version_context_help_and_safe_detail(page, private_remote, tm
         page.goto(base)
         connect(page, *private_remote, skill="skills/triage")
         page.get_by_role("link", name="Installation and changed files").click(timeout=2000)
-        assert version in page.locator("main").inner_text()
+        page.get_by_text(version, exact=True).wait_for()
         for topic, expected in [
             ("root", "--version"),
             ("tier1", "quality-check"),
