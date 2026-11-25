@@ -6,10 +6,9 @@ import subprocess
 import time
 import urllib.request
 
-from test_workspace import connect, page, playwright, private_remote, running  # noqa: F401
+from test_workspace import connect, playwright, running
 
-# Chromium and HTTPS Git fixture functions are imported above for pytest.
-# ruff: noqa: F811
+pytest_plugins = ("test_workspace",)
 
 
 def test_failed_gate_and_exports_survive_reopening_at_exact_commit(page, private_remote, tmp_path):
