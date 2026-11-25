@@ -1,8 +1,189 @@
 import json
 import subprocess
 
+import pytest
+import yaml
+
 # ruff: noqa: F811 -- pytest discovers shared browser fixtures by name
 from test_workspace import before_push, connect, page, playwright, private_remote, running  # noqa: F401
+
+
+def seed_skill(tmp_path, files):
+    seed = tmp_path / "seed"
+    for name, content in files.items():
+        path = seed / "skills/triage" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+    subprocess.run(["git", "add", "."], cwd=seed, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=test", "-c", "user.email=t@example.org", "commit", "-m", "inputs"],
+        cwd=seed,
+        check=True,
+    )
+    subprocess.run(["git", "push", tmp_path / "server/handbook.git", "main"], cwd=seed, check=True)
+
+
+def open_draft(page, base, private_remote):
+    page.goto(base)
+    connect(page, *private_remote, skill="skills/triage")
+    page.get_by_role("link", name="Datasets").click()
+    page.get_by_role("button", name="Open draft").click()
+
+
+def test_guided_full_replacement_and_retained_refinement(page, tmp_path, private_remote):
+    run = "history/triage/20260101_120000"
+    original = json.dumps(
+        {"skill_name": "triage", "evals": [{"id": "urgent", "prompt": "Route incident", "expected_output": "Tier two"}]}
+    )
+    seed_skill(
+        tmp_path,
+        {
+            "evals/evals.json": original,
+            "author.md": "## Negative Cases\n- What is the capital of Peru?\n",
+            run + "/run_config.json": "{}",
+            run + "/result.json": '{"run_id":"20260101_120000"}',
+            run
+            + "/codex/with-skill/trials/urgent/trajectory.json": '{"steps":[{"source":"agent","message":"Escalated"}]}',
+            run
+            + "/codex/with-skill/trials/triage-001/trajectory.json": '{"steps":[{"source":"agent","tool_calls":[{"function_name":"read_file","arguments":{"path":"incident.txt"}}]}]}',
+        },
+    )
+    with running(tmp_path / "volume") as base:
+        open_draft(page, base, private_remote)
+        for field, path in (("Results root", "history"), ("Completed results folder", run)):
+            page.get_by_text("Generate cases", exact=True).click()
+            page.get_by_label("Grounding").select_option("skill" if field == "Results root" else "trace")
+            page.get_by_label("Use local templates").check()
+            page.get_by_label("Refine with retained trajectories").check()
+            page.get_by_label(field).fill(path)
+            page.get_by_role("button", name="Generate preview").click()
+            page.get_by_text("All generated fields").click()
+            result = json.loads(page.get_by_text("All generated fields").locator("..").locator("pre").inner_text())
+            assert result["generation"]["refined"]
+            if field == "Results root":
+                assert "The agent read incident.txt" in result["evals"][0]["assertions"]
+            else:
+                assert result["evals"][0]["expected_output"] == "Tier two"
+            assert next(i for i in result["generation"]["inputs"] if i["kind"] == "trajectory")["path"].startswith(run)
+        for force in (False, True):
+            page.get_by_text("Generate cases", exact=True).click()
+            page.get_by_label("Use local templates").check()
+            page.get_by_label("Generate full bucket set").check()
+            page.get_by_label("Author guidance file").fill("author.md")
+            page.get_by_label("Overwrite existing cases").set_checked(force)
+            page.get_by_role("button", name="Generate preview").click()
+            if not force:
+                playwright.expect(page.get_by_role("alert")).to_contain_text("already exists")
+        playwright.expect(page.get_by_role("status")).to_contain_text("Generated 4")
+        page.get_by_role("button", name="Use generated cases").click()
+        page.get_by_role("button", name="Commit and push").click()
+        saved = json.loads(
+            subprocess.check_output(
+                ["git", "show", "main:skills/triage/evals/evals.json"], cwd=tmp_path / "server/handbook.git"
+            )
+        )
+        assert saved["generation"]["grounding"] == "intent"
+        assert any(i["path"] == "author.md" and i["kind"] == "prompt" for i in saved["generation"]["inputs"])
+        assert any(c["prompt"] == "What is the capital of Peru?" for c in saved["evals"])
+        assert "urgent" not in [c["id"] for c in saved["evals"]]
+
+
+def test_harbor_contract_warning_changes_only_strict_verdict(page, tmp_path, private_remote):
+    seed_skill(
+        tmp_path,
+        {
+            "evals/evals.json": '{"skill_name":"triage","evals":[{"id":"one","prompt":"Route this","expected_output":"Queue"}]}',
+            "evals/grader.py": "raise RuntimeError('must never execute')\n",
+        },
+    )
+    with running(tmp_path / "volume") as base:
+        open_draft(page, base, private_remote)
+        for strict in (False, True):
+            page.get_by_label("Check Harbor contract").check()
+            page.get_by_label("Treat warnings as failures").set_checked(strict)
+            page.get_by_role("button", name="Validate draft").click()
+            results = page.get_by_label("Validation results")
+            playwright.expect(results.get_by_role("heading")).to_have_text("Failed" if strict else "Passed")
+            results.get_by_text("JSON results").click()
+            checks = json.loads(results.locator("pre").inner_text())
+            assert any(c["status"] == "warning" and "reward.json" in c["message"] for c in checks)
+
+
+def test_collect_then_refine_only_the_pinned_case(page, tmp_path, private_remote, monkeypatch):
+    from pathlib import Path
+
+    from test_providers import open_settings, save_profile
+
+    from studio import live_job
+
+    repo = tmp_path / "seed"
+    cases = repo / "skills/triage/evals/evals.json"
+    cases.parent.mkdir()
+    cases.write_text(
+        json.dumps(
+            {
+                "skill_name": "triage",
+                "evals": [{"id": "urgent", "prompt": "Route this incident", "expected_output": "Tier two escalation"}],
+            }
+        )
+    )
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=test", "-c", "user.email=t@example.org", "commit", "-m", "cases"], cwd=repo, check=True
+    )
+    subprocess.run(["git", "push", tmp_path / "server/handbook.git", "main"], cwd=repo, check=True)
+    calls = []
+
+    def sandbox(args, cwd, env):
+        calls.append(args)
+        assert env["SKILL_EVAL_LLM_API_KEY"] == "collection-key"
+        assert "--skip-baseline" in args and args[args.index("--grading-mode") + 1] == "default"
+        assert args[args.index("--skill-workspace-mode") + 1] == "isolated"
+        assert (Path(args[2]) / "evals/evals.json").read_bytes() == cases.read_bytes()
+        result = Path(args[args.index("--results-dir") + 1]) / "20260101_120000"
+        trial = result / "codex/with-skill/trials/urgent"
+        trial.mkdir(parents=True)
+        (trial.parent.parent / "summary.json").write_text(
+            json.dumps(
+                {
+                    "execution_status": "succeeded",
+                    "num_trials": 1,
+                    "expected_attempts": 1,
+                    "scored_attempts": 1,
+                    "metrics": ["security"],
+                    "scores": {"security": 1},
+                }
+            )
+        )
+        (trial / "trajectory.json").write_text(json.dumps({"steps": [{"source": "agent", "message": "Escalated."}]}))
+        (result / "result.json").write_text('{"execution_status":"succeeded","verdict":"neutral"}')
+        return 0
+
+    monkeypatch.setattr(live_job, "invoke_engine", sandbox)
+    with running(tmp_path / "volume") as base:
+        settings = open_settings(page, base, private_remote)
+        save_profile(
+            page.get_by_role("region", name="Chat", exact=True), "https://chat.example/v1", "model", "collection-key"
+        )
+        page.goto(base + settings.removesuffix("/providers") + "/datasets")
+        page.get_by_role("button", name="Open draft").click()
+        draft = page.url
+        page.get_by_role("button", name="Collect trajectory").click(timeout=1500)
+        playwright.expect(page.get_by_role("alert")).to_contain_text("consent")
+        assert not calls
+        page.get_by_label("Allow one paid sandbox trial").check()
+        page.get_by_role("button", name="Collect trajectory").click()
+        playwright.expect(page.get_by_role("status")).to_contain_text("neutral", timeout=10000)
+        page.goto(draft)
+        page.get_by_role("button", name="Preview collected refinement").click()
+        playwright.expect(page.get_by_role("status")).to_contain_text("Generated 1")
+        page.get_by_text("All generated fields").click()
+        playwright.expect(page.locator("pre").filter(has_text='"refined": true')).to_contain_text("Tier two escalation")
+        trials = next((tmp_path / "volume/artifacts").rglob("trials"))
+        (trials / "urgent/foreign.log").symlink_to(cases)
+        page.get_by_role("button", name="Preview collected refinement").click()
+        playwright.expect(page.get_by_role("alert")).to_contain_text("linked sandbox evidence")
+        assert len(calls) == 1
 
 
 def test_author_cases_and_publish_only_after_preview(page, tmp_path, private_remote):
@@ -87,6 +268,58 @@ def test_review_export_before_publishing_redacted_fixtures(page, tmp_path, priva
         assert content and b"real-domain.com" not in content
 
 
+def test_replace_trace_review_and_explicit_native_acceptance(page, tmp_path, private_remote):
+    seed_skill(tmp_path, {"evals/config.yml": "schema_version: 1\nharbor:\n  task_source: native_harbor\n"})
+    with running(tmp_path / "volume") as base:
+        open_draft(page, base, private_remote)
+
+        def upload(prompt, *, force=False, dry=False, outcome="success"):
+            page.get_by_text("Import traces", exact=True).click()
+            data = {"session_id": prompt, "prompt": prompt, "outcome": outcome, "final_output": "Queue two"}
+            page.get_by_label("Trace export").set_input_files(
+                {
+                    "name": "export.jsonl",
+                    "mimeType": "application/json",
+                    "buffer": json.dumps(data).encode(),
+                }
+            )
+            page.get_by_label("Dry run (preview only)").set_checked(dry)
+            page.get_by_label("Replace existing review").set_checked(force)
+            page.get_by_role("button", name="Import for review").click()
+
+        upload("Original case")
+        upload("Replacement")
+        playwright.expect(page.get_by_role("alert")).to_contain_text("already exists")
+        upload("Replacement", force=True, dry=True)
+        playwright.expect(page.get_by_label("Import preview")).to_contain_text("Replacement")
+        playwright.expect(page.get_by_role("heading", name="Original case")).to_be_visible()
+        upload("Failed case", force=True, outcome="failure")
+        page.get_by_label("Review decision").select_option("accept_observed")
+        page.get_by_label("Allow acceptance for native Harbor tasks").check()
+        page.get_by_role("button", name="Stage accepted cases").click()
+        playwright.expect(page.get_by_role("alert")).to_contain_text("requires success")
+        upload("Replacement", force=True)
+        page.get_by_label("Review decision").select_option("accept_observed")
+        page.get_by_role("button", name="Stage accepted cases").click()
+        playwright.expect(page.get_by_role("alert")).to_contain_text("allow-native-harbor")
+        playwright.expect(page.get_by_label("Review decision")).to_have_value("pending")
+        page.get_by_label("Review decision").select_option("accept_observed")
+        page.get_by_label("Allow acceptance for native Harbor tasks").check()
+        page.get_by_role("button", name="Stage accepted cases").click()
+        page.get_by_role("button", name="Commit and push").click()
+        saved = json.loads(
+            subprocess.check_output(
+                ["git", "show", "main:skills/triage/evals/evals.json"], cwd=tmp_path / "server/handbook.git"
+            )
+        )
+        (case,) = saved["evals"]
+        assert (case["prompt"], case["expected_output"], case["trace_source"]["decision"]) == (
+            "Replacement",
+            "Queue two",
+            "accept_observed",
+        )
+
+
 def test_create_named_dataset_then_edit_and_delete(page, tmp_path, private_remote):
     remote = tmp_path / "server/handbook.git"
     with running(tmp_path / "volume") as base:
@@ -119,7 +352,8 @@ def test_create_named_dataset_then_edit_and_delete(page, tmp_path, private_remot
         assert subprocess.run(["git", "cat-file", "-e", path], cwd=remote).returncode != 0
 
 
-def test_migrate_legacy_then_review_routing_without_losing_authored_fields(page, tmp_path, private_remote):
+@pytest.mark.parametrize("dest", ["evals/evals.json", "evals/datasets/dispatch.yaml"])
+def test_migrate_legacy_then_review_routing_without_losing_authored_fields(page, tmp_path, private_remote, dest):
     from skillevaluator.tier3.dataset_utils import load_dataset_entries
 
     seed = tmp_path / "seed"
@@ -150,14 +384,16 @@ def test_migrate_legacy_then_review_routing_without_losing_authored_fields(page,
         page.get_by_role("link", name="Datasets").click()
         page.get_by_role("button", name="Open draft").click()
         page.get_by_text("Migrate dataset", exact=True).click()
-        page.get_by_label("New destination").fill("evals/evals.json")
+        page.get_by_label("Target skill identity").fill("dispatch")
+        page.get_by_label("New destination").fill(dest)
         page.get_by_role("button", name="Run migration").click()
         page.get_by_text("Edit case 42", exact=True).click()
         page.get_by_label("Should this skill trigger?").first.select_option("no", timeout=1500)
         page.get_by_role("button", name="Update case").click()
         page.get_by_role("button", name="Commit and push").click()
-        path = tmp_path / "published.json"
-        path.write_bytes(subprocess.check_output(["git", "show", "main:skills/triage/evals/evals.json"], cwd=remote))
+        path = tmp_path / dest.split("/")[-1]
+        path.write_bytes(subprocess.check_output(["git", "show", f"main:skills/triage/{dest}"], cwd=remote))
+        assert yaml.safe_load(path.read_bytes())["skill_name"] == "dispatch"
         (case,) = load_dataset_entries(path)
         assert case["should_trigger"] is False and case["id"] == 42 and "files" not in case
         assert case["metadata"] == {"origin": "maintainer"}

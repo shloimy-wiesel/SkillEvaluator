@@ -57,6 +57,7 @@ class Controls(BaseModel):
     agent_runtime_preflight: bool | None = None
     tolerate_baseline_timeouts: bool | None = None
     autopilot: bool = False
+    sandbox_grader_consent: bool = False
 
     @model_validator(mode="after")
     def combinations(self):
@@ -160,6 +161,9 @@ def stage(ctx, base, options):
     if any((source / "evals" / name).exists() for name in ("environment", "harbor")):
         raise WorkspaceError("This preset needs a dataset and a generated task environment.")
     config, config_path = load_evals_config(source)
+    effective_mode = options.grading_mode or config.get("grading", {}).get("mode", "default")
+    if effective_mode != "default" and not options.sandbox_grader_consent:
+        raise WorkspaceError("Repository grading requires explicit sandbox consent.")
     if (
         config.get("harbor", {}).get("task_source") == "native_harbor"
         or set(config) - {"harbor", "schema_version", "grading"}
@@ -202,7 +206,7 @@ def stage(ctx, base, options):
     if config_path:
         shutil.copyfile(config_path, evals / config_path.name)
     for name in ("grader.py", "grader.sh"):
-        if (grader := source / "evals" / name).is_file():
+        if effective_mode != "default" and (grader := source / "evals" / name).is_file():
             shutil.copy2(grader, evals / name)
     if (fixtures := source / "evals/files").is_dir():
         shutil.copytree(fixtures, evals / "files")
