@@ -142,7 +142,11 @@ class SimilarityValidator(ValidatorBase):
                 # A catalog built from the tree that holds the target records the
                 # target itself; never report it as its own duplicate. Copies
                 # outside that tree keep their catalog matches.
-                self_entry = registry.catalog_self_entry(target, repository_root=self._repository_root)
+                self_entry = (
+                    registry.catalog_self_entry(target, repository_root=self._repository_root)
+                    if self._repository_root is not None
+                    else registry.catalog_self_entry(target)
+                )
                 matches = registry.query_entry(
                     target,
                     self._threshold,
