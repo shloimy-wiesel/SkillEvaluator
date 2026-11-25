@@ -178,6 +178,7 @@ DECOYS = JobDefinition("select-decoys-v1", Decoys, select)
 
 
 class InteractionControls(Settings):
+    sandbox_grader_consent: bool = False
     skills: Annotated[tuple[Directory, ...], Field(min_length=2, max_length=32)]
     eval_source: Directory
     agents: tuple[Agent, ...] = ()
@@ -226,7 +227,9 @@ def interact(ctx, options):
         base = Path(temp)
         if find_git_repo_root(base) is not None:
             raise WorkspaceError("Interaction trials require a temporary directory outside any Git checkout.")
-        suite = live_job.stage(replace(ctx, skill=source), base, Controls())
+        suite = live_job.stage(
+            replace(ctx, skill=source), base, Controls(sandbox_grader_consent=options.sandbox_grader_consent)
+        )
         members = base / "members"
         members.mkdir()
         for path in selected:
