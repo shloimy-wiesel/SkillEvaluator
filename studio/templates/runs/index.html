@@ -1,5 +1,4 @@
 {% extends "base.html" %}{% block title %}Evaluation runs{% endblock %}{% block content %}
-<p><a href="{{ url_for('project', project_id=project.id) }}">{{ project.name }}</a> / Runs</p>
 <h1>Evaluation runs</h1>
 <section class="panel"><h2>Keyless Tier 1</h2><p>Check schema and Unicode in the selected skill. No model, external scanner or repository script runs.</p>
 {% if error %}<p role="alert">{{ error }}</p>{% endif %}
@@ -11,7 +10,7 @@
 <details class="panel"><summary>Expert checks and validation</summary>
 <ul>{% for action,label in actions.items() %}<li><a href="{{ url_for('expert_form', project_id=project.id, action=action) }}">{{ label }}</a></li>{% endfor %}</ul>
 </details>
-<section><h2>Run history</h2>{% for run in runs %}<article>
+<section class="panel" id="history"><h2>Run history</h2>{% for run in runs %}<article>
 <a href="{{ url_for('run_detail',project_id=project.id,run_id=run.id) }}">{{ run.sha }}</a>
-<p>{{ run.kind }} · {{ run.status }} · {{ run.created }} UTC</p></article>{% else %}<p>No runs yet.</p>{% endfor %}</section>
+<p>{{ run.kind }} · {{ run.status }} · {{ run.created }} UTC</p></article>{% else %}<p class="empty"><b>No runs yet.</b> Queue a check to see its results here.</p>{% endfor %}</section>
 {% endblock %}

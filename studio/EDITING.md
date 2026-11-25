@@ -50,3 +50,12 @@ the application-owned `studio/git-hooks/pre-push` checks the advertised old
 OID, including zero for creation, and the receive server verifies it again
 when updating the ref. Ship the hook executable. Studio updates checkout
 metadata after the local checkout succeeds.
+
+Trusted generators may pass `executable={path: bool}` to `commit_changes` for
+files whose generated mode is part of the template contract. Omitted paths
+retain the usual mode behavior. Never source this mapping from form fields.
+
+`commit_changes(..., new_branch=server_selected_name)` publishes the new
+commit directly to a previously absent branch with the same push guard,
+leaving the selected branch and workspace metadata unchanged. Repository CI
+uses this for the reviewed demo change.
