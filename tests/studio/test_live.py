@@ -502,7 +502,7 @@ def test_operator_sandbox_profile_needs_review_and_enabled_worker(page, private_
         page.wait_for_url("**/runs/*")
         saved = page.request.get(page.url.replace(base, base + "/api/v1")).json()["run"]
         assert saved["sha"] == approved
-        assert json.loads(saved["options"])["sandbox_profile"] == "gym-docker"
+        assert saved["options"]["sandbox_profile"] == "gym-docker"
 
 
 def test_native_profile_stages_reviewed_scaffold_with_the_engine(tmp_path):
