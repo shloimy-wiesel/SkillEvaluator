@@ -4,6 +4,10 @@ Open **Evaluation assets** on the project branch. Choose **Custom grader** or **
 
 The forms run the CLI's starter generators on a temporary copy of the committed skill manifest and `evals/` blobs. Neither preview nor push executes the generated graders, test scripts, or Dockerfiles. Studio accepts up to 16 MiB / 1024 regular files in `evals/`. An existing starter requires explicit overwrite. Force can remove the old grader language or replace an entire native case; review the deletions.
 
+If the changed files exceed 32 KiB on either side of the preview, or 2,000
+lines across both sides, **Preview** reports that it omitted the diff.
+**Commit and push** still publishes the complete starter and its file modes.
+
 ### Project HTTP contract
 
 The React document remains at `/projects/{project_id}/assets`. Its JSON API root is `/api/v1/projects/{project_id}/assets`.

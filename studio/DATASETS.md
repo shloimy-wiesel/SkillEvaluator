@@ -44,8 +44,15 @@ and revision. Subsequent actions take the private draft token and version.
 An action returns the updated view or a same-origin `location` for a new
 draft, collection run, discard or publication. A `409` includes the current
 draft and `detail: {code, message}` so a stale tab can review the latest
-state. A validation failure returns `422`; an unknown project or draft
-returns `404`.
+state. The editor displays the submitted values alongside the current draft
+version. Choose **Reconcile with current draft** to edit the current values;
+Studio never replays a stale submission automatically. A validation failure
+returns `422`; an unknown project or draft returns `404`.
+
+Dataset previews omit the diff when the saved or draft
+files exceed 32 KiB on either side, or both sides exceed 2,000 lines combined.
+These limits apply only to the preview. **Commit and push** still publishes
+the complete changes.
 
 ### Reproducing the React migration checks (#28)
 
@@ -61,3 +68,12 @@ pages against one draft, and checks redaction before fixture publication.
 Model-generation coverage uses a test-local HTTPS OpenAI-compatible endpoint
 and inspects its actual model and authorization header. Collection substitutes
 a fixture sandbox invocation, then runs the real trajectory refinement.
+
+For #33, `test_two_tabs_reconcile_pending_case_against_current_version`
+failed on `fd7bdf4` because the second Chromium page lost its pending
+expectation. It now checks that submission is disabled until reconciliation,
+then reads the committed case from the private Git fixture to verify both
+authors’ changes. `test_large_dataset_preview_preserves_full_commit` exercises
+both byte and line limits; `test_large_asset_preview_still_publishes_complete_starter`
+checks an oversized configuration and the generated executable mode. Before
+the fix the preview assertions received full diffs instead of an omission.

@@ -37,6 +37,41 @@ def publish(page):
     playwright.expect(page.get_by_role("status")).to_contain_text("Pushed")
 
 
+def test_two_tabs_reconcile_pending_case_against_current_version(page, tmp_path, private_remote):
+    case = {"id": "urgent", "prompt": "Route incident", "expected_output": "Tier one"}
+    seed_skill(tmp_path, {"evals/evals.json": json.dumps({"skill_name": "triage", "evals": [case]})})
+    with running(tmp_path / "volume") as base:
+        open_draft(page, base, private_remote)
+        other = page.context.browser.new_page()
+        other.goto(page.url)
+        for tab in (page, other):
+            tab.get_by_text("Edit case urgent").click()
+        other.locator("article").get_by_label("Expected output", exact=True).fill("Escalate to on-call")
+        page.locator("article").get_by_label("Prompt", exact=True).fill("Route critical incident")
+        page.get_by_role("button", name="Update case").click()
+        playwright.expect(page.locator("article p").first).to_have_text("Route critical incident")
+        other.get_by_role("button", name="Update case").click()
+        playwright.expect(other.locator("main").get_by_role("alert")).to_contain_text("changed in another form")
+        pending = other.get_by_role("region", name="Pending submission")
+        playwright.expect(pending).to_contain_text("Escalate to on-call")
+        playwright.expect(pending).to_contain_text("Current draft version: 1")
+        playwright.expect(other.locator("article p").first).to_have_text("Route critical incident")
+        current = other.locator("article").filter(has_text="urgent")
+        playwright.expect(current.get_by_role("button", name="Update case", include_hidden=True)).to_be_disabled()
+        other.get_by_role("button", name="Reconcile with current draft").click()
+        current.get_by_text("Edit case urgent").click()
+        playwright.expect(current.get_by_label("Expected output")).to_have_value("Tier one")
+        current.get_by_label("Expected output").fill("Escalate to on-call")
+        current.get_by_role("button", name="Update case").click()
+        publish(other)
+        blob = subprocess.check_output(
+            ["git", "show", "main:skills/triage/evals/evals.json"], cwd=tmp_path / "server/handbook.git"
+        )
+        assert json.loads(blob)["evals"] == [
+            {**case, "prompt": "Route critical incident", "expected_output": "Escalate to on-call"}
+        ]
+
+
 def test_resumed_draft_has_versioned_scoped_conflict_view(page, tmp_path, private_remote):
     with running(tmp_path / "volume") as base:
         open_draft(page, base, private_remote)
@@ -49,6 +84,26 @@ def test_resumed_draft_has_versioned_scoped_conflict_view(page, tmp_path, privat
         assert stale.status == 409
         assert stale.json()["detail"]["code"] == "conflict"
         assert page.request.get(endpoint.split("?")[0] + "?draft=unknown").status == 404
+
+
+@pytest.mark.parametrize(("padding", "limit"), [("é" * 17000, "32 KiB"), (["x"] * 1050, "2,000")])
+def test_large_dataset_preview_preserves_full_commit(page, tmp_path, private_remote, padding, limit):
+    document = {"skill_name": "triage", "evals": [], "padding": padding}
+    seed_skill(tmp_path, {"evals/evals.json": json.dumps(document, ensure_ascii=False, indent=2)})
+    with running(tmp_path / "volume") as base:
+        open_draft(page, base, private_remote)
+        page.get_by_text("Manage datasets").click()
+        page.get_by_label("Skill identity", exact=True).fill("support")
+        page.get_by_role("button", name="Update identity").click()
+        page.get_by_role("button", name="Preview changes").click()
+        preview = page.get_by_label("Change preview")
+        playwright.expect(preview).to_contain_text("Diff omitted")
+        assert limit in preview.inner_text()
+        publish(page)
+        blob = subprocess.check_output(
+            ["git", "show", "main:skills/triage/evals/evals.json"], cwd=tmp_path / "server/handbook.git"
+        )
+        assert json.loads(blob) == {**document, "skill_name": "support"}
 
 
 def test_edit_prompt_preserves_structured_expectations_and_conflicting_draft(page, tmp_path, private_remote):

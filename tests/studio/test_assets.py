@@ -1,7 +1,36 @@
 import subprocess
 
+import yaml
+
 # ruff: noqa: F811
 from test_workspace import before_push, connect, page, playwright, private_remote, running  # noqa: F401
+
+
+def test_large_asset_preview_still_publishes_complete_starter(page, tmp_path, private_remote):
+    from test_datasets import seed_skill
+
+    workdir = "/" + "x" * 33000
+    seed_skill(
+        tmp_path, {"evals/config.yml": yaml.safe_dump({"schema_version": 1, "harbor": {"agent_workdir": workdir}})}
+    )
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        page.get_by_role("link", name="Evaluation assets").click()
+        form = page.get_by_role("form", name="Custom grader")
+        form.get_by_label("Update evaluation configuration").check()
+        form.get_by_role("button", name="Preview").click()
+        playwright.expect(page.get_by_label("Change preview")).to_contain_text("Diff omitted")
+        page.get_by_role("button", name="Commit and push").click()
+        playwright.expect(page.get_by_role("status")).to_contain_text("Pushed")
+        remote = tmp_path / "server/handbook.git"
+        blob = subprocess.check_output(["git", "show", "main:skills/triage/evals/config.yml"], cwd=remote)
+        config = yaml.safe_load(blob)
+        assert config["harbor"]["agent_workdir"] == workdir
+        assert config["grading"]["mode"] == "default_plus_custom"
+        assert subprocess.check_output(
+            ["git", "ls-tree", "main", "skills/triage/evals/grader.py"], cwd=remote
+        ).startswith(b"100755")
 
 
 def test_custom_grader_preview_and_push(page, tmp_path, private_remote):
