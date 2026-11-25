@@ -23,11 +23,15 @@ def test_create_from_chosen_branch_then_switch(page, tmp_path, private_remote):
     with running(tmp_path / "volume") as base:
         page.goto(base)
         connect(page, *private_remote, skill="skills/triage")
-        assert not page.get_by_role("alert").count(), page.locator("body").inner_text()
-        page.get_by_role("link", name="Edit skill").click(timeout=2000)
+        assert not page.locator("main").get_by_role("alert").count(), page.locator("body").inner_text()
+        with page.expect_response("**/api/v1/projects/*/edit", timeout=3000) as view:
+            page.get_by_role("link", name="Edit skill").click(timeout=2000)
+        assert view.value.ok
         page.get_by_label("Start from branch").select_option(label="candidate")
         page.get_by_label("New branch name").fill("review/v2")
-        page.get_by_role("button", name="Create branch").click()
+        with page.expect_response("**/api/v1/projects/*/edit/branch") as created:
+            page.get_by_role("button", name="Create branch").click()
+        assert created.value.ok
         playwright.expect(page.get_by_role("heading", name="Edit review/v2")).to_be_visible()
         assert subprocess.check_output(["git", "rev-parse", "review/v2"], cwd=remote) == subprocess.check_output(
             ["git", "rev-parse", "candidate"], cwd=remote
@@ -46,7 +50,9 @@ def test_preview_and_publish_skill(page, tmp_path, private_remote):
         skill = page.get_by_label("SKILL.md")
         playwright.expect(skill).to_have_value("# Triage\n", timeout=1500)
         skill.fill("# Triage")
-        page.get_by_role("button", name="Preview changes").click()
+        with page.expect_response("**/api/v1/projects/*/edit/changes") as preview:
+            page.get_by_role("button", name="Preview changes").click()
+        assert preview.value.ok
         playwright.expect(page.get_by_label("Change preview")).to_contain_text("No newline", timeout=1500)
         skill.fill("# Review\n\nAssess the evidence.\n")
         page.get_by_role("button", name="Preview changes").click()
@@ -54,6 +60,7 @@ def test_preview_and_publish_skill(page, tmp_path, private_remote):
         assert subprocess.check_output(["git", "show", "main:skills/triage/SKILL.md"], cwd=remote) == b"# Triage\n"
         page.get_by_role("button", name="Save and push").click()
         playwright.expect(page.get_by_role("status")).to_contain_text("Pushed")
+        assert "?pushed=" in page.url
         assert subprocess.check_output(["git", "show", "main:skills/triage/SKILL.md"], cwd=remote) == (
             b"# Review\n\nAssess the evidence.\n"
         )
@@ -67,17 +74,23 @@ def test_stale_remote_preserves_draft_and_branch_point(page, tmp_path, private_r
         page.get_by_role("link", name="Edit skill").click()
         stale = page.context.browser.new_page()
         stale.goto(page.url)
+        playwright.expect(stale.get_by_label("SKILL.md")).to_have_value("# Triage\n")
         publish_from_seed(tmp_path, "main", "# Collaborator\n")
         page.get_by_label("SKILL.md").fill("My draft")
-        page.get_by_role("button", name="Save and push").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("remote branch changed")
+        with page.expect_response("**/api/v1/projects/*/edit/changes") as rejected:
+            page.get_by_role("button", name="Save and push").click()
+        assert rejected.value.status == 409
+        assert rejected.value.json()["detail"]["code"] == "conflict"
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("remote branch changed")
         playwright.expect(page.get_by_label("SKILL.md")).to_have_value("My draft")
         assert (
             subprocess.check_output(["git", "show", "main:skills/triage/SKILL.md"], cwd=remote) == b"# Collaborator\n"
         )
         stale.get_by_label("New branch name").fill("wrong-base")
         stale.get_by_role("button", name="Create branch").click()
-        playwright.expect(stale.get_by_role("alert")).to_contain_text("source branch changed", timeout=1500)
+        playwright.expect(stale.locator("main").get_by_role("alert")).to_contain_text(
+            "source branch changed", timeout=1500
+        )
         assert subprocess.run(
             ["git", "show-ref", "--verify", "--quiet", "refs/heads/wrong-base"], cwd=remote
         ).returncode
@@ -96,7 +109,9 @@ def test_branch_deleted_during_push_is_not_recreated(page, tmp_path, private_rem
         )
         page.get_by_label("SKILL.md").fill("Retain my draft")
         page.get_by_role("button", name="Save and push").click()
-        playwright.expect(page.get_by_role("alert")).to_contain_text("Push was not confirmed", timeout=1500)
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text(
+            "Push was not confirmed", timeout=1500
+        )
         playwright.expect(page.get_by_label("SKILL.md")).to_have_value("Retain my draft")
         assert subprocess.run(["git", "show-ref", "--quiet", "--verify", "refs/heads/main"], cwd=remote).returncode
 
