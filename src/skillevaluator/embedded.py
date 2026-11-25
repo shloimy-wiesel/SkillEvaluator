@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from contextvars import ContextVar
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -20,4 +21,6 @@ report_observer: ContextVar[Callable[[list[ValidationResult]], None] | None] = C
 )
 
 # An embedding host may require an operator-managed sandbox for live work.
-sandbox_preflight: ContextVar[Callable[[], None] | None] = ContextVar("sandbox_preflight", default=None)
+sandbox_preflight: ContextVar[Callable[[Path], None] | None] = ContextVar("sandbox_preflight", default=None)
+# Embedded hosts can install process-local transports and policy in fresh catalog children.
+catalog_initializer: ContextVar[Callable[[], None] | None] = ContextVar("catalog_initializer", default=None)

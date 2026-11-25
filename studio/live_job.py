@@ -281,19 +281,27 @@ def check_stage_policy(source, options):
     return config_path, effective_mode
 
 
-def stage_skill(source, base, exclude):
-    skill = base / "inputs" / source.name
+def copy_skill(source, skill, exclude):
     shutil.copytree(source, skill, ignore=lambda root, _names: {".git", *exclude} if Path(root) == source else {".git"})
+
+
+def init_projection(root, base):
     # Bind linked-file discovery to this input projection even when the Studio
     # volume itself is nested in an unrelated developer checkout.
     subprocess.run(
-        ["git", "init", "--quiet", "--template=", str(skill.parent)],
+        ["git", "init", "--quiet", "--template=", str(root)],
         env={"PATH": "/usr/bin:/bin", "HOME": str(base), "GIT_CONFIG_NOSYSTEM": "1"},
         cwd=base,
         check=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+
+
+def stage_skill(source, base, exclude):
+    skill = base / "inputs" / source.name
+    copy_skill(source, skill, exclude)
+    init_projection(skill.parent, base)
     return skill
 
 
