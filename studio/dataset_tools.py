@@ -1,10 +1,10 @@
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 from .dataset_drafts import CANONICAL, dataset_destination, safe_ref, write_json
+from .operator_env import operator_env
 from .providers import worker_environment
 
 
@@ -23,7 +23,7 @@ def engine(draft, action, options, env=None):
             "AWS_SHARED_CREDENTIALS_FILE",
             "AWS_CONFIG_FILE",
         )
-    runtime = {key: os.environ[key] for key in allowed if key in os.environ}
+    runtime = operator_env(*allowed)
     try:
         result = subprocess.run(
             [sys.executable, "-I", str(Path(__file__).with_name("dataset_worker.py")), str(draft.skill), action],

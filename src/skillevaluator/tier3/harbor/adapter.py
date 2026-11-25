@@ -6191,6 +6191,7 @@ def stage_native_harbor_tasks(
             baseline_aliases_prevalidated=baseline_aliases_prevalidated,
             arm_suffix=arm_suffix,
         )
+        _stage_trial_trust(private_tasks)
         relative_tasks = [task.relative_to(private_output) for task in private_tasks]
         if output_requires_provenance:
             write_generated_output_marker(private_output, destination=output_dir)
@@ -6752,6 +6753,30 @@ def private_evaluator_skill_snapshot(
         yield evaluator_skill_path
 
 
+def _stage_trial_trust(tasks: Sequence[Path]) -> None:
+    """Install the worker-prepared public trust bundle in the actual trial image."""
+    if not (path := os.environ.get("SKILLEVALUATOR_TRIAL_CA_FILE")):
+        return
+    # Re-parse at this boundary: never COPY arbitrary host file bytes, including
+    # comments or a private key accidentally appended to a certificate.
+    from skillevaluator.public_certificates import public_certificates
+
+    pem = public_certificates(path)
+    for task in tasks:
+        env = task / "environment"
+        with (env / "skilleval-trust.pem").open("xb") as dest:
+            dest.write(pem)
+        with (env / "Dockerfile").open("a", encoding="utf-8") as dockerfile:
+            dockerfile.write(
+                "\nCOPY --chmod=0444 skilleval-trust.pem /etc/ssl/certs/skilleval-private.pem\n"
+                "RUN cat /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/skilleval-private.pem "
+                "> /etc/ssl/certs/skilleval-bundle.pem\n"
+                "ENV SSL_CERT_FILE=/etc/ssl/certs/skilleval-bundle.pem "
+                "REQUESTS_CA_BUNDLE=/etc/ssl/certs/skilleval-bundle.pem "
+                "NODE_EXTRA_CA_CERTS=/etc/ssl/certs/skilleval-private.pem\n"
+            )
+
+
 def generate_harbor_tasks(
     skill_path: Path,
     output_dir: Path,
@@ -6874,6 +6899,7 @@ def generate_harbor_tasks(
             baseline_aliases_prevalidated=baseline_aliases_prevalidated,
             arm_suffix=arm_suffix,
         )
+        _stage_trial_trust(private_tasks)
         relative_tasks = [task.relative_to(private_output) for task in private_tasks]
         if output_requires_provenance:
             write_generated_output_marker(private_output, destination=output_dir)

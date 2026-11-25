@@ -20,6 +20,8 @@
 <p>The engine checks the selected arm’s dataset, models, grading, attempts and coverage before running trials.</p>
 <details><summary>Trial settings and budgets</summary>
 <p>Blank limits use the pinned run policy and engine defaults. The paid workload scales with cases × agents × attempts × arms.</p>
+<p>Saved chat / standard judge: {{ judge or "not configured" }}</p>
+<p>Per-agent overrides take precedence over the shared agent model. They can differ from the judge without changing the saved chat profile. For an OpenAI-compatible OpenCode agent, enter openai/MODEL.</p>
 <label>Agent model override<input name="model"></label>
 <label><input type="checkbox" name="harbor_keep_jobs">Retain Harbor jobs for trajectory review</label>
 {% for key,label in [('codex_model','Codex'),('opencode_model','OpenCode'),('claude_code_model','Claude Code')] %}

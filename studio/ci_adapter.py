@@ -1,7 +1,6 @@
 """Isolate the CLI engine and scope host access to the connected project."""
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -10,6 +9,7 @@ from urllib.parse import urlsplit
 
 from .ci_gitlab import configured_instance, host_operation
 from .editing import branches, commit_changes
+from .operator_env import operator_env
 from .workspace import WorkspaceError
 
 
@@ -28,7 +28,7 @@ def worker(ws, p, task, **params):
             raise WorkspaceError("Configure the GitLab instance before proposing a merge request.")
     # Separate HOME and repository for each operation, including gh credentials.
     with TemporaryDirectory(dir=ws.data_dir) as temp:
-        env = {k: os.environ[k] for k in ("PATH", "LANG", "SSL_CERT_FILE", "GIT_SSL_CAINFO") if k in os.environ}
+        env = operator_env("PATH", "LANG", "SSL_CERT_FILE", "GIT_SSL_CAINFO")
         root = Path(__file__).resolve().parents[1]
         env.update(HOME=temp, PYTHONPATH=str(root / "src"), GH_PROMPT_DISABLED="1", NO_COLOR="1")
         try:

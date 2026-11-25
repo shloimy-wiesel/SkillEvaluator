@@ -277,6 +277,7 @@ def test_evaluate_selected_project_dataset_and_container_grader(
         page.get_by_label("opencode", exact=True).check()
         page.get_by_text("Trial settings and budgets").click()
         page.get_by_label("Codex model override", exact=True).fill("gpt-trial")
+        playwright.expect(page.get_by_text("Saved chat / standard judge: test", exact=True)).to_be_visible()
         page.get_by_label("OpenCode model override", exact=True).fill("openai/trial", timeout=2000)
         for label, value in {
             "Attempts per case": "3",

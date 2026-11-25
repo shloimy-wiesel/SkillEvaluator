@@ -23,6 +23,7 @@ from skillevaluator.constants import (
 from skillevaluator.provider_config import resolve_embedding_provider, resolve_llm_provider
 
 from .jobs import JobDefinition, Outcome
+from .operator_env import operator_env
 from .provider_snapshots import exposes_credential, seal, unseal
 from .providers import MODEL, database, worker_environment
 from .runs import project_for
@@ -165,7 +166,7 @@ def evaluate(ctx, options):
             "AWS_ROLE_ARN",
             "AWS_WEB_IDENTITY_TOKEN_FILE",
         ]
-    env.update({k: os.environ[k] for k in allow if k in os.environ})
+    env.update(operator_env(*allow))
     ctx.progress("Evaluating semantic overlap")
     payload = {
         "options": options.model_dump(),

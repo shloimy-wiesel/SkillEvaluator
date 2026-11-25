@@ -12,6 +12,8 @@ from contextvars import ContextVar
 from functools import wraps
 from pathlib import Path
 
+from skillevaluator.public_certificates import public_certificates
+
 from .workspace import WorkspaceError
 
 _deadline = ContextVar("evaluator_deadline", default=None)
@@ -88,6 +90,13 @@ def run_evaluator(command, *, cwd, env, sandbox, limit=None, **io):
         raise WorkerTimeout("Evaluator wall-clock deadline expired.")
     timeout = min(remaining, limit) if limit else remaining
     with ExitStack() as stack:
+        if sandbox and (ca := env.get("SSL_CERT_FILE")):
+            trust = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="trust-", dir=cwd))) / "public.pem"
+            try:
+                trust.write_bytes(public_certificates(ca))
+            except ValueError as exc:
+                raise WorkspaceError(str(exc)) from exc
+            env = {**env, "SSL_CERT_FILE": str(trust), "SKILLEVALUATOR_TRIAL_CA_FILE": str(trust)}
         if sandbox:
             ledger = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="compose-", dir=cwd)))
             env = {**env, "SKILLEVALUATOR_COMPOSE_LEDGER": str(ledger)}

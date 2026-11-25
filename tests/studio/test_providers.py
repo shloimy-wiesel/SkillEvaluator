@@ -50,8 +50,13 @@ def gateway(loopback_tls, monkeypatch):
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             seen.append((self.path, self.headers.get("Authorization")))
-            self.rfile.read(int(self.headers["Content-Length"]))
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             allowed = self.path.startswith("/allowed/")
+            if self.path.startswith("/role/"):
+                allowed = (self.path, self.headers.get("Authorization"), body.get("model")) in {
+                    ("/role/vector/embeddings", "Bearer key-B", "embed-private"),
+                    ("/role/chat/chat/completions", "Bearer key-A", "chat-private"),
+                }
             self.send_response(200 if allowed else 401)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -202,15 +207,22 @@ def test_native_inference_requires_consent_and_isolates_roles(page, private_remo
         assert "never-display-this-provider-body" not in page.content()
 
 
-def test_successful_native_inference(gateway):
+def test_successful_native_inference(gateway, monkeypatch):
     from studio.readiness import Probe, inspect
 
     endpoint, seen = gateway
-    chat = {"SKILL_EVAL_LLM_PROVIDER": "openai", "OPENAI_API_KEY": "key-A", "OPENAI_BASE_URL": endpoint + "/allowed"}
+    monkeypatch.setenv("SSL_CERT_FILE", os.path.relpath(os.environ["SSL_CERT_FILE"]))
+    chat = {
+        "SKILL_EVAL_LLM_PROVIDER": "openai",
+        "SKILL_EVAL_LLM_MODEL": "chat-private",
+        "OPENAI_API_KEY": "key-A",
+        "OPENAI_BASE_URL": endpoint + "/role/chat",
+    }
     emb = {
         "SKILL_EVAL_EMBEDDING_PROVIDER": "openai",
+        "SKILL_EVAL_EMBEDDING_MODEL": "embed-private",
         "OPENAI_API_KEY": "key-B",
-        "OPENAI_BASE_URL": endpoint + "/allowed",
+        "OPENAI_BASE_URL": endpoint + "/role/vector",
     }
     payload, code = inspect(Probe(action="doctor", tier="2", verify_models=True, timeout=2), chat, emb)
     assert code == 0 and payload["status"] == "pass", payload
@@ -218,7 +230,7 @@ def test_successful_native_inference(gateway):
         "returned a 2-dimension vector",
         "returned a chat completion",
     }
-    assert seen == [("/allowed/embeddings", "Bearer key-B"), ("/allowed/chat/completions", "Bearer key-A")]
+    assert seen == [("/role/vector/embeddings", "Bearer key-B"), ("/role/chat/chat/completions", "Bearer key-A")]
 
 
 @pytest.mark.parametrize("command", ["doctor", "tier3 doctor", "health-check"])

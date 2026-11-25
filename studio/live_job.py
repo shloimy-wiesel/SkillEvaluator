@@ -23,6 +23,7 @@ from skillevaluator.tier3.dataset_utils import DATASET_EXTENSIONS, find_eval_fil
 
 from .jobs import JobContext, JobDefinition, Outcome
 from .native_location import bounded_directory, native_directory
+from .operator_env import operator_env
 from .provider_snapshots import exposes_credential, seal, unseal
 from .providers import worker_environment
 from .sandbox_profiles import Profile, authorize, stage_native
@@ -479,11 +480,7 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
             args.append("--autopilot")
         if options.harbor_keep_jobs:
             args.append("--harbor-keep-jobs")
-        env = {
-            k: os.environ[k]
-            for k in ("DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "SSL_CERT_FILE")
-            if k in os.environ
-        }
+        env = operator_env("DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "SSL_CERT_FILE")
         env.update(
             chat,
             PATH=f"{Path(sys.executable).parent}:/usr/local/bin:/usr/bin:/bin",

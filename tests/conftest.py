@@ -25,6 +25,15 @@ import pytest
 @pytest.fixture
 def loopback_tls(tmp_path: Path) -> tuple[ssl.SSLContext, Path]:
     """Create a loopback TLS context and the certificate clients can trust."""
+    return tls_for_ip(tmp_path, "127.0.0.1")
+
+
+@pytest.fixture
+def make_tls(tmp_path):
+    return lambda address: tls_for_ip(tmp_path, address)
+
+
+def tls_for_ip(tmp_path, address):
     x509 = pytest.importorskip("cryptography.x509")
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
@@ -41,7 +50,7 @@ def loopback_tls(tmp_path: Path) -> tuple[ssl.SSLContext, Path]:
         .not_valid_before(datetime.now(UTC) - timedelta(days=1))
         .not_valid_after(datetime.now(UTC) + timedelta(days=1))
         .add_extension(
-            x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1")), x509.DNSName("localhost")]),
+            x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address(address)), x509.DNSName("localhost")]),
             False,
         )
         .sign(key, hashes.SHA256())
