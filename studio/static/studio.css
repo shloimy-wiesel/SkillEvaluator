@@ -86,3 +86,7 @@ footer span { margin: 0 .4rem }
   .marker { margin-bottom: .45rem }
   .crumbs { margin-bottom: 1rem }
 }
+.datasets .panel { margin-block: 1rem }
+.datasets pre { overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--wash); padding: 1rem }
+.datasets button { margin-right: .3rem }
+.datasets input[type=checkbox] { width: auto; display: inline-block }
