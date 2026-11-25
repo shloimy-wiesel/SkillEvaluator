@@ -175,7 +175,7 @@ def test_evaluate_selected_project_dataset_and_container_grader(
             "custom_dockerfile_mode": None,
             "include_skills": (),
             "copy_repo": False,
-            "harbor_keep_jobs": False,
+            "harbor_keep_jobs": baseline_only,
             "progress_interval": None,
             "verbose": False,
             "skip_baseline": not baseline_only,
@@ -230,7 +230,6 @@ def test_evaluate_selected_project_dataset_and_container_grader(
             "include_skills": "../other",
             "copy_repo": "true",
             "results_dir": "/tmp/untrusted",
-            "harbor_keep_jobs": "true",
             "progress": "rich",
             "progress_interval": "1",
             "verbose": "true",
@@ -268,6 +267,7 @@ def test_evaluate_selected_project_dataset_and_container_grader(
         if workflow != "direct":
             page.get_by_label("Prepare missing dataset even with Evaluate").check()
         if baseline_only:
+            page.get_by_label("Retain Harbor jobs").check()
             page.get_by_label("Run a paid agent preflight").select_option("true")
         page.get_by_label("Model price file").fill("prices.json")
         page.get_by_label("Tolerate baseline timeouts").select_option("true")

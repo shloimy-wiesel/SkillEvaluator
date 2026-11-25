@@ -180,12 +180,6 @@
     "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
   },
   {
-    "key": "tier3 [workflow]:harbor_keep_jobs",
-    "status": "partial",
-    "equivalent": "Disabled: retain native evaluation evidence, not raw Harbor jobs.",
-    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
-  },
-  {
     "key": "tier3 [workflow]:agent_runtime_preflight",
     "status": "implemented",
     "equivalent": "Three-state preflight; omitted and enabled have distinct engine settings.",
@@ -439,8 +433,8 @@
   },
   {
     "key": "tier3 evaluate:harbor_keep_jobs",
-    "status": "partial",
-    "equivalent": "Disabled: retain native evaluation evidence, not raw Harbor jobs.",
+    "status": "implemented",
+    "equivalent": "Opt in to keeping sandbox jobs for private trajectory review.",
     "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
   },
   {
@@ -697,8 +691,8 @@
   },
   {
     "key": "evaluate:harbor_keep_jobs",
-    "status": "partial",
-    "equivalent": "Disabled: retain native evaluation evidence, not raw Harbor jobs.",
+    "status": "implemented",
+    "equivalent": "Opt in to keeping sandbox jobs for private trajectory review.",
     "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
   },
   {

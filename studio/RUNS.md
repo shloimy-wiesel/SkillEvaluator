@@ -182,7 +182,8 @@ arms; version comparison requires a with-skill arm. The engine validates the
 original retained run in place, including dataset identity, model resolution,
 score and attempt policy and complete reward coverage. An incompatible explicit
 selection fails instead of silently starting a new paid baseline. Interrupted
-jobs cannot supply either arm. Replays keep the selected Studio job IDs.
+jobs cannot supply either arm. Replays keep the selected Studio job IDs. The
+same retained-tree inspection limits documented below apply to selected runs.
 
 Select one model per agent: selecting two overrides produces two `--agent-model`
 arguments; the engine rejects duplicate overrides for the same agent. Provider
@@ -197,7 +198,7 @@ Parser/browser checks use the live image contract without paid trials; the
 engine tests collect fixture trial rewards and compare the real retained arms.
 Only the optional runtime check requires Harbor, Docker/Compose and a running
 daemon. Actual trials also require the configured provider, authorized agent
-runtimes and the selected sandbox. Raw jobs, arbitrary environment kwargs,
+runtimes and the selected sandbox. Arbitrary environment kwargs,
 custom Dockerfiles, group/copy-repo workspaces and terminal presentation
 settings are outside the generated-task preset.
 
