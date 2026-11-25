@@ -1,7 +1,6 @@
 """Private native reader. Only completed, immutable Studio artifact trees enter here."""
 
 import json
-import os
 import re
 import resource
 import sys
@@ -13,31 +12,7 @@ from skillevaluator.tier3.version_comparison import compare_versions, select_pri
 
 # Isolated Python omits the script directory; import only trusted Studio code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from native_location import scoped_run_directory
-
-
-def bounded_directory(root, skill):
-    directory = scoped_run_directory(root, skill)
-    entries = 0
-    pending = [directory]
-    total = 0
-    while pending:
-        with os.scandir(pending.pop()) as scan:
-            for entry in scan:
-                entries += 1
-                if entries > 16000 or entry.is_symlink():
-                    raise ValueError("Linked or oversized artifact tree")
-                if entry.is_dir(follow_symlinks=False):
-                    pending.append(entry.path)
-                    continue
-                meta = entry.stat(follow_symlinks=False)
-                if not entry.is_file(follow_symlinks=False) or meta.st_nlink != 1:
-                    raise ValueError("Unsupported artifact type")
-                if entry.name.endswith(".json") or entry.name.startswith("."):
-                    total += meta.st_size
-                    if meta.st_size > 8 * 1024**2 or total > 64 * 1024**2:
-                        raise ValueError("Oversized retained evidence")
-    return directory
+from native_location import bounded_directory
 
 
 def safe_reason(reason):

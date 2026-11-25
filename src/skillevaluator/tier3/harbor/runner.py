@@ -174,6 +174,7 @@ from skillevaluator.tier3.output_provenance import (
     write_output_file_atomically,
 )
 from skillevaluator.tier3.results_location import publish_latest_results
+from skillevaluator.tier3.retained_sources import source_root
 from skillevaluator.tier3.version_comparison import compare_versions, select_prior_version
 from skillevaluator.tier3_environments import (
     DEFAULT_ENV_MODE,
@@ -6512,13 +6513,17 @@ def _run_harbor_eval_impl(
     prior_version = None
     if compare_to:
         try:
-            prior_version = select_prior_version(run_dir.parent, compare_to, identity, current_run_dir=run_dir)
+            prior_version = select_prior_version(
+                source_root("compare_to", compare_to, run_dir.parent), compare_to, identity, current_run_dir=run_dir
+            )
         except ValueError as exc:
             return _persist_pre_execution_failure([str(exc)])
     reused_baseline_dir = None
     if reuse_baseline:
         try:
-            baseline = select_baseline(run_dir.parent, reuse_baseline, agents, identity)
+            baseline = select_baseline(
+                source_root("reuse_baseline", reuse_baseline, run_dir.parent), reuse_baseline, agents, identity
+            )
         except ValueError as exc:
             return _persist_pre_execution_failure([str(exc)])
         if baseline["mode"] == "reused":
