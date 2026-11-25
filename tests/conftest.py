@@ -40,7 +40,10 @@ def loopback_tls(tmp_path: Path) -> tuple[ssl.SSLContext, Path]:
         .serial_number(x509.random_serial_number())
         .not_valid_before(datetime.now(UTC) - timedelta(days=1))
         .not_valid_after(datetime.now(UTC) + timedelta(days=1))
-        .add_extension(x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]), False)
+        .add_extension(
+            x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("127.0.0.1")), x509.DNSName("localhost")]),
+            False,
+        )
         .sign(key, hashes.SHA256())
     )
     cert_path, key_path = tmp_path / "certificate.pem", tmp_path / "key.pem"

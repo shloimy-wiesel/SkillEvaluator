@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}GitLab access{% endblock %}{% block content %}
+<h1>GitLab access</h1>
+<p>Installation: <code>{{ lab.root }}</code> · Project: <code>{{ lab.namespace }}</code></p>
+{% if notice %}<p role="status">{{ notice }}</p>{% endif %}
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+<form method="post" action="{{ url_for('gitlab_access', project_id=project.id) }}/token">
+<label for="api-token">GitLab API token</label><input id="api-token" name="api_token" type="password" autocomplete="new-password">
+<p>Use read_api for status, or api for write operations. Git repository access is configured separately. Saving an empty token removes API access.</p>
+<button>Save API token</button></form>
+<form method="post" action="{{ url_for('gitlab_access', project_id=project.id) }}/check"><button>Check project API access</button></form>
+<p><a href="{{ lab.web_url }}/-/merge_requests">Merge requests</a> · <a href="{{ lab.web_url }}/-/pipelines">Pipeline status</a></p>
+{% endblock %}
