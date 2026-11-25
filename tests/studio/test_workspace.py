@@ -221,3 +221,55 @@ def test_linked_skill_folder_cannot_be_connected(page, tmp_path, private_remote)
         connect(page, *private_remote, skill="alias")
         playwright.expect(page.get_by_role("alert")).to_contain_text("symbolic link")
         playwright.expect(page.get_by_text("No projects yet")).to_be_visible()
+
+
+def test_author_finds_project_tasks_and_returns_by_keyboard_on_phone(page, tmp_path, private_remote):
+    page.set_viewport_size({"width": 360, "height": 800})
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        authoring = page.get_by_role("region", name="Authoring", exact=True)
+        evaluation = page.get_by_role("region", name="Evaluation", exact=True)
+        playwright.expect(authoring.get_by_role("link", name="Edit skill")).to_be_visible(timeout=2000)
+        playwright.expect(evaluation.get_by_role("link", name="Provider settings")).to_be_visible()
+        runs = evaluation.get_by_role("link", name="Evaluation runs")
+        page.keyboard.press("Tab")
+        playwright.expect(page.get_by_role("link", name="Skip to content")).to_be_focused()
+        page.keyboard.press("Enter")
+        for _ in range(20):
+            page.keyboard.press("Tab")
+            if runs.evaluate("el => el === document.activeElement"):
+                break
+        playwright.expect(runs).to_be_focused()
+        page.keyboard.press("Enter")
+        playwright.expect(page.get_by_role("heading", name="Evaluation runs")).to_be_visible()
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        back = page.get_by_role("navigation", name="Breadcrumb").get_by_role("link", name="handbook")
+        back.focus()
+        page.keyboard.press("Enter")
+        results = page.get_by_role("region", name="Results", exact=True)
+        results.get_by_role("link", name="Run history").click()
+        playwright.expect(page.get_by_role("heading", name="Run history")).to_be_in_viewport()
+
+
+def test_extension_links_remain_discoverable_without_task_metadata(page, tmp_path, private_remote, monkeypatch):
+    from fastapi import APIRouter
+    from fastapi.responses import PlainTextResponse
+
+    from studio import app
+
+    extension = APIRouter()
+
+    @extension.get("/projects/{project_id}/notes", name="notes", response_class=PlainTextResponse)
+    def notes(project_id: str):
+        return "Author notes"
+
+    monkeypatch.setattr(app, "ROUTERS", (*app.ROUTERS, extension))
+    monkeypatch.setattr(app, "PROJECT_LINKS", (*app.PROJECT_LINKS, ("Notes", "notes"), ("Journal", "notes")))
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        tools = page.get_by_role("region", name="Project tools")
+        playwright.expect(tools.get_by_role("link", name="Journal")).to_be_visible()
+        tools.get_by_role("link", name="Notes").click(timeout=2000)
+        playwright.expect(page.get_by_text("Author notes")).to_be_visible()

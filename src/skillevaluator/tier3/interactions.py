@@ -261,9 +261,9 @@ def _selected_skills(skills: Sequence[Path]) -> list[Path]:
 
 
 def _validate_source(source: Path, metric: str) -> None:
-    from skillevaluator.tier3.commands import _validate_existing_scaffold_state
     from skillevaluator.tier3.evals_config import load_evals_config
     from skillevaluator.tier3.evals_spec import validate_tier3_source
+    from skillevaluator.tier3.scaffold import _validate_existing_scaffold_state
 
     _validate_existing_scaffold_state(source, source / "evals")
     _, checks = validate_tier3_source(source)
