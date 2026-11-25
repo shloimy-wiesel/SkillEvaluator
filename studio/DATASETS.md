@@ -46,3 +46,18 @@ draft, collection run, discard or publication. A `409` includes the current
 draft and `detail: {code, message}` so a stale tab can review the latest
 state. A validation failure returns `422`; an unknown project or draft
 returns `404`.
+
+### Reproducing the React migration checks (#28)
+
+Build the static export before running `python -m pytest -q
+tests/studio/test_datasets.py`. The tests use real Chromium and a disposable
+private HTTPS Git remote. On the pre-migration commit `8305e1b`,
+`test_resumed_draft_has_versioned_scoped_conflict_view` opened the browser
+draft but got `404` for its versioned view. It now checks the draft path,
+the `409` stale-version envelope, and rejection of an unknown token.
+
+The suite also reads back published blobs, drives two independent browser
+pages against one draft, and checks redaction before fixture publication.
+Model-generation coverage uses a test-local HTTPS OpenAI-compatible endpoint
+and inspects its actual model and authorization header. Collection substitutes
+a fixture sandbox invocation, then runs the real trajectory refinement.
