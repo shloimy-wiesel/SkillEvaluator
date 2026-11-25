@@ -263,3 +263,25 @@ In `artifacts/<project>/<run>/`, the native files are `decoys.json`,
 or `observations/external_metrics.{json,md}`. Rerun reuses the original Git
 commit, options and encrypted provider snapshot. A provider call or sandbox
 trial runs again and can incur charges; reopening an export does not.
+
+## Compare retained evidence
+
+Open **Results → Compare revisions**. Choose the prior and current source.
+Each side starts with the newest Studio run at that exact commit. When a
+commit has multiple runs, choose the intended runs and select **Compare
+selected runs**. The resulting URL pins both SHAs and Studio run IDs. Each
+card links back to the original findings, settings and exports.
+
+**Paired baseline lift** is the native history measurement for one agent
+within one run (with skill versus without skill). **With-skill change** is
+the native version comparison between runs (current minus prior). Its
+eligibility and paired scores come from the same reader as `tier3
+compare-versions`, including custom grading and unchanged skill identity.
+Two passing gates alone do not establish a score change. Unknown coverage,
+skipped arms, different settings and missing evidence stay visible.
+
+Only terminal, project- and revision-matched live reports authorize native
+artifact inspection. The isolated reader ignores `latest`, rejects linked
+artifacts, and limits inspection to 16,000 entries, 8 MiB per JSON or marker
+file and 64 MiB total of those files per run. Timeout: 30 seconds. No reader
+starts trials or accesses provider credentials.

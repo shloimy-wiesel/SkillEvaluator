@@ -3,6 +3,7 @@
 from .assets import router as assets_router
 from .ci_advanced import router as advanced_ci_router
 from .ci_routes import router as ci_router
+from .comparison import router as comparison_router
 from .dataset_routes import router as dataset_router
 from .editor_routes import router as editor_router
 from .experiment_jobs import DECOYS, INTERACTION, METRICS
@@ -28,12 +29,14 @@ ROUTERS = (
     dataset_router,
     live_router,
     review_router,
+    comparison_router,
     overlap_router,
     expert_router,
     advanced_ci_router,
     experiment_router,
 )
 PROJECT_LINKS = (
+    ("Compare revisions", "compare_revisions"),
     ("Edit skill", "skill_editor"),
     ("Datasets", "datasets"),
     ("Provider settings", "provider_settings"),
