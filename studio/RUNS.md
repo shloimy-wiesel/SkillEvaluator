@@ -183,7 +183,10 @@ measured failure. A neutral skill verdict can have CLI exit code zero.
    `evaluated_source.commit`. Missing measurements are absent. Preflight or
    incomplete outputs can have no canonical evaluation payload.
 3. Under the private `artifacts/<project_id>/<run_id>/tier3/` root there is
-   one real `<native-run-id>/` directory. Ignore the `latest` alias. Use its
+   one real `<skill-name>/<native-run-id>/` directory (older adapters use
+   `<native-run-id>/`). Use `studio.native_location.native_directory(root)`
+   to resolve the native run in place; its generated marker binds it to its
+   original path. Ignore the `latest` alias. Use its
    `result.json`, `run_config.json`, `<agent>/<arm>/summary.json`, engine
    feedback, report and dataset snapshot with the existing native readers.
    The selected/generated source dataset is also retained as `dataset.<ext>`
@@ -203,6 +206,30 @@ engine catalog and Docker preflight without a paid trial:
 ```sh
 STUDIO_TEST_LIVE_RUNTIME=1 python -m pytest -q tests/studio/test_live.py
 ```
+
+## Review a completed run
+
+Open **Results dashboard** from the project. Select one or several retained
+runs, filter the performance rows, or switch to paired-arm comparisons. The
+tables use the engine's dashboard reader for saved JSON reports. Choose
+**Native retained measurements** for the retained agent configuration, costs,
+times and token counts (16 MiB per native file, 64 MiB per run). Missing
+measurements remain unavailable; comparison rows explain gaps in coverage.
+To compare individual evaluator scores, open a run and choose **Compare
+agents** for the CLI's score matrix over that run's retained summaries.
+
+Choose **Review artifacts and feedback** to search the file list, preview
+native HTML reports as text, or inspect JSON evidence (8 MiB per file).
+**View report** rebuilds missing HTML from a temporary copy of the native
+evidence, using the saved feedback without another judge call.
+Turn on **Retain Harbor jobs** before launching a run to keep the raw job
+trajectories as well as collected trials. Select a trajectory and filter its
+steps by source. Only supported files from the selected run are indexed.
+
+**Ask about this run** sends compact canonical evidence, saved feedback and
+prior turns to the project's current key-backed chat profile. Completed turns
+stay in the volume's SQLite history; reopening a conversation sends nothing
+until you ask another question. Provider failures do not add a turn.
 
 ## Experiments
 
