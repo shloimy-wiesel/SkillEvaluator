@@ -1,7 +1,6 @@
 """Preview engine-generated assets against committed files, never the live checkout."""
 
 from contextlib import suppress
-from difflib import unified_diff
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Literal
@@ -13,6 +12,7 @@ from pydantic import BaseModel, ConfigDict
 
 from skillevaluator.tier3.scaffold import init_custom_grader, init_harbor_task
 
+from .diff_preview import file_diffs
 from .editing import Conflict, commit_changes, read_file, require_base
 from .frontend_routes import document
 from .grader_job import GRADER, GraderOptions, QualificationControls, public_identity
@@ -120,16 +120,9 @@ def scaffold(ws, p, *, kind, mode, language, force, config, case_id):
             old, _ = before.get(path, (b"", False))
             new, mode = after.get(path, (None, False))
             changes[path], modes[path] = new, mode
-            preview.append(f"{path} ({'deleted' if new is None else 'executable' if mode else 'regular file'})\n")
-            preview.extend(
-                unified_diff(
-                    old.decode(errors="replace").splitlines(True),
-                    (new or b"").decode(errors="replace").splitlines(True),
-                    fromfile="saved/" + path,
-                    tofile="draft/" + path,
-                )
-            )
-        return changes, modes, "".join(preview)
+            status = "deleted" if new is None else "executable" if mode else "regular file"
+            preview.append((path, old, new or b"", f"{path} ({status})"))
+        return changes, modes, file_diffs(preview)
 
 
 class RevisionInput(BaseModel):

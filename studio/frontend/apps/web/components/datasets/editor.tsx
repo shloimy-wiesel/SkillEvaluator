@@ -70,6 +70,13 @@ export const DatasetEditor = ({ path }: { path: string }) => {
   const [busy, setBusy] = useState(false);
   const [epoch, setEpoch] = useState(0);
   const [retry, setRetry] = useState<FormData>();
+
+  const [pending, setPending] = useState<{
+    path: string;
+    fields: FormData;
+    reviewing: boolean;
+  }>();
+
   // oxlint-disable-next-line react-doctor/no-fetch-in-effect, react-doctor/no-set-state-after-await-in-effect -- Static export; abort and gate writes on cleanup.
   useEffect(() => {
     const controller = new AbortController();
@@ -102,7 +109,7 @@ export const DatasetEditor = ({ path }: { path: string }) => {
   const submit = async (event: SubmitEvent<HTMLFieldSetElement>) => {
     event.preventDefault();
 
-    if (busy || !view) {
+    if (busy || pending?.reviewing === true || !view) {
       return;
     }
 
@@ -131,6 +138,12 @@ export const DatasetEditor = ({ path }: { path: string }) => {
       if ("project" in result) {
         setView(result);
         const action = body.get("action");
+
+        if (result.detail?.code === "conflict" && view.draft && result.draft) {
+          body.delete("draft");
+          setPending({ path: view.draft.path, fields: body, reviewing: true });
+        }
+
         setRetry(
           result.detail?.code === "invalid_dataset" &&
             (action === "add" || action === "update")
@@ -174,10 +187,50 @@ export const DatasetEditor = ({ path }: { path: string }) => {
         <output>Pushed dataset changes to {view.project.branch}.</output>
       )}
       {busy && <output>Applying dataset action…</output>}
+      {pending && (
+        <section aria-label="Pending submission" className="panel">
+          <h2>Pending submission</h2>
+          <p>Current draft version: {view.draft?.version}</p>
+          <p>
+            Your submission for {pending.path} was not applied. Compare these
+            values with the current draft below, then enter the changes you want
+            to keep.
+          </p>
+          <dl>
+            {[...pending.fields.entries()].map(([key, value]) => (
+              <div key={key}>
+                <dt>{key}</dt>
+                <dd>
+                  <pre>{value instanceof File ? value.name : value}</pre>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {pending.reviewing ? (
+            <button
+              type="button"
+              onClick={() => {
+                setPending({ ...pending, reviewing: false });
+              }}
+            >
+              Reconcile with current draft
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setPending(undefined);
+              }}
+            >
+              Dismiss pending submission
+            </button>
+          )}
+        </section>
+      )}
       <fieldset
         key={epoch}
         className="datasets"
-        disabled={busy}
+        disabled={busy || pending?.reviewing}
         inert={busy}
         aria-label="Dataset authoring"
         onSubmit={(event) => {
