@@ -34,3 +34,38 @@ serve it behind an authenticated TLS proxy for a trusted operator. The
 standard CLI and its original Dockerfile remain independently usable.
 
 For local startup, extension points, and browser tests see [DEVELOPMENT.md](DEVELOPMENT.md).
+
+## Live Tier 3 image
+
+Build the optional live target; it installs the engine's `tier3` extra
+(including Harbor 0.25), Docker CLI, Buildx and Compose. Use a **dedicated
+sandbox Docker daemon** on a worker VM. Access to its socket grants control
+of that daemon. Only Studio receives the socket, never the evaluated skill.
+The default Studio image needs no daemon and no privileged container.
+
+On the dedicated worker, use the same absolute data path on both sides of the
+bind mount: Harbor's sibling trial containers need to resolve worker paths.
+For an existing Studio, stop it first and use its *whole* persistent volume
+contents (including `credential.key`) as the data directory.
+
+```sh
+docker build --target live -f studio/Dockerfile -t skillevaluator-studio:live .
+DATA=/srv/skill-studio
+SOCKET=/var/run/docker.sock  # dedicated worker daemon
+sudo install -d -m 0700 -o 10001 -g 10001 "$DATA"
+docker run -d --name skill-studio-live -p 127.0.0.1:8000:8000 \
+  --group-add "$(stat -c %g "$SOCKET")" \
+  -v "$SOCKET:/var/run/docker.sock" -v "$DATA:$DATA" \
+  -e STUDIO_DATA_DIR="$DATA" -e STUDIO_LIVE_ENABLED=1 \
+  skillevaluator-studio:live
+docker exec skill-studio-live docker info
+docker exec skill-studio-live docker compose version
+```
+
+Allow the worker to build/pull Harbor task images and install agent runtimes;
+allow trial containers to reach your HTTPS model endpoint. A loopback provider
+URL on the Studio container is not reachable as loopback in a sibling trial.
+Configure **Provider settings → Chat**, then use [the live run form](RUNS.md#live-tier-3).
+There is no requirement for `docker run --privileged`. Kata additionally needs
+a working Kata runtime on the daemon. After an abrupt worker kill, inspect
+and clean up any leftover Harbor trial containers and networks on that daemon.

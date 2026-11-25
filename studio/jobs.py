@@ -139,7 +139,8 @@ class Jobs:
             shutil.rmtree(root)
             self.workspace.git(project, ["worktree", "prune"])
         if area.exists():
-            area.rmdir()
+            # A killed adapter may also leave private scratch directories beside its checkout.
+            shutil.rmtree(area)
 
     def _run(self, project: Project, run_id: str):
         record = self.get(project.id, run_id)
