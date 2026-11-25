@@ -1,0 +1,62 @@
+[
+  {
+    "key": "tier3 [workflow]",
+    "status": "partial",
+    "equivalent": "Direct workflow stages the pinned skill, preserves generated cases on replay and retains native evidence. Generated Harbor tasks on Docker/Kata only.",
+    "evidence": "tests/studio/test_live.py::test_direct_workflow_retains_evidence_and_reruns_original_profile"
+  },
+  {
+    "key": "tier3 [workflow]:n_attempts",
+    "status": "implemented",
+    "equivalent": "Attempts per case; blank inherits the pinned run policy.",
+    "evidence": "tests/studio/test_live.py::test_direct_workflow_retains_evidence_and_reruns_original_profile"
+  },
+  {
+    "key": "tier3 [workflow]:max_attempts_total",
+    "status": "implemented",
+    "equivalent": "Maximum logical attempts across arms; blank inherits the engine limit.",
+    "evidence": "tests/studio/test_live.py::test_direct_workflow_retains_evidence_and_reruns_original_profile"
+  },
+  {
+    "key": "tier3 [workflow]:evaluated_source_revision",
+    "status": "implemented",
+    "equivalent": "Pass the full pinned SHA to the engine and carry it into the exported canonical evaluation.",
+    "evidence": "tests/studio/test_live.py::test_direct_workflow_retains_evidence_and_reruns_original_profile"
+  },
+  {
+    "key": "tier3 evaluate",
+    "status": "partial",
+    "equivalent": "Evaluate a selected dataset with Harbor; require existing cases by default. Native tasks, other backends and reused comparison arms remain.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:grading_mode",
+    "status": "implemented",
+    "equivalent": "Select native grading mode; custom grader file comes from the pinned skill and runs in the task sandbox.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:agents",
+    "status": "implemented",
+    "equivalent": "Select named built-in agents or leave empty for the saved provider's default.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:agent_model",
+    "status": "partial",
+    "equivalent": "One typed model override per selected agent; multiple models per agent remain.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:override_memory_mb",
+    "status": "implemented",
+    "equivalent": "Memory per trial in MiB.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  },
+  {
+    "key": "tier3 evaluate:stop_on_pass",
+    "status": "implemented",
+    "equivalent": "Use run policy, yes or no. Explicit no is distinct from omitting the switch.",
+    "evidence": "tests/studio/test_live.py::test_evaluate_selected_project_dataset_and_container_grader"
+  }
+]
