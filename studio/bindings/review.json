@@ -1,9 +1,9 @@
 [
   {
     "key": "compare",
-    "status": "partial",
-    "equivalent": "Canonical CLI score matrix for a selected run; no cross-run latest-per-agent search.",
-    "evidence": "tests/studio/test_review.py::test_compare_agents_from_selected_native_summaries"
+    "status": "implemented",
+    "equivalent": "Selected-run or latest scoreable result per agent, newest Studio run first within the project and skill folder; both use the CLI matrix.",
+    "evidence": "tests/studio/test_review.py::test_latest_scoreable_summary_per_agent"
   },
   {
     "key": "compare:skill_path",
@@ -20,8 +20,8 @@
   {
     "key": "view",
     "status": "partial",
-    "equivalent": "Inert text from the native HTML report. Missing HTML is rendered from a private copy without a new judge call; embedded interactions are not executed.",
-    "evidence": "tests/studio/test_review.py::test_view_rebuilds_missing_native_html_without_mutating_run"
+    "equivalent": "Expandable, escaped report sections. Missing HTML is regenerated without persisting changes or calling a judge; native HTML scripts, styles and widgets are not loaded.",
+    "evidence": "tests/studio/test_review.py::test_report_sections_can_be_navigated_without_running_html"
   },
   {
     "key": "view:skill_path",
@@ -38,8 +38,8 @@
   {
     "key": "harbor-view",
     "status": "partial",
-    "equivalent": "Filter and read retained Harbor trajectory steps; no native Harbor UI or arbitrary job roots.",
-    "evidence": "tests/studio/test_review.py::test_filter_retained_harbor_job_steps"
+    "equivalent": "Browse retained jobs, open supported job/trial logs and verifier evidence, and filter trajectory steps by source. The native Harbor viewer and unsupported artifact types are unavailable.",
+    "evidence": "tests/studio/test_review.py::test_harbor_job_navigation_opens_only_authorized_text"
   },
   {
     "key": "harbor-view:jobs_dir",
@@ -49,9 +49,9 @@
   },
   {
     "key": "tier3 compare",
-    "status": "partial",
-    "equivalent": "Canonical CLI score matrix for a selected run; no cross-run latest-per-agent search.",
-    "evidence": "tests/studio/test_review.py::test_compare_agents_from_selected_native_summaries"
+    "status": "implemented",
+    "equivalent": "Selected-run or latest scoreable result per agent, newest Studio run first within the project and skill folder; both use the CLI matrix.",
+    "evidence": "tests/studio/test_review.py::test_latest_scoreable_summary_per_agent"
   },
   {
     "key": "tier3 compare:skill_path",
@@ -68,8 +68,8 @@
   {
     "key": "tier3 view",
     "status": "partial",
-    "equivalent": "Inert text from the native HTML report. Missing HTML is rendered from a private copy without a new judge call; embedded interactions are not executed.",
-    "evidence": "tests/studio/test_review.py::test_view_rebuilds_missing_native_html_without_mutating_run"
+    "equivalent": "Expandable, escaped report sections. Missing HTML is regenerated without persisting changes or calling a judge; native HTML scripts, styles and widgets are not loaded.",
+    "evidence": "tests/studio/test_review.py::test_report_sections_can_be_navigated_without_running_html"
   },
   {
     "key": "tier3 view:skill_path",
@@ -86,8 +86,8 @@
   {
     "key": "tier3 harbor-view",
     "status": "partial",
-    "equivalent": "Filter and read retained Harbor trajectory steps; no native Harbor UI or arbitrary job roots.",
-    "evidence": "tests/studio/test_review.py::test_filter_retained_harbor_job_steps"
+    "equivalent": "Browse retained jobs, open supported job/trial logs and verifier evidence, and filter trajectory steps by source. The native Harbor viewer and unsupported artifact types are unavailable.",
+    "evidence": "tests/studio/test_review.py::test_harbor_job_navigation_opens_only_authorized_text"
   },
   {
     "key": "tier3 harbor-view:jobs_dir",
@@ -98,14 +98,14 @@
   {
     "key": "dashboard",
     "status": "partial",
-    "equivalent": "Canonical performance and paired-arm comparisons from saved reports or native retained measurements; standalone uploads and Streamlit charts are not exposed.",
-    "evidence": "tests/studio/test_review.py::test_dashboard_queries_retained_agents"
+    "equivalent": "Filter project uploads, saved reports, and native measurements; compare paired arms and export filtered, spreadsheet-safe CSV. Studio limits standalone imports to 1 MiB and does not reproduce the Streamlit dataframe UI.",
+    "evidence": "tests/studio/test_review.py::test_download_filtered_dashboard_csv"
   },
   {
     "key": "dashboard:paths",
-    "status": "partial",
-    "equivalent": "Select saved runs instead of submitting host paths; uploaded JSON is not supported.",
-    "evidence": "tests/studio/test_review.py::test_select_report_sources_without_pairing_across_runs"
+    "status": "implemented",
+    "equivalent": "Choose authorized retained runs or import bounded standalone report JSON into this project. References inside uploads are never followed.",
+    "evidence": "tests/studio/test_review.py::test_dashboard_upload_is_project_scoped_bounded_json"
   },
   {
     "key": "dashboard:port",
@@ -121,9 +121,9 @@
   },
   {
     "key": "tier3 feedback",
-    "status": "partial",
-    "equivalent": "Canonical compact evidence and durable multi-turn feedback using a key-backed project chat profile; Bedrock is not supported here.",
-    "evidence": "tests/studio/test_review.py::test_contextual_feedback_survives_reopen"
+    "status": "implemented",
+    "equivalent": "Durable feedback with canonical evidence and the project chat profile. Bedrock requires operator project authorization and an AWS runtime identity. The Bedrock SDK boundary was tested without a hosted model.",
+    "evidence": "tests/studio/test_review.py::test_bedrock_feedback_requires_authorized_runtime_identity"
   },
   {
     "key": "tier3 feedback:skill_path",

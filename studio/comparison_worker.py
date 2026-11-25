@@ -12,24 +12,12 @@ from skillevaluator.tier3.version_comparison import compare_versions, select_pri
 
 # Isolated Python omits the script directory; import only trusted Studio code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from native_location import bounded_directory
+from native_location import bounded_directory, validate_agent_names
 
 
 def safe_reason(reason):
     # Native read errors and configuration values can contain absolute run paths.
     return re.sub(r"(?<!\w)/[^\s'\",;)\]]+", "[path]", str(reason))[:320]
-
-
-def validate_agents(result, config):
-    identity = result.get("comparison_identity", {})
-    for source in (config, result, result.get("run_config", {}), identity.get("config", {})):
-        agents = source.get("agents", {})
-        if (
-            not isinstance(agents, dict)
-            or len(agents) > 32
-            or any(not re.fullmatch(r"[\w-][\w.-]{0,127}", name) for name in agents)
-        ):
-            raise ValueError("Invalid retained agent names")
 
 
 def scoped_directory(root, sha, skill):
@@ -41,7 +29,7 @@ def scoped_directory(root, sha, skill):
         result = json.loads((directory / "result.json").read_bytes())
     except (FileNotFoundError, ValueError):
         result = {}  # Native history explains incomplete/corrupt runs; completion selection excludes them.
-    validate_agents(result, config)
+    validate_agent_names(result, config)
     if config.get("evaluated_source", {}).get("commit") != sha:
         raise ValueError("Different source revision")
     return directory

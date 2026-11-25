@@ -250,18 +250,33 @@ tables use the engine's dashboard reader for saved JSON reports. Choose
 times and token counts (16 MiB per native file, 64 MiB per run). Missing
 measurements remain unavailable; comparison rows explain gaps in coverage.
 To compare individual evaluator scores, open a run and choose **Compare
-agents** for the CLI's score matrix over that run's retained summaries.
+agents** for the CLI's score matrix over that run's retained summaries, or
+**Latest per agent** to use the newest scoreable summary for each agent
+across terminal runs for the same project and skill folder.
+
+**Import report** accepts standalone UTF-8 Tier 3 JSON, consolidated reports,
+and embedded catalog data (1 MiB, 1,000 measurement rows and 2 MiB of normalized
+rows per file; 16 distinct imports per project). Select imported sources in the
+run selector, remove them individually, or download the filtered table as CSV.
+Imports persist encrypted in the volume. Studio never opens paths inside
+uploads. Missing saved reports fall back to native measurements when available.
 
 Choose **Review artifacts and feedback** to search the file list, preview
 native HTML reports as text, or inspect JSON evidence (8 MiB per file).
-**View report** rebuilds missing HTML from a temporary copy of the native
+**View report** groups report text into expandable sections and rebuilds missing HTML from a temporary copy of the native
 evidence, using the saved feedback without another judge call.
 Turn on **Retain Harbor jobs** before launching a run to keep the raw job
 trajectories as well as collected trials. Select a trajectory and filter its
-steps by source. Only supported files from the selected run are indexed.
+steps by source, or use **Browse Harbor jobs** to select a job and open its
+configuration, trial/job log, exception text, verifier output or reward. Only supported files from the selected run are indexed.
 
 **Ask about this run** sends compact canonical evidence, saved feedback and
-prior turns to the project's current key-backed chat profile. Completed turns
+prior turns to the project's current chat profile. For Bedrock, the operator
+must list this project's ID in `STUDIO_FEEDBACK_BEDROCK_PROJECTS` (comma-separated)
+and provision an AWS runtime identity with model invocation rights. Region,
+explicit AWS session credentials, and web-identity role settings are passed
+only to that project's Bedrock worker. Studio does not accept endpoint or
+credential-file overrides from the feedback form. Completed turns
 stay in the volume's SQLite history; reopening a conversation sends nothing
 until you ask another question. Provider failures do not add a turn.
 
