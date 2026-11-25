@@ -23,7 +23,7 @@ const GitLab = ({ data, path }: { data: Access; path: string }) => {
       </p>
       {result && <output>{result.notice}</output>}
       {problem && <p role="alert">{problem}</p>}
-      <form onSubmit={onSubmit}>
+      <form method="post" onSubmit={onSubmit}>
         <label htmlFor="api-token">GitLab API token</label>
         <input
           type="password"

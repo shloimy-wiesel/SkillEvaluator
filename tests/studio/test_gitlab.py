@@ -39,6 +39,7 @@ def test_self_managed_author_reopens_and_pushes(page, private_remote, tmp_path, 
         page.get_by_role("button", name="Check project API access").click()
         playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("separate GitLab API token")
         page.get_by_label("GitLab API token").fill("fixture-read-api")
+        assert page.get_by_label("GitLab API token").evaluate("input => input.form.method") == "post"
         page.get_by_role("button", name="Save API token").click()
         playwright.expect(page.get_by_role("status")).to_have_text("API token saved.")
         playwright.expect(page.get_by_label("GitLab API token")).to_have_value("")
