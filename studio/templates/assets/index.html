@@ -1,0 +1,31 @@
+{% extends 'base.html' %}{% block title %}Evaluation assets{% endblock %}{% block content %}
+<h1>Evaluation assets</h1><p>{{ project.name }} / {{ project.folder }} · {{ project.branch }} @ {{ project.revision[:12] }}</p>
+{% if pushed %}<p role="status">Pushed {{ project.revision }}</p>{% endif %}
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+{% for kind,title,modes in [('grader','Custom grader',['default_plus_custom','custom_only']),('harbor','Native Harbor task',['custom_only','default_plus_custom','default'])] %}
+{% set d = draft if draft and draft.kind == kind else {} %}
+<h2>{{ title }}</h2><form aria-label="{{ title }}" method="post" action="{{ request.url_for('asset_scaffold',project_id=project.id) }}">
+<input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="branch" value="{{ d.branch or project.branch }}"><input type="hidden" name="revision" value="{{ d.revision or project.revision }}">
+{% if kind=='harbor' %}<label>Case ID <input name="case_id" value="{{ d.case_id or 'case-001' }}" required></label>{% endif %}
+<label>Language <select name="language">{% for l in ['python','shell'] %}<option {{ 'selected' if d.language == l }}>{{ l }}</option>{% endfor %}</select></label>
+<label>Grading mode <select name="mode">{% for m in modes %}<option {{ 'selected' if d.mode == m }}>{{ m }}</option>{% endfor %}</select></label>
+<label><input type="checkbox" name="config" {{ 'checked' if d.config or (not d and kind=='grader') }}> Update evaluation configuration</label>
+<label><input type="checkbox" name="force" {{ 'checked' if d.force }}> Overwrite existing starter</label>
+<button name="action" value="preview">Preview</button></form>
+{% endfor %}
+{% if diff %}<h2>Review branch changes</h2><pre aria-label="Change preview">{{ diff }}</pre>
+<form method="post" action="{{ request.url_for('asset_scaffold',project_id=project.id) }}">{% for key,value in draft.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}<button name="action" value="save">Commit and push</button></form>{% endif %}
+<h2>Validate the shipped grader</h2><p>Check independently labelled evidence without inference, or qualify the shipped verifier against it.</p>
+<form method="post" action="{{ url_for('qualify_grader',project_id=project.id) }}">
+<input type="hidden" name="branch" value="{{ project.branch }}"><input type="hidden" name="revision" value="{{ project.revision }}">
+<label for="suite">Suite</label><select id="suite" name="suite"><option value="">Bundled reference suite</option>{% for f in files if f.split('/')[-1]=='suite.json' %}<option>{{ f }}</option>{% endfor %}</select>
+<label for="split">Split</label><select id="split" name="split">{% for split in ['assessment','tuning','all'] %}<option>{{ split }}</option>{% endfor %}</select>
+<label>Case IDs (one per line; blank selects all) <textarea name="cases"></textarea></label>
+<label>Qualification policy <select name="policy"><option value="">None</option>{% for f in files %}<option>{{ f }}</option>{% endfor %}</select></label>
+<label>Repeats <input type="number" name="repeats" min="1" max="20" value="3"></label>
+<label>Concurrency <input type="number" name="concurrency" min="1" max="4" value="1"></label>
+<label>Attempt timeout (seconds) <input type="number" name="timeout" min="0.001" step="any" max="600" value="300"></label>
+{% for gate in ['false pass','false fail','unjudgeable'] %}<label>Maximum {{ gate }} rate <input type="number" min="0" max="1" step="any" name="max_{{ gate|replace(' ','_') }}_rate"></label>{% endfor %}
+<button name="action" value="check">Check suite</button> <button name="action" value="qualify">Run qualification</button>
+<p>Live qualification uses the bundled reference suite, the installed tier3 extra and the project chat provider. It may incur inference charges. Project suites support evidence checks only. Results and JSON exports are retained in Evaluation runs.</p></form>
+{% endblock %}

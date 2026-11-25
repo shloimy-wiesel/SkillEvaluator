@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 COPY studio/requirements.txt /tmp/studio-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/studio-requirements.txt
 COPY . .
-RUN pip install --no-cache-dir . && useradd --create-home --uid 10001 studio && install -d -o studio -g studio -m 0700 /data
+ARG STUDIO_TIER3=false
+RUN if [ "$STUDIO_TIER3" = true ]; then pip install --no-cache-dir '.[tier3]'; else pip install --no-cache-dir .; fi && useradd --create-home --uid 10001 studio && install -d -o studio -g studio -m 0700 /data
 USER studio
 VOLUME ["/data"]
 EXPOSE 8000
