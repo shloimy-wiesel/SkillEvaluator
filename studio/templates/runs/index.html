@@ -8,6 +8,9 @@
 {% for key,label in [('both','Schema and Unicode'),('schema','Schema only'),('unicode','Unicode only')] %}
 <option value="{{ key }}"{% if checks == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
 <button>Queue static checks</button></form></section>
+<details class="panel"><summary>Expert checks and validation</summary>
+<ul>{% for action,label in actions.items() %}<li><a href="{{ url_for('expert_form', project_id=project.id, action=action) }}">{{ label }}</a></li>{% endfor %}</ul>
+</details>
 <section><h2>Run history</h2>{% for run in runs %}<article>
 <a href="{{ url_for('run_detail',project_id=project.id,run_id=run.id) }}">{{ run.sha }}</a>
 <p>{{ run.kind }} · {{ run.status }} · {{ run.created }} UTC</p></article>{% else %}<p>No runs yet.</p>{% endfor %}</section>
