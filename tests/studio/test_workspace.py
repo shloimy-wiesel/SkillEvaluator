@@ -135,6 +135,7 @@ def connect(page, url, token, skill):
     page.get_by_label("Git username").fill("author")
     page.get_by_label("Access token").fill(token)
     page.get_by_role("button", name="Connect project").click()
+    page.locator("main").get_by_role("alert").or_(page.get_by_text("Project overview", exact=True)).wait_for()
 
 
 def test_studio_accepts_only_loopback_or_configured_proxy_hosts(page, tmp_path, monkeypatch):
@@ -245,7 +246,7 @@ def test_linked_skill_folder_cannot_be_connected(page, tmp_path, private_remote)
     with running(tmp_path / "volume") as base:
         page.goto(base)
         connect(page, *private_remote, skill="alias")
-        playwright.expect(page.get_by_role("alert")).to_contain_text("symbolic link")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("symbolic link")
         playwright.expect(page.get_by_text("No projects yet")).to_be_visible()
 
 

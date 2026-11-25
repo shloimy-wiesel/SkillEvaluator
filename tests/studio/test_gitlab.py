@@ -91,14 +91,14 @@ def test_credentials_do_not_follow_git_or_api_redirects(page, private_remote, tm
         page.get_by_text("Self-managed GitLab").click()
         page.get_by_label("GitLab installation URL").fill(root.replace("127.0.0.1", "localhost"))
         connect(page, root + "/team/handbook.git", token, "skills/triage")
-        playwright.expect(page.get_by_role("alert")).to_contain_text("match the repository")
+        playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("match the repository")
         for namespace in ("other", "team"):
             page.goto(base)
             page.get_by_text("Self-managed GitLab").click()
             page.get_by_label("GitLab installation URL").fill(root)
             connect(page, root + f"/{namespace}/handbook.git", token, "skills/triage")
             if namespace == "other":
-                playwright.expect(page.get_by_role("alert")).to_contain_text("Git could not open")
+                playwright.expect(page.locator("main").get_by_role("alert")).to_contain_text("Git could not open")
         page.get_by_role("link", name="GitLab access").click()
         page.get_by_label("GitLab API token").fill("fixture-api")
         page.get_by_role("button", name="Save API token").click()

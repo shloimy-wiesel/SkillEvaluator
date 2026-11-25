@@ -1,32 +1,37 @@
-import { Geist, Geist_Mono } from "next/font/google"
+/* oxlint-disable shadcn/no-unknown-classes, next/no-html-link-for-pages, react-doctor/nextjs-no-a-element, next/no-css-tags, react-doctor/nextjs-no-css-link -- Studio classes come from the shared same-origin stylesheet. Browser routes are owned by ASGI. */
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
 
-import "@workspace/ui/globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
-import { cn } from "@workspace/ui/lib/utils";
+export const metadata: Metadata = { title: "SkillEvaluator Studio" };
 
-const geistHeading = Geist({subsets:['latin'],variable:'--font-heading'});
-
-const fontSans = Geist({
-  subsets: ["latin"],
-  variable: "--font-sans",
-})
-
-const geistMono = Geist_Mono({subsets:['latin'],variable:'--font-mono'})
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+/** @returns The frame shared by exported Studio documents. */
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className={cn("antialiased", fontSans.variable, "font-mono", geistMono.variable, geistHeading.variable)}
-    >
+    <html lang="en">
+      <head>
+        <link rel="stylesheet" href="/static/studio.css" />
+      </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <a className="skip" href="#main">
+          Skip to content
+        </a>
+        <header>
+          <nav aria-label="Workspace">
+            <a className="brand" href="/">
+              <b aria-hidden="true">S/</b> SkillEvaluator <span>Studio</span>
+            </a>
+            <a className="workspace-link" href="/">
+              Projects
+            </a>
+          </nav>
+        </header>
+        <main id="main" tabIndex={-1}>
+          {children}
+        </main>
+        <footer>
+          SkillEvaluator Studio <span>/</span> Self-hosted workspace
+        </footer>
       </body>
     </html>
-  )
+  );
 }
