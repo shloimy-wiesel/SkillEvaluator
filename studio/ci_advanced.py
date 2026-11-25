@@ -24,6 +24,7 @@ ALL = ci.all_tier_helpers
 
 class Options(ReviewForm):
     action: Literal["review", "apply", "status", "receipt"]
+    pipeline_id: int | None = Field(default=None, gt=0, le=2**63 - 1)
     platform: Literal["auto", "github", "gitlab"] = "auto"
     tiers: Literal["one", "all"] = "one"
     mode: Literal["preview", "save", "pr"] = "save"
@@ -158,8 +159,8 @@ def advanced_action(request: Request, project_id: str, form: Annotated[Options, 
             if branches(ws, p).get(p.branch) != p.revision:
                 raise Conflict("Remote branch changed. Reopen it before continuing.")
             if form.action == "status":
-                result = worker(ws, p, "status", platform=form.platform, tiers=form.tiers)
-                return view(request, p, form, notice=result["status"])
+                result = worker(ws, p, "status", platform=form.platform, tiers=form.tiers, pipeline_id=form.pipeline_id)
+                return view(request, p, form, notice=result.pop("status"), **result)
             default = ws.git(p, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]).removeprefix("origin/")
             args = form.arguments(p, default)
             release = None
