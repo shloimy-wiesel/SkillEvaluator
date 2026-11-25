@@ -1,8 +1,13 @@
 {
   "source": "../tests/golden/cli_surface.json",
   "entry_point": "skillevaluator.cli:cli",
-  "direct_workflows": ["tier1", "tier2", "tier3"],
+  "direct_workflows": [
+    "tier1",
+    "tier2",
+    "tier3"
+  ],
   "baseline_revision": "ff69db2",
   "verification": "editable checkout 1.2.1, locked development environment, tests/golden/test_cli_surface.py: 3 passed; published wheel not verified",
-  "coverage_status": "specified, not implemented"
+  "coverage_status": "In development; run python -m studio.option_audit for registered evidence.",
+  "surface_sha256": "c7f2fb9897c3736588fb3b7919d842034aaa9f172e82b446d45a667d46f284fe"
 }
