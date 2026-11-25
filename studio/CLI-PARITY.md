@@ -34,6 +34,12 @@ The [evaluation assets workflow](ASSETS.md) maps the two starter generators and 
 `health-check`, `tier3 doctor` and `models`, including the consent boundary,
 worker prerequisites and tested limits. See `bindings/readiness.json`.
 
+[Review a completed run](RUNS.md#review-a-completed-run) covers agent score
+comparison, reports, Harbor trajectory inspection, dashboard filters and
+multi-turn feedback. The run picker binds these readers to retained project
+evidence. `studio/bindings/review.json` records the tested equivalents and
+limitations for each command and its aliases.
+
 ## Running and extending the option audit
 
 Run `python -m studio.option_audit` from the checkout for a JSON report keyed by

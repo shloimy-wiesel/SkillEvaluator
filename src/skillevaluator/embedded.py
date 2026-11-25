@@ -18,3 +18,6 @@ embedding_environment: ContextVar[Mapping[str, str] | None] = ContextVar("embedd
 report_observer: ContextVar[Callable[[list[ValidationResult]], None] | None] = ContextVar(
     "report_observer", default=None
 )
+
+# An embedding host may require an operator-managed sandbox for live work.
+sandbox_preflight: ContextVar[Callable[[], None] | None] = ContextVar("sandbox_preflight", default=None)

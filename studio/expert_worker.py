@@ -9,13 +9,28 @@ from contextlib import ExitStack
 from pathlib import Path
 
 from skillevaluator.cli import cli
-from skillevaluator.embedded import chat_transport, embedding_environment, embedding_transport, report_observer
+from skillevaluator.embedded import (
+    chat_transport,
+    embedding_environment,
+    embedding_transport,
+    report_observer,
+    sandbox_preflight,
+)
 from skillevaluator.reporting.json_reporter import JSONReporter
 from skillevaluator.reporting.markdown import MarkdownReporter
 
 resource.setrlimit(resource.RLIMIT_FSIZE, (32 << 20, 32 << 20))
-resource.setrlimit(resource.RLIMIT_CPU, (180, 180))
-resource.setrlimit(resource.RLIMIT_AS, (1536 << 20, 1536 << 20))
+settings = json.load(sys.stdin)
+if settings["live"]:
+
+    def check_sandbox():
+        if reason := settings["preflight_error"]:
+            raise RuntimeError(reason)
+
+    sandbox_preflight.set(check_sandbox)
+else:
+    resource.setrlimit(resource.RLIMIT_CPU, (180, 180))
+    resource.setrlimit(resource.RLIMIT_AS, (1536 << 20, 1536 << 20))
 
 
 def capture(results):
@@ -24,7 +39,7 @@ def capture(results):
 
 
 report_observer.set(capture)
-embeddings = json.load(sys.stdin)
+embeddings = settings["embeddings"]
 embedding_environment.set(embeddings)
 with ExitStack() as stack:
     for configured, transport in (
