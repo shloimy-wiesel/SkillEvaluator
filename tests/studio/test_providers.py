@@ -25,6 +25,43 @@ def save_profile(panel, endpoint, model, key):
     panel.get_by_role("button", name="Save settings").click()
 
 
+def test_provider_document_reads_write_only_versioned_view(page, private_remote, tmp_path):
+    with running(tmp_path / "volume") as base:
+        path = open_settings(page, base, private_remote)
+        with page.expect_response(base + "/api/v1" + path, timeout=4000) as loaded:
+            page.reload()
+        payload = loaded.value.json()
+        assert payload["profiles"]["chat"]["has_key"] is False
+        expect(page.get_by_label("Readiness action")).to_be_visible()
+
+
+def test_versioned_profile_preserves_replaces_and_clears_key(page, private_remote, tmp_path):
+    with running(tmp_path / "volume") as base:
+        page.goto(base)
+        connect(page, *private_remote, skill="skills/triage")
+        path = base + "/api/v1" + page.url.removeprefix(base) + "/providers"
+        body = {"provider": "openai", "model": "local-model", "key": "private-write-only"}
+        for changes, stored in [
+            ({}, True),
+            ({"key": "", "model": "other-model"}, True),
+            ({"key": "", "base_url": "https://other.test/v1"}, False),
+            ({"key": "replacement"}, True),
+            ({"key": "", "clear": True}, False),
+        ]:
+            body.update(changes)
+            saved = page.request.post(path + "/chat", data=body)
+            assert saved.status == 200
+            assert saved.json()["has_key"] is stored
+            assert "key" not in saved.json()
+            profiles = page.request.get(path).json()["profiles"]
+            assert profiles["chat"] == saved.json()
+            assert profiles["embeddings"]["has_key"] is False
+        for target, status in [(path + "/unsupported", 404), (path + "/chat", 422)]:
+            reply = page.request.post(target, data={**body, "provider": "private-write-only"})
+            assert reply.status == status
+            assert reply.json()["detail"]["code"] and "private-write-only" not in reply.text()
+
+
 def test_author_reopens_independent_profiles(page, private_remote, tmp_path):
     volume = tmp_path / "volume"
     with running(volume) as base:
@@ -106,12 +143,12 @@ def test_private_model_readiness_and_credential_boundaries(page, private_remote,
         assert "chat-secret" not in page.content()
         save_profile(chat, endpoint + "/redirect", "private-chat", "chat-secret")
         probe.click()
-        expect(page.get_by_role("alert")).to_contain_text("discovery failed")
+        expect(chat.get_by_role("alert")).to_contain_text("discovery failed")
         assert seen[-1] == ("/redirect/models", "Bearer chat-secret")
         save_profile(chat, "https://other.private/v1", "elsewhere", "")
         expect(chat.get_by_text("No key stored")).to_be_visible()
         probe.click()
-        expect(page.get_by_role("alert")).to_contain_text("API key")
+        expect(chat.get_by_role("alert")).to_contain_text("API key")
 
 
 def test_worker_resolves_each_saved_profile_without_host_credentials(page, private_remote, tmp_path, monkeypatch):
@@ -359,8 +396,8 @@ def test_invalid_probe_never_starts_provider_request(page, private_remote, tmp_p
             ("health-check", {"verify_models": "true"}, "only to doctor"),
             ("doctor", {"codex_model": "chat-secret"}, "credentials"),
         ]:
-            response = page.request.post(base + path + "/readiness/run", form={"action": action, **options})
+            response = page.request.post(base + "/api/v1" + path + "/readiness/run", data={"action": action, **options})
             assert response.status == 422
-            assert 'role="alert"' in response.text() and message in response.text()
+            assert message in response.json()["detail"]["message"]
             assert "chat-secret" not in response.text()
         assert not seen
