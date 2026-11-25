@@ -33,9 +33,10 @@ NAMES = {
 def scrubber(workspace, project):
     with closing(database(workspace)) as db:
         secrets = [load(db, workspace, project, role).get("key") for role in ("chat", "embeddings")]
-        credential = db.execute("SELECT credential FROM projects WHERE id=?", (project,)).fetchone()[0]
-        if credential:
-            secrets.append(workspace.cipher.decrypt(credential).decode().partition(":")[2])
+        gitlab = db.execute("SELECT token FROM gitlab WHERE project_id=?", (project,)).fetchone()
+        if gitlab and gitlab[0]:
+            secrets.append(workspace.cipher.decrypt(gitlab[0]).decode())
+    secrets.append(workspace.host_token(workspace.get(project)))
     secrets = sorted(filter(None, secrets), key=len, reverse=True)
 
     def scrub(text):

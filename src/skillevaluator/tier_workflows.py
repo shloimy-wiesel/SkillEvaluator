@@ -18,6 +18,8 @@ from skillevaluator.utils.tier2_paths import is_link_or_reparse, sanitize_path_t
 from skillevaluator.validators.policy import apply_policy
 
 if TYPE_CHECKING:
+    from skillevaluator.embedding.client import EmbeddingClient
+    from skillevaluator.inference import LLMClient
     from skillevaluator.models.result import ValidationResult
     from skillevaluator.validators.policy import ValidationPolicy
 
@@ -139,13 +141,18 @@ def run_tier2_workflow(
     threshold: float,
     similarity_threshold: float,
     full_body: bool,
+    chat_client: LLMClient | None = None,
+    embedding_client: EmbeddingClient | None = None,
+    repository_root: Path | None = None,
 ) -> list[ValidationResult]:
     require_skill(skill_path)
     if full_body and catalog is None:
         raise click.UsageError("--full-body requires --catalog for inter-skill comparison.")
     try:
-        resolve_embedding_provider()
-        resolve_llm_provider()
+        if embedding_client is None:
+            resolve_embedding_provider()
+        if chat_client is None:
+            resolve_llm_provider()
     except ProviderConfigurationError as exc:
         raise click.ClickException(str(exc)) from exc
     try:
@@ -159,10 +166,13 @@ def run_tier2_workflow(
         try:
             # Parsing and compatibility checks are local: reject invalid,
             # linked, or mismatched catalogs before any paid model calls.
-            EmbeddingRegistry(EmbeddingClient(), full_body=full_body).load_catalog(catalog)
+            EmbeddingRegistry(embedding_client or EmbeddingClient(), full_body=full_body).load_catalog(catalog)
         except (OSError, ValueError) as exc:
             raise click.ClickException(sanitize_path_text(str(exc), (skill_path, catalog))) from exc
-    results = tier2.run_context_optimization_check(skill_path, threshold=threshold)
+    clients = {"embedding_client": embedding_client} if embedding_client is not None else {}
+    results = tier2.run_context_optimization_check(
+        skill_path, threshold=threshold, **clients, **({"chat_client": chat_client} if chat_client is not None else {})
+    )
     stages = {"intra_skill": _stage(results)}
     if catalog is not None:
         inter_results = tier2.run_similarity_check(
@@ -170,6 +180,8 @@ def run_tier2_workflow(
             catalog=catalog,
             threshold=similarity_threshold,
             full_body=full_body,
+            **({"repository_root": repository_root} if repository_root is not None else {}),
+            **clients,
         )
         results.extend(inter_results)
         stages["catalog_comparison"] = _stage(inter_results)
