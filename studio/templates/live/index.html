@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% block title %}Live Tier 3{% endblock %}{% block content %}
+<p><a href="{{ url_for('project', project_id=project.id) }}">{{ project.name }}</a> / Evaluation</p>
+<h1>Live Tier 3</h1>
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+<p>Configure <a href="{{ url_for('provider_settings', project_id=project.id) }}">the chat provider</a> and an operator-managed Docker sandbox before starting paid Harbor trials.</p>
+<form method="post"><label>Commit SHA<input name="sha" value="{{ project.revision }}" required></label>
+<label>Workflow<select name="workflow"><option value="evaluate">Evaluate existing cases</option><option value="direct">Direct Tier 3: prepare a missing dataset</option></select></label>
+<label>Dataset path (repository-relative; blank discovers the pinned skill dataset)<input name="dataset"></label>
+<label>Environment<select name="env_mode"><option>docker</option><option>kata</option></select></label>
+<label>Grading mode<select name="grading_mode"><option value="">Use run policy (otherwise standard)</option><option value="default">Standard</option><option value="default_plus_custom">Standard and sandboxed custom grader</option><option value="custom_only">Sandboxed custom grader only</option></select></label>
+<fieldset><legend>Agents · leave unchecked for the provider default</legend>
+{% for agent in ['codex','opencode','claude-code'] %}<label><input type="checkbox" name="agents" value="{{ agent }}">{{ agent }}</label>{% endfor %}</fieldset>
+<label>Comparison arms<select name="arms"><option value="paired">With and without skill</option><option value="skill">With skill only</option><option value="baseline">Baseline only</option></select></label>
+<details><summary>Trial settings and budgets</summary>
+<p>Blank limits use the pinned run policy and engine defaults. The paid workload scales with cases × agents × attempts × arms.</p>
+<label>Agent model override<input name="model"></label>
+{% for key,label,min,step in [
+('n_attempts','Attempts per case',1,1),('max_attempts_total','Maximum total attempts',0,1),
+('n_concurrent','Concurrent cases per agent',1,1),('max_agents','Concurrent agents',1,1),
+('max_cases','Maximum cases',1,1),('pass_threshold','Pass threshold',0,'any'),
+('timeout_multiplier','Timeout multiplier',0,'any'),('max_agent_tokens','Maximum measured agent tokens',0,1),
+('max_judge_calls','Maximum judge calls',0,1),('max_cost_usd','Maximum agent cost (USD)',0,'any')] %}
+<label>{{ label }}<input type="number" min="{{ min }}" step="{{ step }}" name="{{ key }}"></label>{% endfor %}
+<label>Model price file (repository-relative; required for USD budget)<input name="price_file"></label>
+{% for key,label in [('stop_on_pass','Stop remaining attempts after a pass'),('agent_runtime_preflight','Run a paid agent preflight'),('tolerate_baseline_timeouts','Tolerate baseline timeouts')] %}
+<label>{{ label }}<select name="{{ key }}"><option value="">Use run policy</option><option value="true">Yes</option><option value="false">No</option></select></label>{% endfor %}
+<label><input type="checkbox" name="autopilot">Prepare missing dataset even with Evaluate</label></details>
+<button>Queue live evaluation</button></form>
+{% endblock %}
