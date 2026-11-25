@@ -444,8 +444,14 @@ def test_github_hosted_setup_review_and_receipt(page, github_remote, tmp_path):
         path = ".github/workflows/publish-skill-reports.yml"
         reviewed = page.get_by_label(path, exact=True).inner_text(timeout=5000)
         assert not marker.exists()
-        with page.expect_download() as event:
+        with (
+            page.expect_download() as event,
+            page.expect_response(lambda r: r.request.method == "POST") as receipt_post,
+        ):
             page.get_by_role("button", name="Download reviewed plan").click()
+        assert "/api/v1/projects/" in receipt_post.value.url
+        assert receipt_post.value.request.post_data_json["action"] == "receipt"
+        assert receipt_post.value.headers["content-disposition"] == 'attachment; filename="ci-plan.json"'
         receipt = json.loads(Path(event.value.path()).read_text())
         assert receipt["selected_roots"] == ["skills", "more-skills"] and receipt["requested_action"] == "pr"
         page.get_by_role("button", name="Apply reviewed setup").click()

@@ -61,8 +61,8 @@ interface Publication {
   location: string;
 }
 
-const download = async (target: string, values: FormData) => {
-  const response = await fetch(target, { method: "POST", body: values });
+const download = async (target: string, request: RequestInit) => {
+  const response = await fetch(`/api/v1${target}`, request);
 
   if (!response.ok) {
     throw new Error(
@@ -99,18 +99,19 @@ export const useCIAction = <T extends object>(path: string) => {
 
     const values = new FormData(form, button);
     const target = path + (button.dataset.suffix ?? "");
+    const request = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.fromEntries(values)),
+    };
     setBusy(true);
     setProblem("");
 
     try {
       if (button.value === "receipt") {
-        await download(target, values);
+        await download(target, request);
       } else {
-        const response = await api<T | Publication>(target, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(Object.fromEntries(values)),
-        });
+        const response = await api<T | Publication>(target, request);
 
         if ("location" in response) {
           window.location.assign(response.location);
