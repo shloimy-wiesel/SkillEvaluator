@@ -9,12 +9,9 @@ starting Streamlit. Only normalized quantitative data is displayed or exported.
 
 from __future__ import annotations
 
-import csv
 import hashlib
-import io
 import json
 import sys
-import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +23,7 @@ from skillevaluator.reporting.dashboard_data import (
     dedupe_rows,
     load_dashboard_path,
     parse_dashboard_report,
+    rows_csv,
 )
 
 _DIMENSIONS = ("skill", "model", "harness", "features")
@@ -119,25 +117,6 @@ def _parse_upload_cached(file_id: str, source: str, name: str, _contents: bytes)
     except (ValueError, RecursionError):  # UnicodeError is a ValueError subclass
         return digest, DashboardData(warnings=[f"{name}: invalid JSON. Upload a UTF-8 JSON evaluation report."])
     return digest, parse_dashboard_report(payload, source=source)
-
-
-def rows_csv(rows: list[dict[str, Any]], columns: tuple[str, ...]) -> str:
-    """Export visible quantitative columns with spreadsheet-safe text cells."""
-    buffer = io.StringIO(newline="")
-    writer = csv.DictWriter(buffer, fieldnames=columns, extrasaction="ignore")
-    writer.writeheader()
-    for row in rows:
-        cells: dict[str, Any] = {}
-        for column in columns:
-            value = row.get(column)
-            if isinstance(value, str):
-                # NFKC folds full-width prefixes such as U+FF1D to their ASCII forms.
-                probe = unicodedata.normalize("NFKC", value).lstrip()
-                if value.startswith(("\t", "\r", "\n")) or probe.startswith(("=", "+", "-", "@")):
-                    value = "'" + value
-            cells[column] = value
-        writer.writerow(cells)
-    return buffer.getvalue()
 
 
 def _filter_rows(rows: list[dict[str, Any]], field: str, option_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

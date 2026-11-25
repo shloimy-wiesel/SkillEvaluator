@@ -10,11 +10,14 @@ Agent execution time excludes environment setup and verifier execution.
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import math
 import os
 import re
 import stat
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
 from itertools import islice
@@ -303,7 +306,7 @@ def _zero_token_notice(source: str) -> str:
     )
 
 
-def parse_dashboard_report(payload: Any, source: str) -> DashboardData:
+def parse_dashboard_report(payload: Any, source: str, *, max_row_bytes: int | None = None) -> DashboardData:
     """Normalize canonical Tier 3, validate-report, and embedded catalog JSON."""
     output = DashboardData()
     for report_index, report in enumerate(_payloads(payload)):
@@ -452,6 +455,10 @@ def parse_dashboard_report(payload: Any, source: str) -> DashboardData:
                     # Trials missing from the declared count are already part of it.
                     expected=declared + max(0, row["_expected_usage_trials"] - max(logical_count, declared)),
                 )
+                if max_row_bytes is not None:
+                    max_row_bytes -= len(json.dumps(row, ensure_ascii=False).encode("utf-8"))
+                    if max_row_bytes < 0:
+                        raise ValueError("Normalized measurements exceed the row budget")
                 output.rows.append(row)
     if not output.rows and not output.warnings:
         output.warnings.append(f"{source}: no supported Tier 3 agent results found.")
@@ -881,3 +888,22 @@ def load_dashboard_path(path: Path) -> DashboardData:
     if not output.rows:
         output.warnings.append(f"{path}: no supported Tier 3 agent results found.")
     return output
+
+
+def rows_csv(rows: list[dict[str, Any]], columns: tuple[str, ...]) -> str:
+    """Export visible quantitative columns with spreadsheet-safe text cells."""
+    buffer = io.StringIO(newline="")
+    writer = csv.DictWriter(buffer, fieldnames=columns, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        cells: dict[str, Any] = {}
+        for column in columns:
+            value = row.get(column)
+            if isinstance(value, str):
+                # NFKC folds full-width prefixes such as U+FF1D to their ASCII forms.
+                probe = unicodedata.normalize("NFKC", value).lstrip()
+                if value.startswith(("\t", "\r", "\n")) or probe.startswith(("=", "+", "-", "@")):
+                    value = "'" + value
+            cells[column] = value
+        writer.writerow(cells)
+    return buffer.getvalue()

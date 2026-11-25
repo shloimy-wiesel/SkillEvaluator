@@ -261,3 +261,186 @@ def test_filter_retained_harbor_job_steps(page, retained):
     steps = page.get_by_label("Trajectory steps")
     playwright.expect(steps).to_contain_text("Read triage guide")
     playwright.expect(steps).not_to_contain_text("Original task")
+
+
+def test_dashboard_upload_is_project_scoped_bounded_json(page, retained, private_remote):
+    base, project, _ = retained
+    page.goto(base + project + "/results")
+    doc = {"agents": {"uploaded-harness": {"execution_status": "succeeded", "model": "chat-secret"}}}
+    page.get_by_label("Dashboard report JSON").set_input_files(
+        {"name": "evidence.json", "mimeType": "application/json", "buffer": json.dumps(doc).encode()}, timeout=1500
+    )
+    page.get_by_role("button", name="Import report").click()
+    table = page.get_by_role("table")
+    playwright.expect(table).to_contain_text("uploaded-harness")
+    playwright.expect(table).not_to_contain_text("chat-secret")
+    page.reload()
+    playwright.expect(table).to_contain_text("uploaded-harness")
+    from urllib.parse import parse_qs, urlsplit
+
+    source = parse_qs(urlsplit(page.url).query)["run"][0]
+    other = open_settings(page, base, private_remote).removesuffix("/providers")
+    assert page.request.get(base + other + "/results?run=" + source).status == 404
+    assert page.request.post(base + other + "/results/uploads/" + source + "/remove").status == 404
+    url = base + project + "/results/uploads"
+    for data, status in [
+        (b'{"path":"/etc/passwd"}', 422),
+        (b"[" * 1500, 422),
+        (b"x" * (2**20 + 1), 413),
+        (b'{"agents":{},"agents":{"x":{"model":"x"}}}', 422),
+    ]:
+        assert page.request.post(url, data=data, headers={"Content-Type": "application/json"}).status == status
+    expanded = {
+        "dashboard_metadata": {"harness_features": "f" * 16000},
+        "agents": {str(i): {"model": "m"} for i in range(200)},
+    }
+    assert page.request.post(url, data=expanded).status == 422
+    assert page.request.post(base + "/projects/missing/results/uploads", data=doc).status == 404
+
+
+def test_latest_scoreable_summary_per_agent(page, retained):
+    import shutil
+
+    _, _, volume = retained
+    page.get_by_role("button", name="Rerun saved inputs").click()
+    playwright.expect(page.get_by_role("status")).to_contain_text("neutral")
+    latest = page.url.rsplit("/", 1)[-1]
+    native = next((volume / "artifacts").glob(f"*/{latest}/tier3/triage/*/result.json")).parent
+    shutil.rmtree(native / "opencode")
+    summary = native / "codex/with-skill/summary.json"
+    doc = json.loads(summary.read_text())
+    doc["scores"]["security"] = 0.91
+    summary.write_text(json.dumps(doc))
+    page.get_by_role("link", name="Review artifacts and feedback").click()
+    page.get_by_role("link", name="Latest per agent").click(timeout=1500)
+    matrix = page.get_by_label("Agent score comparison")
+    playwright.expect(matrix).to_contain_text("opencode")
+    playwright.expect(matrix).to_contain_text("0.75")
+    playwright.expect(matrix).to_contain_text("0.91")
+
+
+@pytest.mark.parametrize("retained", ["keep-jobs"], indirect=True)
+def test_harbor_job_navigation_opens_only_authorized_text(page, retained):
+    _, _, volume = retained
+    job = next((volume / "artifacts").rglob("_harbor-jobs")) / "codex-with-skill/triage-1"
+    verifier = job / "verifier"
+    verifier.mkdir()
+    (verifier / "test-stdout.txt").write_text("Verifier ran case 42 chat-secret <script>")
+    (verifier / "test-stderr.txt").symlink_to(volume / "credential.key")
+    (job / "secret.txt").write_text("private")
+    page.get_by_role("link", name="Review artifacts and feedback").click()
+    page.get_by_role("link", name="Browse Harbor jobs").click(timeout=1500)
+    page.get_by_label("Harbor job", exact=True).select_option("codex-with-skill", timeout=1500)
+    page.get_by_role("button", name="Open job").click()
+    page.get_by_role("link", name="test-stdout.txt", exact=False).click()
+    preview = page.get_by_label("Artifact preview")
+    playwright.expect(preview).to_contain_text("Verifier ran case 42")
+    playwright.expect(preview).not_to_contain_text("chat-secret")
+    assert "test-stderr.txt" not in page.content() and "secret.txt" not in page.content()
+
+
+def test_report_sections_can_be_navigated_without_running_html(page, retained):
+    _, _, volume = retained
+    report = next((volume / "artifacts").rglob("report.html"))
+    report.write_text(
+        "<h1>Overview</h1><p>Pass</p><h2>Failures</h2><p>Review case 19 chat-secret</p>"
+        '<script>window.badReport=1</script><img src="https://bad.invalid/pixel">'
+    )
+    page.get_by_role("link", name="Review artifacts and feedback").click()
+    page.get_by_role("link", name="View report", exact=True).click()
+    page.get_by_text("Failures", exact=True).click(timeout=1500)
+    assert page.get_by_text("Review case 19 <redacted>", exact=True).is_visible()
+    assert "bad.invalid" not in page.content() and "window.badReport" not in page.content()
+
+
+def test_bedrock_feedback_requires_authorized_runtime_identity(page, retained, monkeypatch):
+    import subprocess
+
+    base, project, _ = retained
+    page.get_by_role("link", name="Review artifacts and feedback").click()
+    url = page.url
+    page.goto(base + project + "/providers")
+    chat = page.get_by_role("region", name="Chat", exact=True)
+    chat.get_by_label("Provider", exact=True).select_option("bedrock")
+    chat.get_by_label("Base URL").fill("")
+    chat.get_by_label("Model").fill("anthropic.claude-3-haiku-20240307-v1:0")
+    chat.get_by_role("button", name="Save settings").click()
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "feedback-identity")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "fixture-secret")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    monkeypatch.setenv("AWS_ENDPOINT_URL", "https://ignore.invalid")
+    run = subprocess.run
+
+    def fixture_runtime(args, **kwargs):
+        if len(args) == 3 and str(args[-1]).endswith("/feedback_worker.py"):
+            # Exercise the real isolated worker + canonical client up to the SDK transport.
+            bootstrap = """import os, runpy, sys, types
+from types import SimpleNamespace as NS
+def completion(**kwargs):
+    assert kwargs['model'] == 'bedrock/anthropic.claude-3-haiku-20240307-v1:0'
+    assert kwargs['aws_region_name'] == 'eu-west-1'
+    assert os.environ['AWS_ACCESS_KEY_ID'] == 'feedback-identity'
+    assert 'AWS_ENDPOINT_URL' not in os.environ and 'OPENAI_API_KEY' not in os.environ
+    assert 'Keep the retry case.' in kwargs['messages'][0]['content']
+    return NS(choices=[NS(message=NS(content='AWS fixture answer'),finish_reason='stop')])
+sys.modules['litellm'] = NS(completion=completion)
+runpy.run_path(sys.argv[1], run_name='__main__')"""
+            args = [*args[:2], "-c", bootstrap, args[-1]]
+        return run(args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", fixture_runtime)
+    resp = page.request.post(url + "/feedback", form={"question": "Why?"})
+    assert resp.status == 403
+    monkeypatch.setenv("STUDIO_FEEDBACK_BEDROCK_PROJECTS", project.rsplit("/", 1)[-1])
+    page.goto(url)
+    page.get_by_label("Question").fill("Why?")
+    page.get_by_role("button", name="Ask about this run").click()
+    playwright.expect(page.get_by_label("Conversation")).to_contain_text("AWS fixture answer")
+
+
+def test_missing_saved_report_uses_retained_measurements(page, retained):
+    import sqlite3
+    from contextlib import closing
+
+    base, project, volume = retained
+    run = page.url.rsplit("/", 1)[-1]
+    with closing(sqlite3.connect(volume / "studio.sqlite3")) as db, db:
+        db.execute("UPDATE runs SET report=NULL WHERE id=?", (run,))
+    next((volume / "artifacts").rglob("report.html")).unlink()
+    page.goto(base + project + "/results?run=" + run)
+    playwright.expect(page.get_by_role("table")).to_contain_text("private-model", timeout=1500)
+    page.get_by_role("link", name=run).first.click()
+    page.get_by_role("link", name="Review artifacts and feedback").click()
+    page.get_by_role("link", name="View report", exact=True).click()
+    playwright.expect(page.get_by_label("Artifact preview")).to_contain_text("codex")
+    assert not list((volume / "artifacts").rglob("report.html"))
+
+
+def test_download_filtered_dashboard_csv(page, retained):
+    import csv
+    import io
+
+    base, project, _ = retained
+    page.goto(base + project + "/results")
+    page.get_by_label("Harness", exact=True).select_option("codex")
+    page.get_by_label("Display").select_option("comparison")
+    page.get_by_role("button", name="Apply filters").click()
+    link = page.get_by_role("link", name="Download comparison CSV")
+    response = page.request.get(link.get_attribute("href", timeout=1500))
+    assert response.headers["content-type"].startswith("text/csv")
+    rows = list(csv.DictReader(io.StringIO(response.text())))
+    assert len(rows) == 1 and rows[0]["harness"] == "codex"
+    assert rows[0]["with_score"] and rows[0]["without_score"]
+
+
+def test_rebuild_rejects_path_shaped_native_agent_keys(page, retained):
+    _, _, volume = retained
+    report = next((volume / "artifacts").rglob("report.html"))
+    report.unlink()
+    config = report.with_name("run_config.json")
+    doc = json.loads(config.read_text())
+    doc["agents"]["../unrelated"] = {"agent": "malformed"}
+    config.write_text(json.dumps(doc))
+    page.get_by_role("link", name="Review artifacts and feedback").click()
+    response = page.request.get(page.url + "?report=true")
+    assert response.status == 422 and not report.exists()

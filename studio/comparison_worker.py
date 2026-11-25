@@ -12,7 +12,7 @@ from skillevaluator.tier3.version_comparison import compare_versions
 
 # Isolated Python omits the script directory; import only trusted Studio code.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from native_location import native_directory
+from native_location import native_directory, validate_agent_names
 
 
 def bounded_directory(root):
@@ -50,15 +50,7 @@ def inspect(root, sha):
     result = json.loads((directory / "result.json").read_bytes())
     config_path = directory / "run_config.json"
     config = json.loads(config_path.read_bytes()) if config_path.exists() else {}
-    identity = result.get("comparison_identity", {})
-    for source in (config, result, result.get("run_config", {}), identity.get("config", {})):
-        agents = source.get("agents", {})
-        if (
-            not isinstance(agents, dict)
-            or len(agents) > 32
-            or any(not re.fullmatch(r"[\w-][\w.-]{0,127}", name) for name in agents)
-        ):
-            raise ValueError("Invalid retained agent names")
+    validate_agent_names(result, config)
     if directory not in history_directories(root):
         raise ValueError("Unrecognized run directory")
     # The primary root is populated above; do not allow native fallback discovery.

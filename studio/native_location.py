@@ -1,6 +1,7 @@
 """Resolve a Studio run's native result in place (generated markers are path-bound)."""
 
 import os
+import re
 
 
 def _single_directory(root):
@@ -31,3 +32,16 @@ def native_directory(root):
     if result.resolve(strict=True) != result or not result.is_file():
         raise ValueError("No canonical native result")
     return candidate
+
+
+def validate_agent_names(result, config):
+    """Native readers may use recorded agent names as path components."""
+    identity = result.get("comparison_identity", {})
+    for source in (config, result, result.get("run_config", {}), identity.get("config", {})):
+        agents = source.get("agents", {})
+        if (
+            not isinstance(agents, dict)
+            or len(agents) > 32
+            or any(not re.fullmatch(r"[\w-][\w.-]{0,127}", name) for name in agents)
+        ):
+            raise ValueError("Invalid retained agent names")

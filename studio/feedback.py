@@ -34,11 +34,35 @@ def conversation(workspace, run):
 
 
 def ask(workspace, run, question):
-    payload = json.loads(run["report"]).get("tier3")
+    payload = json.loads(run["report"] or "{}").get("tier3")
     if not payload or not question.strip():
         raise HTTPException(422, "A question and a canonical evaluation report are required.")
     project = run["project_id"]
-    scrub = scrubber(workspace, project)
+    try:
+        env = worker_environment(workspace, project, "chat")
+    except ValueError as exc:
+        raise HTTPException(422, "Configure a chat provider in project settings.") from exc
+    if env.get("SKILL_EVAL_LLM_PROVIDER") == "bedrock":
+        authorized = {p.strip() for p in os.getenv("STUDIO_FEEDBACK_BEDROCK_PROJECTS", "").split(",")}
+        if project not in authorized:
+            raise HTTPException(403, "This project is not authorized for runtime Bedrock feedback.")
+        for key in (
+            "AWS_REGION",
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+            "AWS_SESSION_TOKEN",
+            "AWS_ROLE_ARN",
+            "AWS_WEB_IDENTITY_TOKEN_FILE",
+        ):
+            if key in os.environ:
+                env[key] = os.environ[key]
+    if "SSL_CERT_FILE" in os.environ:
+        env["SSL_CERT_FILE"] = os.environ["SSL_CERT_FILE"]
+    scrub = scrubber(
+        workspace,
+        project,
+        extra_secrets=[env.get(k) for k in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN")],
+    )
     history = conversation(workspace, run)
     question = scrub(question.strip())
     root = workspace.data_dir / "artifacts" / project / run["id"] / "tier3"
@@ -47,14 +71,6 @@ def ask(workspace, run, question):
             context = compact_run_context(load_agent_eval_payload(skill, native), run_dir=native, skill_dir=skill)
     except (ValueError, OSError, TypeError, AttributeError, RecursionError) as exc:
         raise HTTPException(422, "Cannot prepare feedback from this run's retained evidence.") from exc
-    try:
-        env = worker_environment(workspace, project, "chat")
-    except ValueError as exc:
-        raise HTTPException(422, "Configure a chat provider in project settings.") from exc
-    if env.get("SKILL_EVAL_LLM_PROVIDER") == "bedrock":
-        raise HTTPException(422, "Select a key-backed chat provider for feedback.")
-    if "SSL_CERT_FILE" in os.environ:
-        env["SSL_CERT_FILE"] = os.environ["SSL_CERT_FILE"]
     messages = [
         {"role": role, "content": scrub(text)}
         for pair in history
