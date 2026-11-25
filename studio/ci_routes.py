@@ -9,6 +9,7 @@ from urllib.parse import quote, urlsplit
 from fastapi import APIRouter, Form, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from .ci_adapter import review_branch
 from .editing import Conflict, branches, commit_changes, project_lock, read_file, require_base
 from .workspace import WorkspaceError
 
@@ -20,21 +21,24 @@ def project(request, project_id):
     p = ws.get(project_id)
     if p is None:
         raise HTTPException(404, "Unknown project")
-    if urlsplit(p.remote).hostname == "gitlab.com":
-        raise HTTPException(422, "GitLab CI onboarding is not available in Studio yet.")
     return ws, p
+
+
+def is_gitlab(p):
+    url = urlsplit(p.remote)
+    return url.hostname != "github.com"
 
 
 def page(request, p, status=200, **context):
     return request.app.state.templates.TemplateResponse(
-        request=request, name="ci.html", context={"project": p, **context}, status_code=status
+        request=request, name="ci.html", context={"project": p, "gitlab": is_gitlab(p), **context}, status_code=status
     )
 
 
 @router.get("", name="repository_ci")
 def landing(request: Request, project_id: str):
     _, p = project(request, project_id)
-    return page(request, p)
+    return page(request, p, gitlab=is_gitlab(p))
 
 
 class ReviewForm(BaseModel):
@@ -52,7 +56,7 @@ class SetupForm(ReviewForm):
 
 
 class DemoForm(ReviewForm):
-    action: Literal["review", "publish"]
+    action: Literal["review", "publish", "request"]
 
 
 @router.post("")
@@ -65,6 +69,8 @@ def operate(request: Request, project_id: str, form: Annotated[SetupForm, Form()
     try:
         with project_lock(ws, p.id):
             require_base(p, branch, revision)
+            if is_gitlab(p):
+                raise WorkspaceError("Use Advanced CI setup for GitLab all-tier workflows.")
             existing = read_file(ws, p, ci.SCAN, repo_root=True)
             if form.action == "status":
                 if branches(ws, p).get(branch) != revision:
@@ -106,16 +112,36 @@ def demo(request: Request, project_id: str, form: Annotated[DemoForm, Form()]):
     try:
         with project_lock(ws, p.id):
             require_base(p, branch, revision)
-            scan = read_file(ws, p, ci.SCAN, repo_root=True)
+            all_tiers = ci.all_tier_helpers
+            scan = read_file(ws, p, all_tiers.GL_SCAN if is_gitlab(p) else all_tiers.SCAN, repo_root=True)
+            all_mode = scan is not None
+            if scan is None and not is_gitlab(p):
+                scan = read_file(ws, p, ci.SCAN, repo_root=True)
             if scan is None:
                 raise WorkspaceError("Set up checks on the default branch first.")
             head = ws.git(p, ["ls-remote", "--symref", "--", p.remote, "HEAD"], authenticated=True).splitlines()
             if f"ref: refs/heads/{branch}\tHEAD" not in head or f"{revision}\tHEAD" not in head:
                 raise Conflict("Open the current remote default branch to prepare a demo.")
             try:
-                roots = ci.workflow_helpers.existing_scan(scan.decode()).roots
-            except (ci.SetupError, UnicodeError) as exc:
-                raise WorkspaceError("Demo requires a recognized Tier 1 workflow.") from exc
+                if all_mode:
+                    data = ci.workflow_helpers.parse_workflow(scan.decode())
+                    if is_gitlab(p):
+                        problem = all_tiers.gitlab_config_problem(scan.decode())
+                        if problem:
+                            raise WorkspaceError(problem)
+                        paths = data["variables"]["SKILL_EVAL_PATHS"]
+                    else:
+                        inputs, problem = all_tiers._github_workflow_inputs(
+                            scan.decode(), "skills", "evaluate-all-tiers.yml"
+                        )
+                        if problem:
+                            raise WorkspaceError(problem)
+                        paths = inputs["paths"]
+                    roots = [ci.git_helpers.safe_relative(v) for v in paths.splitlines()]
+                else:
+                    roots = ci.workflow_helpers.existing_scan(scan.decode()).roots
+            except (KeyError, AttributeError, TypeError, ci.SetupError, UnicodeError) as exc:
+                raise WorkspaceError("Demo requires a recognized scan workflow.") from exc
             if not any(root in (".", p.folder) or p.folder.startswith(root + "/") for root in roots):
                 raise WorkspaceError("The workflow does not scan this skill folder.")
             saved = read_file(ws, p, "SKILL.md")
@@ -124,14 +150,18 @@ def demo(request: Request, project_id: str, form: Annotated[DemoForm, Form()]):
             comment = "\n<!-- SkillEvaluator onboarding demo: exercise automatic PR feedback. -->\n"
             draft = saved + comment.encode()
             digest = hashlib.sha256(draft).hexdigest()
+            demo_branch = all_tiers.DEMO_BRANCH if all_mode else ci.DEMO_BRANCH
             if form.action == "review":
-                return page(request, p, demo=comment, demo_digest=digest)
+                return page(request, p, demo=comment, demo_digest=digest, demo_branch=demo_branch)
             if form.approval != digest:
                 raise WorkspaceError("Review the demo change before publishing.")
-            commit_changes(
-                ws, p, {"SKILL.md": draft}, "Exercise automatic skill PR feedback", new_branch=ci.DEMO_BRANCH
+            if form.action == "request":
+                url = review_branch(ws, p, {"SKILL.md": draft}, demo_branch, "Exercise automatic skill review feedback")
+                return page(request, p, notice="Created review request: " + url, compare=url)
+            commit_changes(ws, p, {"SKILL.md": draft}, "Exercise automatic skill PR feedback", new_branch=demo_branch)
+            compare = (
+                f"{p.remote.rstrip('/').removesuffix('.git')}/compare/{quote(branch, safe='')}...{demo_branch}?expand=1"
             )
-            compare = f"{p.remote.rstrip('/').removesuffix('.git')}/compare/{quote(branch, safe='')}...{ci.DEMO_BRANCH}?expand=1"
             return page(
                 request, p, notice="Demo branch published. Confirm the pull request on your Git host.", compare=compare
             )

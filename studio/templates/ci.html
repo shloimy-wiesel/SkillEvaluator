@@ -1,8 +1,10 @@
 {% extends "base.html" %}{% block title %}Repository CI{% endblock %}{% block content %}
 <a href="/projects/{{ project.id }}">{{ project.name }}</a><h1>Repository CI</h1>
-<p>GitHub Actions · Tier 1 checks only. Changes target <code>{{ project.branch }}</code> at <code>{{ project.revision }}</code>.</p>
 {% if notice %}<p role="status">{{ notice }}</p>{% endif %}{% if error %}<p role="alert">{{ error }}</p>{% endif %}
-{% macro base() %}<input type="hidden" name="branch" value="{{ project.branch }}"><input type="hidden" name="revision" value="{{ project.revision }}">{% endmacro %}
+{% macro base() %}<input type="hidden" name="branch" value="{{ project.branch }}"><input type="hidden" name="revision" value="{{ project.revision }}">{% endmacro %}<p><a href="{{ url_for('advanced_ci',project_id=project.id) }}">Advanced CI setup</a> · All tiers, GitLab, hosted reports, live status and setup requests.</p>{% if gitlab %}<p>GitLab supports all-tier CI only.</p>{% else %}
+<p>GitHub Actions · Tier 1 checks only. Changes target <code>{{ project.branch }}</code> at <code>{{ project.revision }}</code>.</p>
+
+
 <form method="post" action="{{ url_for('repository_ci', project_id=project.id) }}">{{ base() }}<button name="action" value="status">Check status</button></form>
 {% if scan_runs %}<p><a href="{{ scan_runs }}">Inspect scan runs on Git host</a></p>{% endif %}
 <h2>Set up checks</h2><p>Scan the connected skill folder: <code>{{ project.folder }}</code>. Publishing may start a CI run.</p>
@@ -12,8 +14,8 @@
 <label>Release channel <select name="channel"><option value="pinned">Bundled pinned release</option><option value="stable" {% if channel=='stable' %}selected{% endif %}>Follow stable</option></select></label>
 <button name="action" value="review">Review setup</button>
 {% if workflow %}<h3>.github/workflows/skill-checks.yml</h3><pre aria-label="Generated workflow">{{ workflow }}</pre><input type="hidden" name="approval" value="{{ digest }}"><button name="action" value="publish">Publish reviewed workflow</button>{% endif %}</form>
-<h2>Try a demo pull request</h2><p>After setup on the default branch, review a comment-only skill change. Publish a separate branch, then confirm the pull request on your Git host.</p>
+{% endif %}<h2>Try a demo pull request</h2><p>After setup on the default branch, review a comment-only skill change. Publish a separate branch, then confirm the pull request on your Git host.</p>
 <form method="post" action="{{ url_for('ci_demo', project_id=project.id) }}">{{ base() }}<button name="action" value="review">Review demo</button>
-{% if demo %}<pre aria-label="Demo change">{{ demo }}</pre><p>New branch: ci/skillevaluator-test · File: {{ project.folder }}/SKILL.md</p><input type="hidden" name="approval" value="{{ demo_digest }}"><button name="action" value="publish">Publish demo branch</button>{% endif %}</form>
+{% if demo %}<pre aria-label="Demo change">{{ demo }}</pre><p>New branch: {{ demo_branch }} · File: {{ project.folder }}/SKILL.md</p><input type="hidden" name="approval" value="{{ demo_digest }}"><button name="action" value="request">Create reviewed PR/MR</button>{% if not gitlab %}<button name="action" value="publish">Publish demo branch</button>{% endif %}{% endif %}</form>
 {% if compare %}<a href="{{ compare }}">Open pull request for review</a>{% endif %}
 {% endblock %}

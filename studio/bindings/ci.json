@@ -1,9 +1,9 @@
 [
   {
     "key": "ci init",
-    "status": "partial",
-    "equivalent": "New GitHub Tier 1 checks only; hosted reports, setup PR and all-tier setup remain.",
-    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+    "status": "implemented",
+    "equivalent": "Prepare reviewed Tier 1 or all-tier setup, and publish via guarded Git or the CLI setup PR.",
+    "evidence": "tests/studio/test_ci.py::test_github_hosted_setup_review_and_receipt"
   },
   {
     "key": "ci init:min_score",
@@ -25,21 +25,21 @@
   },
   {
     "key": "ci init:paths",
-    "status": "partial",
-    "equivalent": "Uses the connected skill folder; multi-root selection remains.",
-    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+    "status": "implemented",
+    "equivalent": "Select repeated discovered scan roots; blank uses the CLI suggestions.",
+    "evidence": "tests/studio/test_ci.py::test_github_hosted_setup_review_and_receipt"
   },
   {
     "key": "ci init:mode",
-    "status": "partial",
-    "equivalent": "Review then publish to the selected branch; no hosted setup PR.",
-    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+    "status": "implemented",
+    "equivalent": "Review without writes, save reviewed files to the selected branch, or authorize a setup PR/MR.",
+    "evidence": "tests/studio/test_ci.py::test_github_hosted_setup_review_and_receipt"
   },
   {
     "key": "ci init:full",
-    "status": "partial",
-    "equivalent": "Explicit checks-only journey; hosted reports remain.",
-    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+    "status": "implemented",
+    "equivalent": "Tier 1 checks-only or hosted Pages, history and PR feedback; private access requires live verification.",
+    "evidence": "tests/studio/test_ci.py::test_github_hosted_setup_review_and_receipt"
   },
   {
     "key": "ci init:show_files",
@@ -55,26 +55,236 @@
   },
   {
     "key": "ci status",
-    "status": "partial",
-    "equivalent": "Workflow presence verified at remote branch tip; hosted settings and live runs remain.",
-    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+    "status": "implemented",
+    "equivalent": "Read live status for the connected project: GitHub scan/publication or GitLab pipeline via scoped host API.",
+    "evidence": "tests/studio/test_ci.py::test_live_github_status_and_authenticated_demo"
   },
   {
     "key": "ci status:repo",
     "status": "implemented",
-    "equivalent": "Checks the saved project with its scoped Git credential.",
-    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+    "equivalent": "Read live status for the connected project: GitHub scan/publication or GitLab pipeline via scoped host API.",
+    "evidence": "tests/studio/test_ci.py::test_live_github_status_and_authenticated_demo"
   },
   {
     "key": "ci demo",
     "status": "partial",
-    "equivalent": "Reviewed comment-only branch and PR creation handoff; no API-created PR or GitLab flow.",
-    "evidence": "tests/studio/test_ci.py::test_review_demo_then_publish_separate_branch"
+    "equivalent": "Detect the connected host and installed scan, review the connected skill comment, and authorize its PR/MR. Existing review branches require manual inspection.",
+    "evidence": "tests/studio/test_ci.py::test_read_gitlab_pipeline_and_create_review_requests"
   },
   {
     "key": "ci demo:repo",
     "status": "implemented",
     "equivalent": "Publishes demo branch only to the saved project.",
     "evidence": "tests/studio/test_ci.py::test_review_demo_then_publish_separate_branch"
+  },
+  {
+    "key": "ci init:custom_url",
+    "status": "implemented",
+    "equivalent": "Verifies the Pages URL against this repository before generating both callers.",
+    "evidence": "tests/studio/test_ci.py::test_github_hosted_setup_review_and_receipt"
+  },
+  {
+    "key": "ci init:no_input",
+    "status": "implemented",
+    "equivalent": "Typed review and explicit apply replace the interactive prompts.",
+    "evidence": "tests/studio/test_ci.py::test_github_hosted_setup_review_and_receipt"
+  },
+  {
+    "key": "ci init:output",
+    "status": "implemented",
+    "equivalent": "Download the reviewed plan as a JSON receipt instead of choosing a host file.",
+    "evidence": "tests/studio/test_ci.py::test_github_hosted_setup_review_and_receipt"
+  },
+  {
+    "key": "ci init:tiers",
+    "status": "implemented",
+    "equivalent": "Select Tier 1 or all tiers; GitLab supports only all tiers.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:platform",
+    "status": "implemented",
+    "equivalent": "Automatic host or explicit platform, validated against the saved origin.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:env_mode",
+    "status": "implemented",
+    "equivalent": "Docker or local runner execution.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:default_branch",
+    "status": "implemented",
+    "equivalent": "Override the default trigger branch independently of the current revision.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:provider",
+    "status": "implemented",
+    "equivalent": "Select chat provider.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:embedding_provider",
+    "status": "implemented",
+    "equivalent": "Select embeddings provider independently of chat.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:agent_model",
+    "status": "implemented",
+    "equivalent": "Repeat native AGENT=MODEL overrides.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:gateway_secret",
+    "status": "implemented",
+    "equivalent": "Reference a CI secret by name; never enter its value.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:benchmark_pr",
+    "status": "implemented",
+    "equivalent": "Enable the separate benchmark feedback job on GitHub.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:release_path",
+    "status": "implemented",
+    "equivalent": "Select bundled pins or an operator-installed reviewed release descriptor.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:tier3_required",
+    "status": "implemented",
+    "equivalent": "Deprecated upstream no-op: Tier 1 alone blocks CI.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:model",
+    "status": "implemented",
+    "equivalent": "All-tier model control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:embedding_model",
+    "status": "implemented",
+    "equivalent": "All-tier embedding model control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:tier1_llm",
+    "status": "implemented",
+    "equivalent": "All-tier tier1 llm control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:tier1_provider",
+    "status": "implemented",
+    "equivalent": "All-tier tier1 provider control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:tier1_model",
+    "status": "implemented",
+    "equivalent": "All-tier tier1 model control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:base_url",
+    "status": "implemented",
+    "equivalent": "All-tier base url control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:embedding_base_url",
+    "status": "implemented",
+    "equivalent": "All-tier embedding base url control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:tier3_provider",
+    "status": "implemented",
+    "equivalent": "All-tier tier3 provider control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:tier3_model",
+    "status": "implemented",
+    "equivalent": "All-tier tier3 model control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:tier3_base_url",
+    "status": "implemented",
+    "equivalent": "All-tier tier3 base url control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:agents",
+    "status": "implemented",
+    "equivalent": "All-tier agents control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:n_concurrent",
+    "status": "implemented",
+    "equivalent": "All-tier n concurrent control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:timeout_minutes",
+    "status": "implemented",
+    "equivalent": "All-tier timeout minutes control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:environment",
+    "status": "implemented",
+    "equivalent": "All-tier environment control feeds the pinned workflow input.",
+    "evidence": "tests/studio/test_ci.py::test_github_all_tier_routing_and_release_controls"
+  },
+  {
+    "key": "ci init:runner",
+    "status": "implemented",
+    "equivalent": "Reviewed runner setting in the published GitLab pipeline.",
+    "evidence": "tests/studio/test_ci.py::test_gitlab_all_tier_review"
+  },
+  {
+    "key": "ci init:n_attempts",
+    "status": "implemented",
+    "equivalent": "Reviewed n attempts setting in the published GitLab pipeline.",
+    "evidence": "tests/studio/test_ci.py::test_gitlab_all_tier_review"
+  },
+  {
+    "key": "ci status:platform",
+    "status": "implemented",
+    "equivalent": "Read live status for the connected project: GitHub scan/publication or GitLab pipeline via scoped host API.",
+    "evidence": "tests/studio/test_ci.py::test_read_gitlab_pipeline_and_create_review_requests"
+  },
+  {
+    "key": "ci status:tiers",
+    "status": "implemented",
+    "equivalent": "Read live status for the connected project: GitHub scan/publication or GitLab pipeline via scoped host API.",
+    "evidence": "tests/studio/test_ci.py::test_read_gitlab_pipeline_and_create_review_requests"
+  },
+  {
+    "key": "ci demo:no_input",
+    "status": "implemented",
+    "equivalent": "Detect the connected host and installed scan, review the connected skill comment, and authorize its PR/MR. Existing review branches require manual inspection.",
+    "evidence": "tests/studio/test_ci.py::test_read_gitlab_pipeline_and_create_review_requests"
+  },
+  {
+    "key": "ci demo:platform",
+    "status": "implemented",
+    "equivalent": "Detect the connected host and installed scan, review the connected skill comment, and authorize its PR/MR. Existing review branches require manual inspection.",
+    "evidence": "tests/studio/test_ci.py::test_read_gitlab_pipeline_and_create_review_requests"
+  },
+  {
+    "key": "ci demo:tiers",
+    "status": "implemented",
+    "equivalent": "Detect the connected host and installed scan, review the connected skill comment, and authorize its PR/MR. Existing review branches require manual inspection.",
+    "evidence": "tests/studio/test_ci.py::test_read_gitlab_pipeline_and_create_review_requests"
   }
 ]

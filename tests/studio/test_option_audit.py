@@ -9,8 +9,11 @@ def test_golden_audit_includes_direct_workflows_aliases_and_partial_bindings():
     rows = json.loads(subprocess.check_output([sys.executable, "-m", "studio.option_audit"]))
     assert rows["ci init:min_score"]["status"] == "implemented"
     assert rows["ci init:min_score"]["evidence"].endswith("::test_review_checks_then_publish")
-    assert rows["ci init:mode"]["status"] == "partial"
-    assert rows["ci init:runner"]["status"] == "remaining"
+    # Inventory is driven by the shipped golden, including newly added CI flags.
+    for key, row in rows.items():
+        if key.startswith(("ci init", "ci demo", "ci status")):
+            assert row["status"] in ("partial", "implemented"), key
+    assert rows["ci init:runner"]["status"] == "implemented"
     assert rows["tier3 [workflow]:environment_kwarg"]["contract"]["opts"] == ["--ek", "--environment-kwarg"]
     assert rows["tier3 [workflow]:environment_kwarg"]["contract"]["multiple"]
     assert rows["tier3 evaluate:skill_path"]["contract"]["required"]

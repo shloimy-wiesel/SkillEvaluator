@@ -64,6 +64,13 @@ class Workspace:
     def checkout(self, project: Project):
         return self.repos / project.id
 
+    def host_token(self, project):
+        with closing(sqlite3.connect(self.db_path)) as db:
+            (encrypted,) = db.execute(
+                "SELECT credential FROM projects WHERE id=? AND remote=?", (project.id, project.remote)
+            ).fetchone()
+        return self.cipher.decrypt(encrypted).decode().split(":", 1)[1] if encrypted else ""
+
     def git(self, project: Project, args: list[str], *, authenticated=False, stdin=None, raw=False, index=None):
         """Run a server-constructed argv; credentials are scoped to the saved URL."""
         credential = None

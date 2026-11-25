@@ -54,7 +54,7 @@ def before_push():
 
 
 @pytest.fixture
-def private_remote(tmp_path, loopback_tls, monkeypatch, before_push):
+def private_remote(tmp_path, loopback_tls, monkeypatch, before_push, host_api):
     origin = tmp_path / "server"
     origin.mkdir()
     seed = tmp_path / "seed"
@@ -77,6 +77,17 @@ def private_remote(tmp_path, loopback_tls, monkeypatch, before_push):
 
     class Handler(SimpleHTTPRequestHandler):
         def do_GET(self):
+            if self.path.startswith("/api/v4/"):
+                import json
+
+                entry = host_api.get((self.command, self.path))
+                code, value = (
+                    (entry(self) if entry else (404, {})) if self.headers.get("PRIVATE-TOKEN") == token else (403, {})
+                )
+                self.send_response(code)
+                self.end_headers()
+                self.wfile.write(json.dumps(value).encode())
+                return
             if self.headers.get("Authorization") == f"Basic {expected}":
                 path, _, query = self.path.partition("?")
                 if query == "service=git-receive-pack" and before_push:
@@ -115,6 +126,7 @@ def private_remote(tmp_path, loopback_tls, monkeypatch, before_push):
 
     tls, cert = loopback_tls
     monkeypatch.setenv("GIT_SSL_CAINFO", str(cert))
+    monkeypatch.setenv("SSL_CERT_FILE", str(cert))
     with ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Handler, directory=origin)) as remote:
         remote.socket = tls.wrap_socket(remote.socket, server_side=True)
         thread = threading.Thread(target=remote.serve_forever)
