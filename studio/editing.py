@@ -1,8 +1,10 @@
 """Revision-bound operations on a project's author checkout."""
 
 import os
+import re
 import sqlite3
 from contextlib import closing
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Lock, RLock
@@ -32,6 +34,9 @@ def require_base(project, branch, revision):
 
 def _check(ws, p):
     current = ws.get(p.id)
+    with closing(sqlite3.connect(ws.db_path)) as db:
+        if db.execute("SELECT 1 FROM transitions WHERE project_id=?", (p.id,)).fetchone():
+            raise Conflict("Interrupted checkout: restore a clean checkout and verify the remote branch before saving.")
     root = ws.checkout(p)
     if (
         current != p
@@ -59,9 +64,61 @@ def _branch(ws, p, name):
         raise WorkspaceError("Choose a valid Git branch name.") from exc
 
 
+def _local_ref(ws, p, branch):
+    return ws.git(p, ["for-each-ref", "--format=%(refname) %(objectname)", f"refs/heads/{branch}"]).splitlines()
+
+
+def _prior(ws, p, branch):
+    return dict(line.split() for line in _local_ref(ws, p, branch)).get(f"refs/heads/{branch}", "")
+
+
+def _begin(ws, p, branch, sha):
+    ws.check_tree(ws.checkout(p), sha)
+    prior = _prior(ws, p, branch)
+    with closing(sqlite3.connect(ws.db_path)) as db, db:
+        db.execute("INSERT INTO transitions VALUES (?,?,?,?)", (p.id, branch, sha, prior))
+
+
 def _record(ws, p, branch, sha):
     with closing(sqlite3.connect(ws.db_path)) as db, db:
         db.execute("UPDATE projects SET branch=?,revision=? WHERE id=?", (branch, sha, p.id))
+        db.execute("DELETE FROM transitions WHERE project_id=?", (p.id,))
+
+
+def recover(ws, p):
+    with project_lock(ws, p.id), closing(sqlite3.connect(ws.db_path)) as db:
+        pending = db.execute("SELECT branch,revision,prior_ref FROM transitions WHERE project_id=?", (p.id,)).fetchone()
+        if not pending:
+            return p
+        branch, sha, prior = pending
+        root = ws.checkout(p)
+        if root.resolve() != root or (root / ".git").is_symlink() or not (root / ".git").is_dir():
+            return p
+        try:
+            _branch(ws, p, branch)
+            if not re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", sha):
+                return p
+            head = ws.git(p, ["symbolic-ref", "HEAD"]), ws.git(p, ["rev-parse", "HEAD"])
+            old = (f"refs/heads/{p.branch}", p.revision)
+            target = (f"refs/heads/{branch}", sha)
+            if head not in (old, target) or ws.git(p, ["status", "--porcelain", "--untracked-files=all"]):
+                return p
+            if branches(ws, p).get(branch) != sha:
+                if head == old:
+                    # Push did not land, or a collaborator subsequently moved the ref.
+                    # Retain the source checkout; never replay a push.
+                    _record(ws, p, p.branch, p.revision)
+                return p
+            if head != target:
+                if _prior(ws, p, branch) != prior:
+                    return p
+                ws.check_tree(ws.checkout(p), sha)
+                ws.git(p, ["checkout", "--no-overwrite-ignore", "-B", branch, sha, "--"])
+            _record(ws, p, branch, sha)
+            return replace(p, branch=branch, revision=sha)
+        except WorkspaceError:
+            # Unavailable host or unsafe checkout: retain the journal for another open.
+            return p
 
 
 def _push(ws, p, sha, branch, expected):
@@ -172,7 +229,9 @@ def commit_changes(ws, p, changes, message, *, repo_root=False, new_branch=None,
             # Reopening a hosted review must not update its branch. Verify both
             # its entire raw tree and its single parent against the author draft.
             _branch(ws, p, new_branch)
-            ws.git(p, ["fetch", "--no-tags", "--", p.remote, f"refs/heads/{new_branch}"], authenticated=True)
+            ws.git(
+                p, ["fetch", "--depth=2", "--no-tags", "--", p.remote, f"refs/heads/{new_branch}"], authenticated=True
+            )
             if (
                 ws.git(p, ["rev-list", "--parents", "-1", "FETCH_HEAD"]).split() != [matching_tip, p.revision]
                 or ws.git(p, ["rev-parse", "FETCH_HEAD^{tree}"]) != tree
@@ -198,6 +257,7 @@ def commit_changes(ws, p, changes, message, *, repo_root=False, new_branch=None,
             _branch(ws, p, new_branch)
             _push(ws, p, sha, new_branch, "0" * len(sha))
             return sha
+        _begin(ws, p, p.branch, sha)
         _push(ws, p, sha, p.branch, p.revision)
         ws.git(p, ["checkout", "--no-overwrite-ignore", "-B", p.branch, sha, "--"])
         _record(ws, p, p.branch, sha)
@@ -215,7 +275,7 @@ def open_branch(ws, p, source, expected_source, new=None):
             _branch(ws, p, new)
             if new in heads:
                 raise Conflict("That branch already exists.")
-        ws.git(p, ["fetch", "--no-tags", "--", p.remote, f"refs/heads/{source}"], authenticated=True)
+        ws.git(p, ["fetch", "--depth=2", "--no-tags", "--", p.remote, f"refs/heads/{source}"], authenticated=True)
         sha = ws.git(p, ["rev-parse", "FETCH_HEAD"])
         if sha != heads[source]:
             raise Conflict("The source branch changed. Try again.")
@@ -224,6 +284,7 @@ def open_branch(ws, p, source, expected_source, new=None):
         if not entry.startswith(("100644 blob ", "100755 blob ")):
             raise WorkspaceError("That branch does not contain a regular SKILL.md in this folder.")
         target = source if new is None else new
+        _begin(ws, p, target, sha)
         if new is not None:
             _push(ws, p, sha, target, "0" * len(sha))
         ws.git(p, ["checkout", "--no-overwrite-ignore", "-B", target, sha, "--"])

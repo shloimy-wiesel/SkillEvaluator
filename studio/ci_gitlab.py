@@ -52,7 +52,9 @@ class StatusClient:
             raise WorkspaceError("Cannot inspect the GitLab default branch.")
         self.branch = branch = info["default_branch"]
         self.ws.git(self.p, ["check-ref-format", "refs/heads/" + branch])
-        self.ws.git(self.p, ["fetch", "--no-tags", "--", self.p.remote, "refs/heads/" + branch], authenticated=True)
+        self.ws.git(
+            self.p, ["fetch", "--depth=2", "--no-tags", "--", self.p.remote, "refs/heads/" + branch], authenticated=True
+        )
         self.tip = self.ws.git(self.p, ["rev-parse", "FETCH_HEAD"])
         return info
 

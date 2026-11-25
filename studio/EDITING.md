@@ -66,3 +66,40 @@ selected skill folder. It does not refresh the remote, switch branches, stage
 files, or change the current draft. The preview shows up to 20 changed files,
 32 KiB of text per side, and highlights changed lines in smaller files.
 Binary, linked, deleted and empty files have explicit preview states.
+
+### Import and checkout limits
+
+Studio fetches branch tips and their parents without tags or a working tree.
+This keeps other remote branches available in Compare; opening a branch fetches
+just that branch at depth two. Old commits outside the shallow clone aren't
+available by SHA unless they were previously fetched. Before import or branch
+checkout Studio inspects the committed tree, including files outside the skill.
+
+Set positive integer limits on the Studio process:
+
+| Environment variable | Default | What it limits |
+| --- | ---: | --- |
+| `STUDIO_GIT_MAX_STORAGE_BYTES` | 536870912 | Aggregate logical `.git` file bytes during and after clone/fetch; also a hard per-file acquisition limit (Linux `prlimit`). |
+| `STUDIO_GIT_MAX_INVENTORY_BYTES` | 16777216 | Bytes read from a tree or remote-ref listing. |
+| `STUDIO_GIT_MAX_ENTRIES` | 100000 | Entries in a NUL-delimited tree listing. |
+| `STUDIO_GIT_MAX_CHECKOUT_BYTES` | 536870912 | Sum of listed blob sizes before checkout. |
+| `STUDIO_GIT_MAX_BLOB_BYTES` | 67108864 | Largest listed checkout blob. |
+
+**Use a byte- and inode-quota-backed filesystem for `STUDIO_DATA_DIR`** for a
+hard aggregate storage ceiling. Leave space for the checkout, detached jobs,
+SQLite and artifacts. The `.git` aggregate is sampled during transfer, so it
+can overshoot between checks; per-file limits alone cannot bound concurrent
+imports, directory metadata, later edits or retained projects. A failed import
+removes its clone. After an abrupt host shutdown, stop Studio before inspecting
+unregistered project directories or temporary indexes for manual cleanup.
+
+### Interrupted saves and branch switches
+
+Before changing the remote or checkout, Studio records the intended branch and
+commit in SQLite. Opening the project reconciles a pending transition under the
+project lock. It verifies the remote tip and accepts only a clean checkout at
+the recorded source or destination. Completion updates the project and clears
+the journal in one transaction. Recovery never retries a push. If a checkout
+is dirty or points elsewhere, back up local work, inspect the local and remote
+refs, and restore the intended clean checkout before reopening. An inaccessible
+private host leaves the transition pending until access is restored.

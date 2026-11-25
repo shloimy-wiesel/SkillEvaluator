@@ -275,3 +275,16 @@ def test_extension_links_remain_discoverable_without_task_metadata(page, tmp_pat
         playwright.expect(tools.get_by_role("link", name="Journal")).to_be_visible()
         tools.get_by_role("link", name="Notes").click(timeout=2000)
         playwright.expect(page.get_by_text("Author notes")).to_be_visible()
+
+
+@pytest.mark.parametrize("budget", ["ENTRIES", "INVENTORY_BYTES", "STORAGE_BYTES", "CHECKOUT_BYTES", "BLOB_BYTES"])
+def test_import_refuses_over_budget_tree_and_removes_clone(tmp_path, private_remote, monkeypatch, budget):
+    from studio.workspace import Workspace, WorkspaceError
+
+    monkeypatch.setenv("STUDIO_GIT_MAX_" + budget, "16384" if budget == "STORAGE_BYTES" else "1")
+    ws = Workspace(tmp_path / "volume")
+    url, token = private_remote
+    with pytest.raises(WorkspaceError, match="limit"):
+        ws.connect(url, "skills/triage", "author", token)
+    assert ws.projects() == []
+    assert list(ws.repos.iterdir()) == []

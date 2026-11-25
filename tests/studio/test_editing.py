@@ -121,3 +121,67 @@ def test_simultaneous_editor_saves_publish_only_one_revision(page, tmp_path, pri
         winner = ["First draft", "Second draft"][responses.index(200)]
         assert subprocess.check_output(["git", "show", "main:skills/triage/SKILL.md"], cwd=remote).decode() == winner
         assert subprocess.check_output(["git", "rev-list", "--count", "main"], cwd=remote).strip() == b"2"
+
+
+def test_restart_completes_published_save_without_overwriting_dirty_work(tmp_path, private_remote):
+    import os
+    import sys
+
+    from studio.workspace import Workspace
+
+    data = tmp_path / "volume"
+    ws = Workspace(data)
+    url, token = private_remote
+    p = ws.get(ws.connect(url, "skills/triage", "author", token))
+    # Terminate the real writer after its authenticated push, before checkout.
+    worker = """
+import os, sys
+from studio.workspace import Workspace
+from studio.editing import commit_changes
+ws = Workspace(sys.argv[1]); p = ws.projects()[0]; git = ws.git
+def interrupted(p, args, **kwargs):
+    if args[0] == 'checkout': os._exit(72)
+    return git(p, args, **kwargs)
+ws.git = interrupted
+commit_changes(ws, p, {'SKILL.md': b'published'}, 'publish')
+"""
+    assert subprocess.run([sys.executable, "-c", worker, str(data)], env=os.environ.copy()).returncode == 72
+    skill = ws.checkout(p) / p.folder / "SKILL.md"
+    skill.write_text("unrelated local work")
+    assert Workspace(data).get(p.id) == p
+    assert skill.read_text() == "unrelated local work"
+    skill.write_text("# Triage\n")
+    reopened = Workspace(data).get(p.id)
+    tip = subprocess.check_output(["git", "rev-parse", "main"], cwd=tmp_path / "server/handbook.git", text=True).strip()
+    assert reopened.revision == tip != p.revision
+    assert skill.read_text() == "published"
+
+
+def test_restart_records_created_branch_only_when_remote_still_matches(tmp_path, private_remote):
+    import sys
+
+    from studio.workspace import Workspace
+
+    data = tmp_path / "volume"
+    ws = Workspace(data)
+    url, token = private_remote
+    p = ws.get(ws.connect(url, "skills/triage", "author", token))
+    worker = """
+import os, sys
+from studio.workspace import Workspace
+from studio.editing import open_branch
+ws = Workspace(sys.argv[1]); p = ws.projects()[0]; git = ws.git
+def interrupted(p, args, **kwargs):
+    result = git(p, args, **kwargs)
+    if args[0] == 'checkout': os._exit(73)
+    return result
+ws.git = interrupted
+open_branch(ws, p, p.branch, p.revision, 'review/topic')
+"""
+    assert subprocess.run([sys.executable, "-c", worker, str(data)]).returncode == 73
+    remote = tmp_path / "server/handbook.git"
+    publish_from_seed(tmp_path, "review/topic", "peer edit")
+    assert Workspace(data).get(p.id) == p
+    assert subprocess.check_output(["git", "show", "review/topic:skills/triage/SKILL.md"], cwd=remote) == b"peer edit"
+    subprocess.run(["git", "update-ref", "refs/heads/review/topic", p.revision], cwd=remote, check=True)
+    assert Workspace(data).get(p.id).branch == "review/topic"

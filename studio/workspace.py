@@ -14,6 +14,8 @@ from uuid import uuid4
 
 from cryptography.fernet import Fernet
 
+from .git_limits import GitLimit, bounded
+
 
 class WorkspaceError(ValueError):
     """A safe, author-facing diagnostic."""
@@ -47,6 +49,9 @@ class Workspace:
                 folder TEXT NOT NULL, branch TEXT NOT NULL, revision TEXT NOT NULL,
                 credential BLOB)""")
             db.execute(
+                "CREATE TABLE IF NOT EXISTS transitions (project_id TEXT PRIMARY KEY, branch TEXT, revision TEXT, prior_ref TEXT)"
+            )
+            db.execute(
                 "CREATE TABLE IF NOT EXISTS gitlab (project_id TEXT PRIMARY KEY, root TEXT NOT NULL, token BLOB)"
             )
 
@@ -58,11 +63,21 @@ class Workspace:
             ]
 
     def get(self, project_id):
+        from .editing import project_lock, recover
+
         with closing(sqlite3.connect(self.db_path)) as db:
+            row = db.execute(
+                "SELECT p.id,p.name,p.remote,p.folder,p.branch,p.revision,t.project_id FROM projects p "
+                "LEFT JOIN transitions t ON p.id=t.project_id WHERE p.id=?",
+                (project_id,),
+            ).fetchone()
+            if not row or row[-1] is None:
+                return Project(*row[:-1]) if row else None
+        with project_lock(self, project_id), closing(sqlite3.connect(self.db_path)) as db:
             row = db.execute(
                 "SELECT id,name,remote,folder,branch,revision FROM projects WHERE id=?", (project_id,)
             ).fetchone()
-        return Project(*row) if row else None
+            return recover(self, Project(*row)) if row else None
 
     def checkout(self, project: Project):
         return self.repos / project.id
@@ -92,6 +107,10 @@ class Workspace:
             index=index,
             ca=ca_file(self, project.id),
         )
+
+    def check_tree(self, repo, sha):
+        # Include directories in the checkout budget and discard validated rows.
+        self._git(repo, ["ls-tree", "-rltz", sha], discard=True)
 
     def connect(self, remote, folder, username="", token="", *, gitlab_root="", ca_pem=""):
         from .gitlab import ca_file, location, save_ca
@@ -133,7 +152,19 @@ class Workspace:
                 if not loc:
                     raise WorkspaceError("Provide the GitLab installation URL for this CA.")
                 save_ca(self, project_id, ca_pem)
-            self._git(self.repos, ["clone", "--", remote, project_id], credential, remote, ca=ca)
+            self._git(
+                self.repos,
+                ["clone", "--depth=2", "--no-single-branch", "--no-checkout", "--no-tags", "--", remote, project_id],
+                credential,
+                remote,
+                ca=ca,
+            )
+            path = (Path(folder) / "SKILL.md").as_posix()
+            skill_entry = self._git(repo, ["--literal-pathspecs", "ls-tree", "-z", "HEAD", "--", path])
+            if not skill_entry.startswith(("100644 blob ", "100755 blob ")):
+                raise WorkspaceError("The selected folder must contain a regular SKILL.md file, not a symbolic link.")
+            self.check_tree(repo, "HEAD")
+            self._git(repo, ["checkout", "HEAD", "--", "."])
             skill = repo / folder / "SKILL.md"
             if any(path.is_symlink() for path in (skill, *skill.parents) if path.is_relative_to(repo)):
                 raise WorkspaceError("Choose the actual skill folder, not a symbolic link.")
@@ -154,7 +185,9 @@ class Workspace:
             raise
         return project_id
 
-    def _git(self, cwd, args, credential=None, remote=None, *, stdin=None, raw=False, index=None, ca=None):
+    def _git(
+        self, cwd, args, credential=None, remote=None, *, stdin=None, raw=False, index=None, ca=None, discard=False
+    ):
         env = {k: os.environ[k] for k in ("PATH", "GIT_SSL_CAINFO", "LANG") if k in os.environ}
         env.update(
             GIT_CONFIG_GLOBAL=os.devnull,
@@ -176,28 +209,42 @@ class Workspace:
                 GIT_CONFIG_VALUE_0=f"Authorization: Basic {auth}",
             )
         try:
-            result = subprocess.run(
-                [
-                    "git",
-                    "-c",
-                    "core.hooksPath=/dev/null",
-                    "-c",
-                    "http.followRedirects=false",
-                    "-c",
-                    "credential.helper=",
-                    "-c",
-                    "submodule.recurse=false",
-                    *args,
-                ],
-                cwd=cwd,
-                env=env,
-                capture_output=True,
-                input=stdin,
-                timeout=120,
-                check=True,
-            )
+            argv = [
+                "git",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "http.followRedirects=false",
+                "-c",
+                "credential.helper=",
+                "-c",
+                "gc.auto=0",
+                "-c",
+                "submodule.recurse=false",
+                *args,
+            ]
+            cmd = args[1] if args[0] == "--literal-pathspecs" else args[0]
+            if cmd in {"clone", "fetch", "ls-tree", "ls-remote"}:
+                storage = (
+                    (cwd / args[-1] / ".git" if cmd == "clone" else cwd / ".git") if cmd in {"clone", "fetch"} else None
+                )
+                stdout = bounded(
+                    argv,
+                    cwd,
+                    env,
+                    storage=storage,
+                    inventory=cmd == "ls-tree",
+                    sizes=cmd == "ls-tree" and ("-rlz" in args or "-rltz" in args),
+                    discard=discard,
+                )
+            else:
+                stdout = subprocess.run(
+                    argv, cwd=cwd, env=env, capture_output=True, input=stdin, timeout=120, check=True
+                ).stdout
+        except GitLimit as exc:
+            raise WorkspaceError(str(exc)) from exc
         except (OSError, subprocess.SubprocessError) as exc:
             raise WorkspaceError(
                 "Git could not open this repository. Check the URL, access and default branch."
             ) from exc
-        return result.stdout if raw else result.stdout.decode("utf-8", errors="replace").strip()
+        return stdout if raw else stdout.decode("utf-8", errors="replace").strip()
