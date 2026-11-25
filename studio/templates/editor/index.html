@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Edit {{ project.branch }}{% endblock %}
 {% block content %}
-<p><a href="{{ url_for('project', project_id=project.id) }}">{{ project.name }}</a> / Skill editor</p>
 <h1>Edit {{ project.branch }}</h1><p>Revision <code>{{ project.revision }}</code></p>
 {% if error %}<p role="alert" class="error">{{ error }}</p>{% endif %}
 {% if pushed %}<p role="status">Pushed revision {{ project.revision }}.</p>{% endif %}

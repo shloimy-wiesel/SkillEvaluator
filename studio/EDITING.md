@@ -54,3 +54,8 @@ metadata after the local checkout succeeds.
 Trusted generators may pass `executable={path: bool}` to `commit_changes` for
 files whose generated mode is part of the template contract. Omitted paths
 retain the usual mode behavior. Never source this mapping from form fields.
+
+`commit_changes(..., new_branch=server_selected_name)` publishes the new
+commit directly to a previously absent branch with the same push guard,
+leaving the selected branch and workspace metadata unchanged. Repository CI
+uses this for the reviewed demo change.

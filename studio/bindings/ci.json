@@ -1,0 +1,80 @@
+[
+  {
+    "key": "ci init",
+    "status": "partial",
+    "equivalent": "New GitHub Tier 1 checks only; hosted reports, setup PR and all-tier setup remain.",
+    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+  },
+  {
+    "key": "ci init:min_score",
+    "status": "implemented",
+    "equivalent": "Threshold in generated and published workflow; omitted uses 70.",
+    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+  },
+  {
+    "key": "ci init:scan_mode",
+    "status": "implemented",
+    "equivalent": "Changed/all scope in generated and published workflow.",
+    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+  },
+  {
+    "key": "ci init:channel",
+    "status": "implemented",
+    "equivalent": "Bundled pinned release or explicit stable channel.",
+    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+  },
+  {
+    "key": "ci init:paths",
+    "status": "partial",
+    "equivalent": "Uses the connected skill folder; multi-root selection remains.",
+    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+  },
+  {
+    "key": "ci init:mode",
+    "status": "partial",
+    "equivalent": "Review then publish to the selected branch; no hosted setup PR.",
+    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+  },
+  {
+    "key": "ci init:full",
+    "status": "partial",
+    "equivalent": "Explicit checks-only journey; hosted reports remain.",
+    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+  },
+  {
+    "key": "ci init:show_files",
+    "status": "implemented",
+    "equivalent": "Complete generated workflow shown before publish.",
+    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+  },
+  {
+    "key": "ci init:repo",
+    "status": "implemented",
+    "equivalent": "Connected project is the repository selector.",
+    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+  },
+  {
+    "key": "ci status",
+    "status": "partial",
+    "equivalent": "Workflow presence verified at remote branch tip; hosted settings and live runs remain.",
+    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+  },
+  {
+    "key": "ci status:repo",
+    "status": "implemented",
+    "equivalent": "Checks the saved project with its scoped Git credential.",
+    "evidence": "tests/studio/test_ci.py::test_review_checks_then_publish"
+  },
+  {
+    "key": "ci demo",
+    "status": "partial",
+    "equivalent": "Reviewed comment-only branch and PR creation handoff; no API-created PR or GitLab flow.",
+    "evidence": "tests/studio/test_ci.py::test_review_demo_then_publish_separate_branch"
+  },
+  {
+    "key": "ci demo:repo",
+    "status": "implemented",
+    "equivalent": "Publishes demo branch only to the saved project.",
+    "evidence": "tests/studio/test_ci.py::test_review_demo_then_publish_separate_branch"
+  }
+]

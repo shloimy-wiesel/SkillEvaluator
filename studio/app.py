@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 
 from .extensions import JOB_DEFINITIONS, PROJECT_LINKS, ROUTERS
 from .jobs import Jobs
+from .navigation import task_groups
 from .workspace import Workspace, WorkspaceError
 
 PACKAGE = Path(__file__).parent
@@ -29,6 +30,7 @@ def create_app(data_dir=None, *, routers=(), job_definitions=()):
     workspace = app.state.workspace = Workspace(data_dir or os.environ.get("STUDIO_DATA_DIR", "/data"))
     templates = app.state.templates = Jinja2Templates(directory=PACKAGE / "templates")
     templates.env.globals["project_links"] = PROJECT_LINKS
+    templates.env.filters["task_groups"] = task_groups
     app.mount("/static", StaticFiles(directory=PACKAGE / "static"), name="static")
 
     @app.middleware("http")
