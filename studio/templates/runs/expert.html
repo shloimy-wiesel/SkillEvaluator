@@ -21,7 +21,7 @@ Key-backed providers require the chat SDK.</p>{% endif %}
 <label>Checks to skip<select multiple name="skip">{% for c in checks + ('secrets',) %}<option>{{ c }}</option>{% endfor %}</select></label>
 <label>Policy profile<select name="profile"><option value="">Evaluator default</option>{% for p in ('default','registry','external') %}<option>{{ p }}</option>{% endfor %}</select></label>
 <label>Previous version<input name="previous_version"></label>{% endif %}
-{% if 'checks' in fields or action == 'security-scan' %}<p>Managed scanner downloads and SkillSpector are unavailable in this worker. Missing scanner evidence is reported as such.</p>{% endif %}
+{% if 'checks' in fields or action == 'security-scan' %}<p>Keyless scans use installed scanners. Managed downloads and SkillSpector's separate model transport are unavailable. Missing scanner evidence is reported as such.</p>{% endif %}
 {% if 'min_score' in fields %}<label>Minimum score<input type="number" min="0" max="100" name="min_score"></label>{% endif %}
 {% if 'llm' in fields %}<label>Model-backed checks<select name="llm"><option value="">Evaluator default</option><option value="true">Enable (chat provider)</option><option value="false">Disable</option></select></label>{% endif %}
 {% for key,title in [('fail_fast','Stop on first failure'),('continue_on_failure','Continue on failure'),('verbose','Verbose output'),('llm_verify','Verify findings with chat provider')] if key in fields %}<label><input type="checkbox" name="{{ key }}" value="true">{{ title }}</label>{% endfor %}

@@ -45,7 +45,9 @@ def invoke(ctx, args, work, output, chat, embeddings):
                 "LANG": "C.UTF-8",
                 "PATH": "/usr/bin:/bin",
                 "SKILLEVALUATOR_RUNTIME_DIR": "/",
-                "SKILLEVALUATOR_SKILLSPECTOR_PATH": "/nonexistent",
+                # Native static scanning can use an installed pinned scanner.
+                # External model transports cannot inherit a Studio chat key.
+                **({"SKILLEVALUATOR_SKILLSPECTOR_PATH": "/nonexistent"} if chat else {}),
                 "HOME": "/nonexistent",
                 "GIT_CONFIG_GLOBAL": "/dev/null",
                 "GIT_CONFIG_NOSYSTEM": "1",

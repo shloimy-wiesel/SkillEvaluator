@@ -107,7 +107,8 @@ also uses saved chat settings by default when configured. Tier 2 needs
 required role privately before queueing; reruns do not pick up later key,
 endpoint or model changes. Each SDK transport uses verified TLS without
 redirects. Ambient provider keys and AWS identity are not inherited.
-Managed scanner downloads and SkillSpector are unavailable in this worker.
+The keyless worker can use installed scanners; managed downloads are disabled.
+SkillSpector's separate model transport is not enabled with a chat snapshot.
 Missing scanner evidence can make a run incomplete; a keyless security
 scan is not a certification that every scanner passed.
 
