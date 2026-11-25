@@ -30,7 +30,9 @@ def loopback_tls(tmp_path: Path) -> tuple[ssl.SSLContext, Path]:
 
 @pytest.fixture
 def make_tls(tmp_path):
-    return lambda address: tls_for_ip(tmp_path, address)
+    directory = tmp_path / "gateway-pki"
+    directory.mkdir()
+    return lambda address: tls_for_ip(directory, address)
 
 
 def tls_for_ip(tmp_path, address):

@@ -117,6 +117,23 @@ class LiveOptions(Controls):
     evaluator_revision: str | None = None
 
 
+def display_models(options, report):
+    """Prefer engine-resolved models; show requested overrides even if setup failed."""
+    agents = report.get("tier3", {}).get("agents", {})
+    requested = dict(options.model_overrides())
+    namespace = {"openai-compatible": "openai", "nv_build": "nvidia"}.get(options.provider, options.provider)
+    rows = []
+    for agent in dict.fromkeys([*options.agents, *agents] or ["Provider default agent"]):
+        model = agents.get(agent, {}).get("model") or requested.get(agent) or options.model
+        if not model:
+            rows.append(f"{agent}: pinned policy or engine default")
+            continue
+        catalog_id = model.removeprefix(namespace + "/") if agent == "opencode" else model
+        comparison = "same as saved chat" if catalog_id == options.judge_model else "differs from saved chat"
+        rows.append(f"{agent}: {model} · {comparison}")
+    return {"judge": options.judge_model, "agents": rows}
+
+
 def operator_revision():
     revision = os.getenv("STUDIO_EVALUATOR_CONTAINER_REVISION") or None
     if revision and not (

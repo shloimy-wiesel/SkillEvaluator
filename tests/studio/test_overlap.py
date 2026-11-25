@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -92,7 +93,7 @@ def test_adapter_runs_with_frozen_role_specific_models_and_credentials(tmp_path,
     artifacts.mkdir()
     ctx = JobContext(root, skill, "sha", lambda _: None, workspace, "project", "run", artifacts)
     tls, ca = loopback_tls
-    monkeypatch.setenv("SSL_CERT_FILE", str(ca))
+    monkeypatch.setenv("SSL_CERT_FILE", os.path.relpath(ca))
     with inference(tls) as (chat, calls), inference(tls) as (emb, vectors):
         with closing(database(workspace)) as db, db:
             for role, base in [("chat", chat), ("embeddings", emb)]:

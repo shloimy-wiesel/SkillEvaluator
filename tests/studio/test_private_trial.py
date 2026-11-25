@@ -3,18 +3,20 @@
 import json
 import os
 import subprocess
-import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 from threading import Thread
 
 import pytest
+from test_providers import open_settings, save_profile
+from test_workspace import playwright, running
+
+pytest_plugins = ("test_workspace",)
 
 
 @pytest.mark.skipif(os.getenv("STUDIO_TEST_LIVE_RUNTIME") != "1", reason="requires local Docker, Compose and Harbor")
-def test_private_standard_trial(tmp_path, monkeypatch, make_tls):
-    from studio.live_job import invoke_engine
+def test_private_standard_trial(page, private_remote, tmp_path, monkeypatch, make_tls):
     from studio.native_location import native_directory
+    from test_datasets import seed_skill
 
     host = subprocess.check_output(
         ["docker", "network", "inspect", "bridge", "--format", "{{(index .IPAM.Config 0).Gateway}}"], text=True
@@ -35,7 +37,7 @@ def test_private_standard_trial(tmp_path, monkeypatch, make_tls):
         def do_GET(self):
             if self.path != "/v1/models" or self.headers.get("Authorization") != "Bearer fixture-chat-secret":
                 return self.send_error(403)
-            self.reply({"data": [{"id": "private-agent"}, {"id": "private-judge"}]})
+            return self.reply({"data": [{"id": "private-agent"}, {"id": "private-judge"}]})
 
         def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
@@ -45,7 +47,7 @@ def test_private_standard_trial(tmp_path, monkeypatch, make_tls):
             calls.append((self.client_address[0], model))
             if model == "private-agent":
                 parts = [
-                    {"delta": {"role": "assistant", "content": "Four."}, "finish_reason": None},
+                    {"delta": {"role": "assistant", "content": "The sum is four."}, "finish_reason": None},
                     {"delta": {}, "finish_reason": "stop"},
                 ]
                 chunks = [
@@ -62,6 +64,8 @@ def test_private_standard_trial(tmp_path, monkeypatch, make_tls):
             if model != "private-judge":
                 return self.send_error(400)
             prompt = str(body["messages"])
+            if "The sum is four." not in prompt:
+                return self.send_error(422, "Missing trial evidence")
             answer = {
                 "user_goal": "Add two and two",
                 "end_state": "Answered four",
@@ -76,7 +80,7 @@ def test_private_standard_trial(tmp_path, monkeypatch, make_tls):
                     ),
                     "reason": "The answer is four.",
                 }
-            self.reply(
+            return self.reply(
                 {
                     "id": "judge",
                     "created": 1,
@@ -92,32 +96,26 @@ def test_private_standard_trial(tmp_path, monkeypatch, make_tls):
                 }
             )
 
-    skill = tmp_path / "inputs" / "addition"
-    (skill / "evals").mkdir(parents=True)
-    (skill / "SKILL.md").write_text("---\nname: addition\ndescription: Add small numbers.\n---\nReturn the sum.")
-    (skill / "evals/evals.json").write_text(
-        json.dumps(
-            {
-                "skill_name": "addition",
-                "evals": [{"id": "sum", "prompt": "What is two plus two?", "expected_output": "Four."}],
-            }
-        )
+    seed_skill(
+        tmp_path,
+        {
+            "evals/evals.json": json.dumps(
+                {
+                    "skill_name": "triage",
+                    "evals": [{"id": "sum", "prompt": "What is two plus two?", "expected_output": "Four."}],
+                }
+            ),
+        },
     )
+    monkeypatch.setenv("SSL_CERT_FILE", os.path.relpath(ca))
+    volume = tmp_path / "volume"
     monkeypatch.setenv("STUDIO_LIVE_ENABLED", "1")
     with ThreadingHTTPServer((host, 0), Fixture) as server:
         server.socket = tls.wrap_socket(server.socket, server_side=True)
         thread = Thread(target=server.serve_forever)
         thread.start()
         try:
-            env = dict(
-                PATH=f"{Path(sys.executable).parent}:/usr/local/bin:/usr/bin:/bin",
-                HOME=str(tmp_path),
-                SSL_CERT_FILE=str(ca),
-                SKILL_EVAL_LLM_PROVIDER="openai-compatible",
-                SKILL_EVAL_LLM_MODEL="private-judge",
-                SKILL_EVAL_LLM_API_KEY="fixture-chat-secret",
-                SKILL_EVAL_LLM_BASE_URL=f"https://{host}:{server.server_port}/v1",
-            )
+            endpoint = f"https://{host}:{server.server_port}/v1"
             # A real TLS failure in an ordinary trial-network container. Never send a key on an unverified connection.
             subprocess.run(
                 [
@@ -133,51 +131,62 @@ def test_private_standard_trial(tmp_path, monkeypatch, make_tls):
                     "try: urllib.request.urlopen(sys.argv[1],timeout=5)\n"
                     "except urllib.error.URLError as e: assert isinstance(e.reason, ssl.SSLCertVerificationError), repr(e)\n"
                     'else: raise AssertionError("unexpected trust")',
-                    env["SKILL_EVAL_LLM_BASE_URL"] + "/models",
+                    endpoint + "/models",
                 ],
                 check=True,
                 timeout=30,
             )
-            code = invoke_engine(
-                [
-                    "tier3",
-                    "evaluate",
-                    str(skill),
-                    "--env-mode",
-                    "docker",
-                    "--agents",
-                    "opencode",
-                    "--agent-model",
-                    "opencode=openai/private-agent",
-                    "--skip-baseline",
-                    "--no-agent-runtime-preflight",
-                    "--n-attempts",
-                    "1",
-                    "--max-cases",
-                    "1",
-                    "--harbor-keep-jobs",
-                    "--results-dir",
-                    str(tmp_path / "results"),
-                ],
-                tmp_path,
-                env,
-            )
+            with running(volume) as base:
+                settings = open_settings(page, base, private_remote)
+                save_profile(
+                    page.get_by_role("region", name="Chat", exact=True),
+                    endpoint,
+                    "private-judge",
+                    "fixture-chat-secret",
+                )
+                save_profile(
+                    page.get_by_role("region", name="Embeddings", exact=True),
+                    endpoint,
+                    "private-embed",
+                    "unused-embed-secret",
+                )
+                project_id = settings.split("/")[2]
+                page.goto(base + settings.removesuffix("/providers") + "/live")
+                page.get_by_label("opencode", exact=True).check()
+                page.get_by_label("Comparison arms").select_option("skill")
+                page.get_by_text("Trial settings and budgets").click()
+                page.get_by_label("OpenCode model override").fill("openai/private-agent")
+                page.get_by_label("Attempts per case").fill("1")
+                page.get_by_label("Retain Harbor jobs").check()
+                page.get_by_label("Run a paid agent preflight").select_option("false")
+                page.get_by_role("button", name="Queue live evaluation").click()
+                playwright.expect(
+                    page.get_by_text("opencode: openai/private-agent · differs from saved chat", exact=True)
+                ).to_be_visible()
+                playwright.expect(page.get_by_text("Execution: succeeded", exact=False)).to_be_visible(timeout=240000)
+                run_id = page.url.rsplit("/", 1)[1]
+                assert "fixture-chat-secret" not in page.content() and "unused-embed-secret" not in page.content()
         finally:
             server.shutdown()
             thread.join()
-    assert {model for peer, model in calls if peer != host} == {"private-agent", "private-judge"}, (code, calls)
-    native = native_directory(tmp_path / "results")
+    assert {model for peer, model in calls if peer != host} == {"private-agent", "private-judge"}, calls
+    native = native_directory(volume / "artifacts" / project_id / run_id / "tier3")
     result = json.loads((native / "result.json").read_text())
     assert result["execution_status"] == "succeeded"
     assert result["agents"]["opencode"]["model"] == "openai/private-agent"
     (reward,) = native.rglob("skill_evaluator_reward.json")
     accuracy = json.loads(reward.read_text())["details"]["accuracy"]
     assert (accuracy["judge_model_used"], accuracy["score"]) == ("private-judge", 1.0)
-    assert any(item.get("excerpt") == "Four." for item in accuracy["evidence_refs"])
-    assert not any(b"fixture-chat-secret" in file.read_bytes() for file in native.rglob("*") if file.is_file())
+    assert any(item.get("excerpt") == "The sum is four." for item in accuracy["evidence_refs"])
+    for file in native.rglob("*"):
+        if file.is_file():
+            data = file.read_bytes()
+            assert b"fixture-chat-secret" not in data and b"unused-embed-secret" not in data
 
 
 def test_worker_rejects_mixed_key_and_certificate_before_trial(tmp_path, loopback_tls):
+    import sys
+
     from studio.worker_deadline import run_evaluator
     from studio.workspace import WorkspaceError
 

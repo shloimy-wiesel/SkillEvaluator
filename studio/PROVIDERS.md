@@ -102,8 +102,13 @@ OpenCode and enter `openai/private-agent` while saving `private-judge` for
 chat. The endpoint must serve both model IDs. Embedding credentials are not
 needed by the trial.
 
-To exercise this path locally, run `STUDIO_TEST_LIVE_RUNTIME=1 python -m
-pytest tests/studio/test_private_trial.py` in the installed Studio + Harbor
-environment, with Docker Compose and access to the local Docker bridge. The
-fixture serves inference locally; normal container and agent installation
-may download dependencies.
+Run the browser-to-verifier check in an installed Studio + Harbor environment
+with Chromium, Docker Compose and access to the local Docker bridge:
+
+```sh
+STUDIO_TEST_LIVE_RUNTIME=1 python -m pytest -q tests/studio/test_private_trial.py
+```
+
+It queues one standard-graded case from the Live Tier 3 form and checks the
+retained trajectory evidence and judge model. The fixture serves inference
+locally; normal container and agent installation may download dependencies.

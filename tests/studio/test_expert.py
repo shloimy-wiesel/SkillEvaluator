@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from test_workspace import connect, playwright, running
 
@@ -315,7 +317,7 @@ def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, l
             )
 
     tls, ca = loopback_tls
-    monkeypatch.setenv("SSL_CERT_FILE", str(ca))
+    monkeypatch.setenv("SSL_CERT_FILE", os.path.relpath(ca))
     with ThreadingHTTPServer(("127.0.0.1", 0), Judge) as judge, running(tmp_path / "volume") as base:
         judge.socket = tls.wrap_socket(judge.socket, server_side=True)
         Thread(target=judge.serve_forever, daemon=True).start()
