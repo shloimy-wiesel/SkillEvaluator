@@ -45,7 +45,9 @@ def test_direct_workflow_retains_evidence_and_reruns_original_profile(page, priv
             generated.write_text('{"skill_name":"triage","evals":[]}')
         else:
             assert generated.read_text() == '{"skill_name":"triage","evals":[]}'
-        native = Path(args[args.index("--results-dir") + 1]) / "20260101_120000"
+        from skillevaluator.tier3.results_location import resolve_results_root
+
+        native = resolve_results_root(Path(args[1]), args[args.index("--results-dir") + 1]) / "20260101_120000"
         native.mkdir(parents=True)
         native.with_name("latest").symlink_to(native.name)
         arm = native / "codex/with-skill"
