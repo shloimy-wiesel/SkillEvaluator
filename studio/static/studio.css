@@ -90,3 +90,12 @@ footer span { margin: 0 .4rem }
 .datasets pre { overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--wash); padding: 1rem }
 .datasets button { margin-right: .3rem }
 .datasets input[type=checkbox] { width: auto; display: inline-block }
+.compare-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; overflow-wrap: anywhere }
+.compare-pair pre { white-space: pre-wrap; overflow-wrap: anywhere }
+.compare-pair del { background: #fae2df; color: #742b25 }
+.compare-pair ins { background: #d7efdd; color: #194a34 }
+.panel[aria-label="Version comparison"] table { width: 100%; max-width: 38rem; text-align: left; font-variant-numeric: tabular-nums }
+.panel[aria-label="Version comparison"] :is(td,th) { padding: .45rem; border-bottom: 1px solid var(--line) }
+.compare-form { max-width: none }
+section:has(.compare-pair) { margin-block: 2rem }
+@media (max-width: 40rem) { .compare-pair { grid-template-columns: 1fr } }

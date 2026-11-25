@@ -194,7 +194,10 @@ measured failure. A neutral skill verdict can have CLI exit code zero.
    `evaluated_source.commit`. Missing measurements are absent. Preflight or
    incomplete outputs can have no canonical evaluation payload.
 3. Under the private `artifacts/<project_id>/<run_id>/tier3/` root there is
-   one real `<native-run-id>/` directory. Ignore the `latest` alias. Use its
+   one real `<skill-name>/<native-run-id>/` directory (older adapters use
+   `<native-run-id>/`). Use `studio.native_location.native_directory(root)`
+   to resolve the native run in place; its generated marker binds it to its
+   original path. Ignore the `latest` alias. Use its
    `result.json`, `run_config.json`, `<agent>/<arm>/summary.json`, engine
    feedback, report and dataset snapshot with the existing native readers.
    The selected/generated source dataset is also retained as `dataset.<ext>`
@@ -214,6 +217,30 @@ engine catalog and Docker preflight without a paid trial:
 ```sh
 STUDIO_TEST_LIVE_RUNTIME=1 python -m pytest -q tests/studio/test_live.py
 ```
+
+## Review a completed run
+
+Open **Results dashboard** from the project. Select one or several retained
+runs, filter the performance rows, or switch to paired-arm comparisons. The
+tables use the engine's dashboard reader for saved JSON reports. Choose
+**Native retained measurements** for the retained agent configuration, costs,
+times and token counts (16 MiB per native file, 64 MiB per run). Missing
+measurements remain unavailable; comparison rows explain gaps in coverage.
+To compare individual evaluator scores, open a run and choose **Compare
+agents** for the CLI's score matrix over that run's retained summaries.
+
+Choose **Review artifacts and feedback** to search the file list, preview
+native HTML reports as text, or inspect JSON evidence (8 MiB per file).
+**View report** rebuilds missing HTML from a temporary copy of the native
+evidence, using the saved feedback without another judge call.
+Turn on **Retain Harbor jobs** before launching a run to keep the raw job
+trajectories as well as collected trials. Select a trajectory and filter its
+steps by source. Only supported files from the selected run are indexed.
+
+**Ask about this run** sends compact canonical evidence, saved feedback and
+prior turns to the project's current key-backed chat profile. Completed turns
+stay in the volume's SQLite history; reopening a conversation sends nothing
+until you ask another question. Provider failures do not add a turn.
 
 ## Experiments
 
@@ -235,8 +262,13 @@ Successful experiment actions are **neutral**, not passing publication gates.
   count (default one). `overall` requires custom-only grading. A complete
   interaction can be positive, negative or zero; missing comparable evidence
   is incomplete, not zero. Studio uses the live generated-task input policy
-  and supports Docker or Kata; backend kwargs, native environments, host
-  execution and raw Harbor job retention are not supported.
+  and supports Docker or Kata. Docker accepts no backend options. For Kata,
+  select an installed Kata runtime preset and optionally enter one DNS IP
+  address per line. Leave both blank for engine defaults. Other backend
+  kwargs, native task bundles and host execution are not available.
+  Select **Keep Harbor jobs** to retain the native job files in the private
+  run volume; the Markdown export lists directories actually produced,
+  including on incomplete runs. Retention does not imply a measured outcome.
 - **Import observations** accepts the engine's external-metrics JSON contract
   at a pinned project path. The JSON and Markdown preserve declared provenance,
   matched coverage and custom scores. SkillEvaluator did not execute the tests,
@@ -247,3 +279,25 @@ In `artifacts/<project>/<run>/`, the native files are `decoys.json`,
 or `observations/external_metrics.{json,md}`. Rerun reuses the original Git
 commit, options and encrypted provider snapshot. A provider call or sandbox
 trial runs again and can incur charges; reopening an export does not.
+
+## Compare retained evidence
+
+Open **Results → Compare revisions**. Choose the prior and current source.
+Each side starts with the newest Studio run at that exact commit. When a
+commit has multiple runs, choose the intended runs and select **Compare
+selected runs**. The resulting URL pins both SHAs and Studio run IDs. Each
+card links back to the original findings, settings and exports.
+
+**Paired baseline lift** is the native history measurement for one agent
+within one run (with skill versus without skill). **With-skill change** is
+the native version comparison between runs (current minus prior). Its
+eligibility and paired scores come from the same reader as `tier3
+compare-versions`, including custom grading and unchanged skill identity.
+Two passing gates alone do not establish a score change. Unknown coverage,
+skipped arms, different settings and missing evidence stay visible.
+
+Only terminal, project- and revision-matched live reports authorize native
+artifact inspection. The isolated reader ignores `latest`, rejects linked
+artifacts, and limits inspection to 16,000 entries, 8 MiB per JSON or marker
+file and 64 MiB total of those files per run. Timeout: 30 seconds. No reader
+starts trials or accesses provider credentials.

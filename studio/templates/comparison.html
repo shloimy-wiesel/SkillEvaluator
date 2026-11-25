@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Compare revisions{% endblock %}
+{% macro score(value, signed=false) -%}
+{{ ('%+.2f' if signed else '%.2f')|format(value)|replace('-', '−') if value is number else 'Not measured' }}
+{%- endmacro %}
+{% block content %}
+<p class="eyebrow">Results / Revision review</p><h1>Compare revisions</h1>
+<p class="lede">Inspect the source change, then check what the retained evidence supports.</p>
+<p><a href="{{ url_for('skill_history', project_id=project.id) }}">Skill lift history and version exports</a></p>
+<form class="panel compare-form">
+<datalist id="saved-revisions">{% for choice in choices %}<option value="{{ choice }}">{% endfor %}</datalist>
+<div class="compare-pair">{% for key, value in [('Prior',prior),('Current',current)] %}<div>
+<label for="{{ key }}">{{ key }} revision</label><input id="{{ key }}" name="{{ key|lower }}" value="{{ value }}" list="saved-revisions" required>
+</div>{% endfor %}</div><p class="hint">Choose a saved branch or paste a full commit SHA.</p><button>Compare revisions</button></form>
+{% if error %}<p role="alert">{{ error }}</p>{% else %}
+<section><p class="eyebrow">01 / Source</p><h2>Changed files · {{ count }}</h2>
+{% for file in files %}<details class="panel" {% if loop.first %}open{% endif %}><summary>{{ {'A':'Added','D':'Deleted','M':'Modified','T':'Type changed'}.get(file.change,file.change) }} · {{ file.path }}</summary>
+<div class="compare-pair">{% for side in sides %}<div><h3>{{ side.label }} <code>{{ side.sha[:8] }}</code></h3><pre aria-label="{{ side.label }} source">{% for op,text in file[side.label|lower] %}{% if op == 'equal' %}{{ text }}{% elif side.label == 'Prior' %}<del>{{ text }}</del>{% else %}<ins>{{ text }}</ins>{% endif %}{% endfor %}</pre></div>{% endfor %}</div></details>
+{% else %}<p class="empty">No source changes in {{ project.folder }}.</p>{% endfor %}
+{% if count > files|length %}<p>Showing the first {{ files|length }} changed files.</p>{% endif %}</section>
+<section><p class="eyebrow">02 / Evidence</p><h2>Retained results</h2>
+<form class="compare-form"><div class="compare-pair">{% for side in sides %}
+<div class="panel"><h3>{{ side.label }} result</h3><p><code>{{ side.sha }}</code></p>
+<input type="hidden" name="{{ side.label|lower }}" value="{{ side.sha }}">
+{% if side.row %}<label for="{{ side.label }}-run">{{ side.label }} run</label><select id="{{ side.label }}-run" name="{{ side.label|lower }}_run">{% for run in side.choices %}
+<option value="{{ run.id }}" {% if run.id == side.row.id %}selected{% endif %}>{{ run.created }} · {{ run.kind }} · {{ run.status }} · {{ run.id[:8] }}</option>
+{% endfor %}</select><p><b>{{ side.row.status }}</b> · {{ side.row.kind }}</p>
+{% for result in side.report.results %}<p>{{ result.validator }} · {{ result.status }}</p>{% endfor %}
+{% if side.history %}<div aria-label="{{ side.label }} arm scores">{% for row in side.history %}
+<h4>{{ row.agent or 'Unrecorded agent' }} · {{ row.model or 'Unrecorded model' }}</h4>
+<dl><dt>With skill</dt><dd>{{ score(row.with_skill_score) }}</dd>
+<dt>Without skill</dt><dd>{{ score(row.without_skill_score) }}</dd>
+<dt>Paired baseline lift</dt><dd>{{ score(row.lift_delta, true) }}</dd></dl>
+{% if row.coverage %}<p>Case coverage (scored / expected):
+{% for arm in ['with_skill','without_skill'] %}{% set c = row.coverage[arm] %}{{ arm|replace('_',' ') }} {{ c.scored_cases if c.scored_cases is number else '?' }}/{{ c.expected_cases if c.expected_cases is number else '?' }}{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+{% if row.lift_reasons %}<details><summary>Why lift is unavailable</summary><ul>{% for reason in row.lift_reasons %}<li>{{ reason }}</li>{% endfor %}</ul></details>{% endif %}
+{% endfor %}</div>{% endif %}
+<a href="{{ url_for('run_detail',project_id=project.id,run_id=side.row.id) }}">Inspect {{ side.label|lower }} run</a>
+{% else %}<p>No retained run for this revision.</p>{% endif %}</div>{% endfor %}</div>
+{% if sides[0].row or sides[1].row %}<button>Compare selected runs</button>{% endif %}</form></section>
+<section class="panel" aria-label="Version comparison"><p class="eyebrow">03 / Version comparison</p>
+<h2>With-skill change</h2>
+{% if comparison.status == 'available' %}
+<p>Paired trials across revisions. Negative change indicates regression.</p>
+<table><thead><tr><th>Agent</th><th>Prior</th><th>Current</th><th>Change</th></tr></thead><tbody>
+{% for name, values in comparison.agents.items() %}<tr><th scope="row">{{ name }}</th><td>{{ score(values.prior_overall) }}</td>
+<td>{{ score(values.current_overall) }}</td><td><b>{{ score(values.delta, true) }}</b></td></tr>{% endfor %}</tbody></table>
+{% else %}<b>Comparison unavailable</b>{% endif %}
+{% if comparison.reasons %}<ul>{% for reason in comparison.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>{% endif %}
+</section>
+{% endif %}{% endblock %}

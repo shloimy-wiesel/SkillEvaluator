@@ -665,12 +665,25 @@ def test_cli_reports_signed_interaction_and_keeps_json_clean(monkeypatch, tmp_pa
         "codex",
         "--model",
         "test-model",
+        "--env-mode",
+        "kata",
+        "--environment-kwarg",
+        'kata_runtime="kata-qemu"',
+        "--environment-kwarg",
+        'kata_dns=["192.0.2.1"]',
+        "--harbor-keep-jobs",
     ]
     if as_json:
         args.append("--json")
     result = CliRunner().invoke(cli, args)
     assert result.exit_code == 0, result.output
     assert len(calls) == 4 and calls[0].agents == "codex" and calls[0].model == "test-model"
+    assert all(
+        call.harbor_keep_jobs
+        and call.env_mode == "kata"
+        and call.environment_kwarg == ('kata_runtime="kata-qemu"', 'kata_dns=["192.0.2.1"]')
+        for call in calls
+    )
     if as_json:
         report = json.loads(result.stdout)
         assert report["agents"]["codex"]["classification"] == "negative"

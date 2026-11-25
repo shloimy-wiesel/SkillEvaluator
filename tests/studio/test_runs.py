@@ -1,6 +1,7 @@
 """Public browser journeys for immutable evaluation history."""
 
 import multiprocessing
+import re
 import socket
 import subprocess
 import time
@@ -9,6 +10,94 @@ import urllib.request
 from test_workspace import connect, playwright, running
 
 pytest_plugins = ("test_workspace",)
+
+
+def test_author_reopens_run_from_before_skill_and_dataset_branch_advanced(page, private_remote, deployment):
+    expect = playwright.expect
+    branch = "author/triage"
+    fixed = "---\nname: triage\ndescription: Sort incoming requests.\n---\n# Triage\n"
+    revision_a_text = fixed.replace("description:", "description: Draft wording.\ndescription:")
+    finding = "Duplicate frontmatter key 'description'"
+
+    def overview():
+        page.get_by_role("navigation", name="Breadcrumb").get_by_role("link", name="handbook").click()
+
+    def link(name):
+        return page.get_by_role("link", name=name, exact=True)
+
+    def press(name):
+        page.get_by_role("button", name=name, exact=True).click()
+
+    def checkout_sha():
+        return page.get_by_text("Checkout revision", exact=True).locator("+ dd").inner_text()
+
+    with deployment() as first:
+        page.goto(first)
+        connect(page, *private_remote, skill="skills/triage")
+        link("Edit skill").click()
+        page.get_by_label("New branch name").fill(branch)
+        press("Create branch")
+        expect(page.get_by_role("heading", name=f"Edit {branch}")).to_be_visible()
+        page.get_by_label("SKILL.md").fill(revision_a_text)
+        press("Save and push")
+        overview()
+        skill_sha = checkout_sha()
+
+        link("Datasets").click()
+        press("Open draft")
+        page.get_by_label("Case ID").fill("route-ticket")
+        page.get_by_label("Prompt", exact=True).fill("Route an urgent ticket")
+        page.get_by_label("Expected output", exact=True).fill("Urgent queue")
+        press("Add case")
+        press("Commit and push")
+        expect(page.get_by_role("status")).to_contain_text(f"Pushed dataset changes to {branch}")
+        overview()
+        sha_a = checkout_sha()
+        assert re.fullmatch(r"[0-9a-f]{40}", sha_a) and sha_a != skill_sha
+        link("Evaluation runs").click()
+        expect(page.get_by_label("Commit SHA")).to_have_value(sha_a)
+        page.get_by_label("Static checks").select_option(label="Schema only")
+        press("Queue static checks")
+        expect(page.get_by_role("heading", name="tier1-static")).to_be_visible()
+        original_run = page.url.removeprefix(first)
+
+        overview()
+        link("Edit skill").click()
+        page.get_by_label("SKILL.md").fill(fixed)
+        press("Save and push")
+        overview()
+        sha_b = checkout_sha()
+        assert sha_b != sha_a
+        link("Run history").click()
+        link(sha_a).click()
+        expect(page.get_by_text(finding, exact=False)).to_be_visible(timeout=30000)
+
+    with deployment() as second:
+        page.goto(second)
+        link("handbook").click()
+        assert checkout_sha() == sha_b
+        link("Edit skill").click()
+        expect(page.get_by_label("SKILL.md")).to_have_value(fixed)
+        overview()
+        link("Datasets").click()
+        press("Open draft")
+        expect(page.get_by_role("heading", name="route-ticket")).to_be_visible()
+        overview()
+        link("Run history").click()
+        expect(page.get_by_label("Commit SHA")).to_have_value(sha_b)
+        link(sha_a).click()
+        assert page.url == second + original_run
+        expect(page.get_by_text("Commit", exact=True).locator("+ dd")).to_have_text(sha_a)
+        expect(page.get_by_role("status")).to_contain_text("failed")
+        expect(page.get_by_text(finding, exact=False)).to_be_visible()
+
+        # A separate connection to the very same remote must not inherit this history.
+        page.get_by_role("navigation", name="Workspace").get_by_role("link", name="Projects").click()
+        connect(page, *private_remote, skill="skills/triage")
+        expect(page.get_by_text("main", exact=True)).to_be_visible()
+        link("Run history").click()
+        expect(page.get_by_text("No runs yet.")).to_be_visible()
+        expect(link(sha_a)).to_have_count(0)
 
 
 def test_failed_gate_and_exports_survive_reopening_at_exact_commit(page, private_remote, tmp_path):

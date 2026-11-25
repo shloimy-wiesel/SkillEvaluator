@@ -1,0 +1,74 @@
+[
+  {
+    "key": "tier3 history",
+    "status": "implemented",
+    "equivalent": "Inspect native chronological arm scores, baseline lift, comparable changes and segment breaks.",
+    "evidence": "tests/studio/test_comparison.py::test_download_scoped_native_trends_and_version_report"
+  },
+  {
+    "key": "tier3 history:skill_path",
+    "status": "implemented",
+    "equivalent": "The connected project fixes the skill folder, including the expected skill-nested results name.",
+    "evidence": "tests/studio/test_comparison_engine.py::test_scoped_native_history_orders_and_segments_flat_and_nested"
+  },
+  {
+    "key": "tier3 history:results_dir",
+    "status": "implemented",
+    "equivalent": "Choose one or more retained result roots; omit to include all terminal live results for the project skill.",
+    "evidence": "tests/studio/test_comparison.py::test_download_scoped_native_trends_and_version_report"
+  },
+  {
+    "key": "tier3 history:agent",
+    "status": "implemented",
+    "equivalent": "Filter native history rows by exact agent name; an unmatched agent yields no rows.",
+    "evidence": "tests/studio/test_comparison.py::test_download_scoped_native_trends_and_version_report"
+  },
+  {
+    "key": "tier3 history:as_json",
+    "status": "implemented",
+    "equivalent": "Download the filtered native history as JSON.",
+    "evidence": "tests/studio/test_comparison.py::test_download_scoped_native_trends_and_version_report"
+  },
+  {
+    "key": "tier3 history:output",
+    "status": "implemented",
+    "equivalent": "Download the filtered history as JSON, CSV or Markdown without writing into retained artifacts.",
+    "evidence": "tests/studio/test_comparison.py::test_download_scoped_native_trends_and_version_report"
+  },
+  {
+    "key": "tier3 compare-versions",
+    "status": "implemented",
+    "equivalent": "Inspect native paired version changes and incompatibility reasons.",
+    "evidence": "tests/studio/test_comparison.py::test_download_scoped_native_trends_and_version_report"
+  },
+  {
+    "key": "tier3 compare-versions:skill_path",
+    "status": "implemented",
+    "equivalent": "Connected project and skill folder scope both evaluation selectors.",
+    "evidence": "tests/studio/test_comparison.py::test_download_scoped_native_trends_and_version_report"
+  },
+  {
+    "key": "tier3 compare-versions:current",
+    "status": "implemented",
+    "equivalent": "Choose an explicit retained evaluation or latest natively completed evaluation.",
+    "evidence": "tests/studio/test_comparison_engine.py::test_latest_completed_selects_earlier_eligible_different_revision"
+  },
+  {
+    "key": "tier3 compare-versions:prior",
+    "status": "implemented",
+    "equivalent": "Choose an explicit evaluation or the newest compatible earlier different skill revision.",
+    "evidence": "tests/studio/test_comparison_engine.py::test_latest_completed_selects_earlier_eligible_different_revision"
+  },
+  {
+    "key": "tier3 compare-versions:results_dir",
+    "status": "implemented",
+    "equivalent": "Choose authorized result roots; both comparison sides must lie within that selection.",
+    "evidence": "tests/studio/test_comparison.py::test_download_scoped_native_trends_and_version_report"
+  },
+  {
+    "key": "tier3 compare-versions:as_json",
+    "status": "implemented",
+    "equivalent": "Download the comparison including native agents, metric deltas, pairing, provenance and reasons.",
+    "evidence": "tests/studio/test_comparison.py::test_download_scoped_native_trends_and_version_report"
+  }
+]
