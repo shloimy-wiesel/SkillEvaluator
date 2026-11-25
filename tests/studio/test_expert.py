@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from run_journey import rerun_saved_inputs
 from test_workspace import connect, playwright, running
 
 pytest_plugins = ("test_workspace",)
@@ -146,7 +147,7 @@ def test_live_catalog_retains_scoped_starters_and_leaf_gates(page, private_remot
                 note = "Reused saved starter" if replay else "Generated and saved starter"
                 playwright.expect(page.get_by_text(f"{member['name']}: {note}", exact=True)).to_be_visible()
             if not replay:
-                page.get_by_role("button", name="Rerun saved inputs").click()
+                rerun_saved_inputs(page)
         assert not marker.exists()
 
 
@@ -196,7 +197,7 @@ def test_root_rejects_unmanaged_runtime_inputs_before_queue(page, private_remote
             response = page.request.post(page.url, form={"sha": sha, **fields})
             assert response.status == 422
         page.goto(page.url.split("/expert/")[0] + "/runs")
-        assert page.get_by_text("No runs yet.", exact=False).count() == 1
+        playwright.expect(page.get_by_text("No runs yet.", exact=True)).to_be_visible()
 
 
 @pytest.mark.parametrize("action", ["validate", "security-scan", "tier1-security-scan"])
@@ -376,7 +377,7 @@ def test_rubric_uses_frozen_chat_role_on_rerun(page, private_remote, tmp_path, l
             page.goto(project + "/providers")
             save_profile(chat, endpoint, "new-model", "new-secret")
             page.goto(run)
-            page.get_by_role("button", name="Rerun saved inputs").click()
+            rerun_saved_inputs(page)
             playwright.expect(page.get_by_role("status")).to_contain_text("failed", timeout=30000)
             assert seen == [("/v1/chat/completions", "frozen-model", "Bearer frozen-secret")] * (2 if workflow else 4)
             native = page.request.get(
@@ -516,7 +517,7 @@ def test_cross_tier_validation_routes_embeddings_separately(
                     )
                 seen.clear()
                 page.goto(run)
-                page.get_by_role("button", name="Rerun saved inputs").click()
+                rerun_saved_inputs(page)
                 playwright.expect(report_link).to_be_visible(timeout=30000)
             assert set(seen) == expected
         finally:
@@ -626,7 +627,7 @@ def test_default_root_keyless_preserves_combined_evidence(page, private_remote, 
         assert "live runtime is disabled" in str(report).lower()
         assert "embedding setup is required" in str(report).lower()
         assert page.get_by_role("link", name="Download native Benchmark").count() == 1
-        page.get_by_role("button", name="Rerun saved inputs").click()
+        rerun_saved_inputs(page)
         playwright.expect(link).to_be_visible(timeout=20000)
         playwright.expect(page.get_by_text("Reused saved starter")).to_be_visible()
 

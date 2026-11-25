@@ -1,95 +1,90 @@
-"""Author-facing job history and retained reports."""
+"""Author-facing job history and immutable retained reports."""
 
 import json
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse, Response
+from fastapi import Form, HTTPException, Request
+from fastapi.responses import Response
+from pydantic import BaseModel, ConfigDict
 
 from .expert_options import ACTIONS
+from .frontend_routes import document
+from .project_api import failure, get_project
+from .run_routes import feature, queued, redirect, register
 from .static_job import STATIC, StaticOptions
 from .workspace import WorkspaceError
 
-router = APIRouter(prefix="/projects/{project_id}/runs")
+browser, api = feature("runs")
 
 
 def project_for(request, project_id):
-    project = request.app.state.workspace.get(project_id)
-    if project is None:
-        raise HTTPException(404, "Unknown project")
-    return project
+    return get_project(request.app.state.workspace, project_id)
 
 
 def record_for(request, project_id, run_id):
     run = request.app.state.jobs.get(project_id, run_id)
     if run is None:
-        raise HTTPException(404, "Unknown run")
+        raise failure(404, "unknown_run", "Unknown run.")
     return run
 
 
-@router.get("", name="runs_index")
+@browser.get("", name="runs_index")
 def index(request: Request, project_id: str):
-    return request.app.state.templates.TemplateResponse(
-        request=request,
-        name="runs/index.html",
-        context={
-            "project": project_for(request, project_id),
-            "runs": request.app.state.jobs.history(project_id),
-            "actions": ACTIONS,
-        },
-    )
+    project_for(request, project_id)
+    return document(request, "runs.html")
 
 
-@router.post("")
-def queue(
-    request: Request, project_id: str, sha: str = Form(), checks: Literal["both", "schema", "unicode"] = Form("both")
-):
+@api.get("")
+def history(request: Request, project_id: str):
+    return {
+        "project": project_for(request, project_id),
+        "runs": [dict(row) for row in request.app.state.jobs.history(project_id)],
+        "actions": ACTIONS,
+    }
+
+
+class StaticSubmission(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sha: str
+    checks: Literal["both", "schema", "unicode"] = "both"
+
+
+@api.post("", status_code=201)
+def start(request: Request, project_id: str, body: StaticSubmission):
     project = project_for(request, project_id)
-    options = StaticOptions() if checks == "both" else StaticOptions(checks=(checks,))
+    options = StaticOptions() if body.checks == "both" else StaticOptions(checks=(body.checks,))
     try:
-        run_id = request.app.state.jobs.enqueue(project, sha, STATIC, options)
+        run_id = request.app.state.jobs.enqueue(project, body.sha, STATIC, options)
     except WorkspaceError as exc:
-        return request.app.state.templates.TemplateResponse(
-            request=request,
-            name="runs/index.html",
-            status_code=422,
-            context={
-                "project": project,
-                "runs": request.app.state.jobs.history(project_id),
-                "error": str(exc),
-                "sha": sha,
-                "checks": checks,
-                "actions": ACTIONS,
-            },
-        )
-    return RedirectResponse(request.url_for("run_detail", project_id=project_id, run_id=run_id), 303)
+        raise failure(422, "invalid_inputs", str(exc)) from exc
+    return queued(request, project_id, run_id)
 
 
-@router.get("/{run_id}", name="run_detail")
+@browser.post("")
+def queue(request: Request, project_id: str, form: Annotated[StaticSubmission, Form()]):
+    return redirect(start(request, project_id, form))
+
+
+@browser.get("/{run_id}", name="run_detail")
 def detail(request: Request, project_id: str, run_id: str):
-    run = record_for(request, project_id, run_id)
-    report = json.loads(run["report"] or "{}")
+    record_for(request, project_id, run_id)
+    return document(request, "run-status.html")
+
+
+@api.get("/{run_id}")
+def status(request: Request, project_id: str, run_id: str):
+    project = project_for(request, project_id)
+    run = dict(record_for(request, project_id, run_id))
+    report = json.loads(run.pop("report") or "null")
     models = None
     if run["kind"] == "tier3-live-v1":
         from .live_job import LiveOptions, display_models
 
-        models = display_models(LiveOptions.model_validate_json(run["options"]), report)
-    response = request.app.state.templates.TemplateResponse(
-        request=request,
-        name="runs/detail.html",
-        context={
-            "project": project_for(request, project_id),
-            "run": run,
-            "report": report,
-            "models": models,
-        },
-    )
-    if run["status"] in {"queued", "running"}:
-        response.headers["Refresh"] = "1"
-    return response
+        models = display_models(LiveOptions.model_validate_json(run["options"]), report or {})
+    return {"project": project, "run": run, "report": report, "models": models}
 
 
-@router.get("/{run_id}/exports/{kind}", name="run_export")
+@browser.get("/{run_id}/exports/{kind}", name="run_export")
 def export(request: Request, project_id: str, run_id: str, kind: str):
     run = record_for(request, project_id, run_id)
     if kind not in ("json", "md") or run["report"] is None:
@@ -101,12 +96,20 @@ def export(request: Request, project_id: str, run_id: str, kind: str):
     )
 
 
-@router.post("/{run_id}/rerun", name="run_again")
-def rerun(request: Request, project_id: str, run_id: str):
+@api.post("/{run_id}/rerun", status_code=201)
+def again(request: Request, project_id: str, run_id: str):
     project = project_for(request, project_id)
     record_for(request, project_id, run_id)
     try:
         new_id = request.app.state.jobs.rerun(project, run_id)
     except WorkspaceError as exc:
-        raise HTTPException(422, str(exc)) from exc
-    return RedirectResponse(request.url_for("run_detail", project_id=project_id, run_id=new_id), 303)
+        raise failure(422, "invalid_inputs", str(exc)) from exc
+    return queued(request, project_id, new_id)
+
+
+@browser.post("/{run_id}/rerun", name="run_again")
+def rerun(request: Request, project_id: str, run_id: str):
+    return redirect(again(request, project_id, run_id))
+
+
+router = register(browser, api)

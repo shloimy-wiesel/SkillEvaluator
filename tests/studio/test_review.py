@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 import pytest
+from run_journey import rerun_saved_inputs
 from test_providers import open_settings, save_profile
 from test_workspace import playwright, running
 
@@ -147,7 +148,7 @@ def test_view_rebuilds_missing_native_html_without_mutating_run(page, retained):
 def test_select_report_sources_without_pairing_across_runs(page, retained):
     base, project, _ = retained
     first = page.url.rsplit("/", 1)[-1]
-    page.get_by_role("button", name="Rerun saved inputs").click()
+    rerun_saved_inputs(page)
     playwright.expect(page.get_by_role("status")).to_contain_text("neutral")
     second = page.url.rsplit("/", 1)[-1]
     page.goto(base + project + "/results")
@@ -319,7 +320,7 @@ def test_latest_scoreable_summary_per_agent(page, retained):
     import shutil
 
     _, _, volume = retained
-    page.get_by_role("button", name="Rerun saved inputs").click()
+    rerun_saved_inputs(page)
     playwright.expect(page.get_by_role("status")).to_contain_text("neutral")
     latest = page.url.rsplit("/", 1)[-1]
     native = next((volume / "artifacts").glob(f"*/{latest}/tier3/triage/*/result.json")).parent

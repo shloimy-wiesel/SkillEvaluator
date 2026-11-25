@@ -3,17 +3,20 @@
 import subprocess
 import sys
 from functools import lru_cache
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi import Form, Request
 
 from skillevaluator.cli import cli
 
 from .changed_files import CHANGED, ChangedOptions, changed_paths
 from .expert import choices_at
+from .frontend_routes import document
+from .project_api import failure
+from .run_routes import feature, queued, redirect, register
 from .runs import project_for
 
-router = APIRouter(prefix="/projects/{project_id}/installation")
+browser, api = feature("installation")
 
 
 def command_paths(command, path=()):
@@ -42,41 +45,40 @@ def installed_output(args):
     ).strip()
 
 
-@router.get("", name="installation")
+@browser.get("", name="installation")
+def form_page(request: Request, project_id: str):
+    project_for(request, project_id)
+    return document(request, "installation.html")
+
+
+@api.get("")
 def installation(request: Request, project_id: str, topic: str = "root"):
     project = project_for(request, project_id)
     if topic not in TOPICS:
-        raise HTTPException(422, "Choose a listed help topic.")
-    return request.app.state.templates.TemplateResponse(
-        request=request,
-        name="installation/index.html",
-        context={
-            "project": project,
-            "version": installed_output(("--version",)),
-            "python": sys.version.split()[0],
-            "changed": changed_paths(request.app.state.workspace, project),
-            "configs": quality_configs(request, project),
-            "topic": topic,
-            "topics": TOPICS,
-            "help": installed_output((*TOPICS[topic], "--help")),
-        },
-    )
+        raise failure(422, "invalid_topic", "Choose a listed help topic.")
+    return {
+        "project": project,
+        "version": installed_output(("--version",)),
+        "python": sys.version.split()[0],
+        "changed": changed_paths(request.app.state.workspace, project),
+        "configs": quality_configs(request, project),
+        "topic": topic,
+        "topics": list(TOPICS),
+        "help": installed_output((*TOPICS[topic], "--help")),
+    }
 
 
-@router.post("")
-async def queue_changed(request: Request, project_id: str):
+class ChangedSubmission(ChangedOptions):
+    sha: str
+
+
+@api.post("", status_code=201)
+def start(request: Request, project_id: str, body: ChangedSubmission):
     project = project_for(request, project_id)
-    data = await request.form()
-    if data.get("sha") != project.revision:
-        raise HTTPException(409, "The project revision changed. Reopen the changed-file list.")
+    if body.sha != project.revision:
+        raise failure(409, "stale_commit", "The project revision changed. Reopen the changed-file list.")
     try:
-        options = ChangedOptions(
-            verbose=data.get("verbose", False),
-            check=data.get("check"),
-            paths=data.getlist("paths"),
-            min_score=data.get("min_score") or 70,
-            quality_config=data.get("quality_config") or None,
-        )
+        options = ChangedOptions(**body.model_dump(exclude={"sha"}))
         if set(options.paths) - set(changed_paths(request.app.state.workspace, project)):
             raise ValueError
         if options.quality_config and (
@@ -84,6 +86,16 @@ async def queue_changed(request: Request, project_id: str):
         ):
             raise ValueError
     except ValueError as exc:
-        raise HTTPException(422, "Choose listed changed paths and settings for the selected check.") from exc
-    run = request.app.state.jobs.enqueue(project, project.revision, CHANGED, options)
-    return RedirectResponse(request.url_for("run_detail", project_id=project_id, run_id=run), 303)
+        raise failure(
+            422, "invalid_inputs", "Choose listed changed paths and settings for the selected check."
+        ) from exc
+    run = request.app.state.jobs.enqueue(project, body.sha, CHANGED, options)
+    return queued(request, project_id, run)
+
+
+@browser.post("")
+def queue_changed(request: Request, project_id: str, body: Annotated[ChangedSubmission, Form()]):
+    return redirect(start(request, project_id, body))
+
+
+router = register(browser, api)

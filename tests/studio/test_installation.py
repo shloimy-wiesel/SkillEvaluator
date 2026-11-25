@@ -14,7 +14,7 @@ def test_installed_version_context_help_and_safe_detail(page, private_remote, tm
         page.goto(base)
         connect(page, *private_remote, skill="skills/triage")
         page.get_by_role("link", name="Installation and changed files").click(timeout=2000)
-        assert version in page.locator("main").inner_text()
+        page.get_by_text(version, exact=True).wait_for()
         for topic, expected in [
             ("root", "--version"),
             ("tier1", "quality-check"),
@@ -63,8 +63,10 @@ def test_changed_files_reach_only_affected_skills(page, private_remote, tmp_path
             ({"quality_config": "/etc/passwd"}, 422),
             ({"sha": "0" * 40}, 409),
         ]:
-            response = page.request.post(entry, form={"sha": sha, "paths": "README.md", "check": "quality", **override})
+            body = {"sha": sha, "paths": "README.md", "check": "quality", **override}
+            response = page.request.post(entry.replace(base, base + "/api/v1"), data={**body, "paths": [body["paths"]]})
             assert response.status == status
+            assert response.json()["detail"]["message"]
         for check, selected in [
             ("schema", paths),
             ("lint-scripts", paths),
