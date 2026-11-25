@@ -7,4 +7,3 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
   msw: false
-  lefthook: false

@@ -1,21 +1,23 @@
-# shadcn/ui monorepo template
+# Studio frontend
 
-This is a Next.js monorepo template with shadcn/ui.
+`apps/web` is the Next.js application. Shared React components and the Tailwind theme live in `packages/ui`; `packages/typescript-config` contains the shared compiler settings.
 
-## Adding components
+## Local development
 
-To add components to your app, run the following command at the root of your `web` app:
+From `studio/frontend`, use Node.js 24.15+ and Corepack. Corepack reads `packageManager` in `package.json` and runs the pinned pnpm 11.25.0.
 
-```bash
-pnpm dlx shadcn@latest add button -c apps/web
+```sh
+corepack pnpm install --frozen-lockfile
+corepack pnpm dev
 ```
 
-This will place the ui components in the `packages/ui/src/components` directory.
+Open the local URL printed by Next.js (normally `http://localhost:3000`).
 
-## Using components
+| Command | Purpose |
+| --- | --- |
+| `corepack pnpm lint` | Check workspace formatting and type-aware lint rules. |
+| `corepack pnpm format` | Apply Ultracite's formatting and automatic lint fixes. |
+| `corepack pnpm typecheck` | Check TypeScript across the app and shared packages. |
+| `corepack pnpm build` | Build the application for production. |
 
-To use the components in your app, import them from the `ui` package.
-
-```tsx
-import { Button } from "@workspace/ui/components/button";
-```
+Use semantic Tailwind utilities such as `bg-primary` so components follow the light and dark themes in `packages/ui/src/styles/globals.css`. Import shared components through the package exports, for example `import { Button } from "@workspace/ui/components/button"`.

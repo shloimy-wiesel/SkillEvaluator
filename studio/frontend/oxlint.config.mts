@@ -1,14 +1,20 @@
 import { defineConfig } from "oxlint";
-import core from "ultracite/oxlint/core";
-import react from "ultracite/oxlint/react";
-import next from "ultracite/oxlint/next";
-import { jsPluginSettings, selectJsPlugins } from "ultracite/oxlint/js-plugins";
-import nextJsPlugins from "ultracite/oxlint/next/js-plugins";
-import shadcn from "ultracite/oxlint/shadcn";
-import landmines from "ultracite/oxlint/landmines";
 import antiSlop from "ultracite/oxlint/anti-slop";
+import core from "ultracite/oxlint/core";
+import { jsPluginSettings, selectJsPlugins } from "ultracite/oxlint/js-plugins";
+import landmines from "ultracite/oxlint/landmines";
+import next from "ultracite/oxlint/next";
+import nextJsPlugins from "ultracite/oxlint/next/js-plugins";
+import react from "ultracite/oxlint/react";
+import shadcn from "ultracite/oxlint/shadcn";
 
-const jsPlugins = selectJsPlugins(["github", "jsdoc-js", "sonarjs", "tsdoc", "react-doctor"]);
+const jsPlugins = selectJsPlugins([
+  "github",
+  "jsdoc-js",
+  "sonarjs",
+  "tsdoc",
+  "react-doctor",
+]);
 
 export default defineConfig({
   env: core.env,
