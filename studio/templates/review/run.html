@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block title %}Review run{% endblock %}
+{% block content %}<h1>Review run</h1>
+<p>{{run.folder}} · {{run.sha}} · <a href="{{url_for('run_detail',project_id=project.id,run_id=run.id)}}">Run details and exports</a></p>
+<h2>Reports and Harbor artifacts</h2>
+<p><a href="?agents=true">Compare agents</a> · <a href="{{url_for('results_dashboard', project_id=project.id)}}?run={{run.id}}">Filter measurements</a></p>
+{% if comparison %}<pre aria-label="Agent score comparison">{{comparison}}</pre>{% endif %}
+<form method="get"><label>File filter<input name="q" value="{{q}}"></label><button>Filter files</button></form>
+<ul>{% for id,label in files.items() %}<li><a href="?file={{id}}&amp;q={{q|urlencode}}">{{label}}</a></li>{% else %}<li>No matching retained files.</li>{% endfor %}</ul>
+{% if steps is not none %}<form method="get"><input type="hidden" name="file" value="{{file}}"><input type="hidden" name="q" value="{{q}}">
+<label for="source">Step source</label><select id="source" name="source"><option value="">All sources</option>{% for s in sources %}<option {% if s==source %}selected{% endif %}>{{s}}</option>{% endfor %}</select><button>Show steps</button></form>
+<ol aria-label="Trajectory steps">{% for step in steps %}<li><pre>{{step|tojson(indent=2)}}</pre></li>{% endfor %}</ol>{% endif %}
+{% if preview is not none %}<details open><summary>Redacted artifact text</summary><pre aria-label="Artifact preview">{{preview}}</pre></details>{% endif %}
+<h2>Run feedback</h2><section aria-label="Conversation">{% for question,answer in conversation %}
+<p><strong>You:</strong> {{question}}</p><p><strong>Assistant:</strong> {{answer}}</p>{% endfor %}</section>
+{% if can_ask %}<p>Send this question, conversation and compact run evidence to your project's chat provider.</p>
+<form method="post" action="{{url_for('ask_feedback',project_id=project.id,run_id=run.id)}}">
+<label>Question<textarea name="question" maxlength="4000" required></textarea></label><button>Ask about this run</button></form>
+{% else %}<p>No canonical agent evidence for feedback.</p>{% endif %}
+{% endblock %}

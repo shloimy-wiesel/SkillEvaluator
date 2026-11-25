@@ -641,14 +641,15 @@ def _native_usage(
     }
 
 
-def _load_native(path: Path) -> DashboardData:
+def load_retained_dashboard(path: Path, *, skill_path: Path | None = None) -> DashboardData:
+    """Read a retained run; a scoped caller may supply its own trusted skill path."""
     from skillevaluator.evaluation.tier3_report import agent_eval_result_from_directory
 
     engine_result = _dict(_read_native_json(path / "result.json", path))
     skill = str(engine_result.get("skill_name") or "unknown")
     # The payload is parsed in memory, never embedded, so keep every agent's trials.
     result = agent_eval_result_from_directory(
-        Path(skill), path, engine_result=engine_result, use_llm_judge=False, enforce_embedded_size=False
+        skill_path or Path(skill), path, engine_result=engine_result, use_llm_judge=False, enforce_embedded_size=False
     )
     if result is None:
         return DashboardData(warnings=[f"{path}: no supported retained agent summaries found."])
@@ -766,7 +767,7 @@ def _load_report_file(
     budget.seen.add(path)
     budget.files_remaining -= 1
     if path.name == "result.json" and (path.parent / "run_config.json").is_file():
-        return _load_native(path.parent)
+        return load_retained_dashboard(path.parent)
     payload = _read_json(path)
     data = parse_dashboard_report(payload, str(path))
     if not isinstance(payload, dict) or not isinstance(payload.get("skills"), list):
@@ -839,7 +840,7 @@ def load_dashboard_path(path: Path) -> DashboardData:
             continue
         if native_run:
             try:
-                data = _load_native(root)
+                data = load_retained_dashboard(root)
             except (OSError, ValueError, RecursionError, RuntimeError, TypeError, AttributeError) as exc:
                 data = DashboardData(warnings=[f"{root}: cannot load retained run: {exc}"])
             output.rows.extend(data.rows)

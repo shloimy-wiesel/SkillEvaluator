@@ -1,0 +1,146 @@
+[
+  {
+    "key": "compare",
+    "status": "partial",
+    "equivalent": "Canonical CLI score matrix for a selected run; no cross-run latest-per-agent search.",
+    "evidence": "tests/studio/test_review.py::test_compare_agents_from_selected_native_summaries"
+  },
+  {
+    "key": "compare:skill_path",
+    "status": "implemented",
+    "equivalent": "Select the saved Studio run for its immutable skill and authorized retained evidence.",
+    "evidence": "tests/studio/test_review.py::test_compare_agents_from_selected_native_summaries"
+  },
+  {
+    "key": "compare:results_dir",
+    "status": "implemented",
+    "equivalent": "Select the saved Studio run for its immutable skill and authorized retained evidence.",
+    "evidence": "tests/studio/test_review.py::test_compare_agents_from_selected_native_summaries"
+  },
+  {
+    "key": "view",
+    "status": "partial",
+    "equivalent": "Inert preview of the retained report; absent HTML is not regenerated.",
+    "evidence": "tests/studio/test_review.py::test_inspect_scoped_report_and_harbor_trajectory"
+  },
+  {
+    "key": "view:skill_path",
+    "status": "implemented",
+    "equivalent": "Select the saved Studio run for its immutable skill and authorized retained evidence.",
+    "evidence": "tests/studio/test_review.py::test_inspect_scoped_report_and_harbor_trajectory"
+  },
+  {
+    "key": "view:results_dir",
+    "status": "implemented",
+    "equivalent": "Select the saved Studio run for its immutable skill and authorized retained evidence.",
+    "evidence": "tests/studio/test_review.py::test_inspect_scoped_report_and_harbor_trajectory"
+  },
+  {
+    "key": "harbor-view",
+    "status": "partial",
+    "equivalent": "Filter and read retained Harbor trajectory steps; no native Harbor UI or arbitrary job roots.",
+    "evidence": "tests/studio/test_review.py::test_filter_retained_harbor_job_steps"
+  },
+  {
+    "key": "harbor-view:jobs_dir",
+    "status": "implemented",
+    "equivalent": "Select the saved Studio run for its immutable skill and authorized retained evidence.",
+    "evidence": "tests/studio/test_review.py::test_filter_retained_harbor_job_steps"
+  },
+  {
+    "key": "tier3 compare",
+    "status": "partial",
+    "equivalent": "Canonical CLI score matrix for a selected run; no cross-run latest-per-agent search.",
+    "evidence": "tests/studio/test_review.py::test_compare_agents_from_selected_native_summaries"
+  },
+  {
+    "key": "tier3 compare:skill_path",
+    "status": "implemented",
+    "equivalent": "Select the saved Studio run for its immutable skill and authorized retained evidence.",
+    "evidence": "tests/studio/test_review.py::test_compare_agents_from_selected_native_summaries"
+  },
+  {
+    "key": "tier3 compare:results_dir",
+    "status": "implemented",
+    "equivalent": "Select the saved Studio run for its immutable skill and authorized retained evidence.",
+    "evidence": "tests/studio/test_review.py::test_compare_agents_from_selected_native_summaries"
+  },
+  {
+    "key": "tier3 view",
+    "status": "partial",
+    "equivalent": "Inert preview of the retained report; absent HTML is not regenerated.",
+    "evidence": "tests/studio/test_review.py::test_inspect_scoped_report_and_harbor_trajectory"
+  },
+  {
+    "key": "tier3 view:skill_path",
+    "status": "implemented",
+    "equivalent": "Select the saved Studio run for its immutable skill and authorized retained evidence.",
+    "evidence": "tests/studio/test_review.py::test_inspect_scoped_report_and_harbor_trajectory"
+  },
+  {
+    "key": "tier3 view:results_dir",
+    "status": "implemented",
+    "equivalent": "Select the saved Studio run for its immutable skill and authorized retained evidence.",
+    "evidence": "tests/studio/test_review.py::test_inspect_scoped_report_and_harbor_trajectory"
+  },
+  {
+    "key": "tier3 harbor-view",
+    "status": "partial",
+    "equivalent": "Filter and read retained Harbor trajectory steps; no native Harbor UI or arbitrary job roots.",
+    "evidence": "tests/studio/test_review.py::test_filter_retained_harbor_job_steps"
+  },
+  {
+    "key": "tier3 harbor-view:jobs_dir",
+    "status": "implemented",
+    "equivalent": "Select the saved Studio run for its immutable skill and authorized retained evidence.",
+    "evidence": "tests/studio/test_review.py::test_filter_retained_harbor_job_steps"
+  },
+  {
+    "key": "dashboard",
+    "status": "partial",
+    "equivalent": "Canonical performance and paired-arm comparisons from saved reports; standalone uploads and Streamlit charts are not exposed.",
+    "evidence": "tests/studio/test_review.py::test_dashboard_queries_retained_agents"
+  },
+  {
+    "key": "dashboard:paths",
+    "status": "partial",
+    "equivalent": "Select saved runs instead of submitting host paths; uploaded JSON is not supported.",
+    "evidence": "tests/studio/test_review.py::test_dashboard_queries_retained_agents"
+  },
+  {
+    "key": "dashboard:port",
+    "status": "implemented",
+    "equivalent": "The dashboard is a page on the existing Studio port. Opening it starts no server or external browser.",
+    "evidence": "tests/studio/test_review.py::test_dashboard_queries_retained_agents"
+  },
+  {
+    "key": "dashboard:no_browser",
+    "status": "implemented",
+    "equivalent": "The dashboard is a page on the existing Studio port. Opening it starts no server or external browser.",
+    "evidence": "tests/studio/test_review.py::test_dashboard_queries_retained_agents"
+  },
+  {
+    "key": "tier3 feedback",
+    "status": "partial",
+    "equivalent": "Canonical compact evidence and durable multi-turn feedback using a key-backed project chat profile; Bedrock is not supported here.",
+    "evidence": "tests/studio/test_review.py::test_contextual_feedback_survives_reopen"
+  },
+  {
+    "key": "tier3 feedback:skill_path",
+    "status": "implemented",
+    "equivalent": "A saved run fixes the skill revision and evidence sent on every turn.",
+    "evidence": "tests/studio/test_review.py::test_contextual_feedback_survives_reopen"
+  },
+  {
+    "key": "tier3 feedback:run_dir",
+    "status": "implemented",
+    "equivalent": "A saved run fixes the skill revision and evidence sent on every turn.",
+    "evidence": "tests/studio/test_review.py::test_contextual_feedback_survives_reopen"
+  },
+  {
+    "key": "tier3 [workflow]:harbor_keep_jobs",
+    "status": "implemented",
+    "equivalent": "Retain Harbor jobs in the private run directory and inspect the resulting job trajectories.",
+    "evidence": "tests/studio/test_review.py::test_filter_retained_harbor_job_steps"
+  }
+]

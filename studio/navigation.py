@@ -6,7 +6,7 @@ from collections import defaultdict
 TASK_ROUTES = {
     "Authoring": ("skill_editor", "datasets", "assets", "repository_ci"),
     "Evaluation": ("runs_index", "live_index", "provider_settings"),
-    "Results": (),
+    "Results": ("results_dashboard",),
 }
 
 

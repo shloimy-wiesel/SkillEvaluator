@@ -28,6 +28,7 @@ Model = Annotated[str, Field(pattern=r"^[a-zA-Z0-9_.:/@+-]{1,256}$")]
 
 
 class Controls(BaseModel):
+    harbor_keep_jobs: bool = False
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
     workflow: Literal["evaluate", "direct"] = "evaluate"
     env_mode: Literal["docker", "kata"] = "docker"
@@ -305,6 +306,8 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
                 args.append(("--" if enabled else "--no-") + name.replace("_", "-"))
         if options.autopilot:
             args.append("--autopilot")
+        if options.harbor_keep_jobs:
+            args.append("--harbor-keep-jobs")
         env = {
             k: os.environ[k]
             for k in ("DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "SSL_CERT_FILE")
@@ -334,7 +337,14 @@ def evaluate(ctx: JobContext, options: LiveOptions) -> Outcome:
                 temporary = saved_dataset.with_suffix(".part")
                 shutil.copyfile(dataset, temporary)
                 temporary.replace(saved_dataset)
-    paths = [path for path in output.glob("*/result.json") if path.resolve() == path and path.is_file()]
+    # The shipped CLI scopes an external results base by the skill name.
+    # Also read direct layouts produced by the original Studio runner adapter.
+    paths = [
+        path
+        for root in (output, output / skill.name)
+        for path in root.glob("*/result.json")
+        if path.resolve() == path and path.is_file()
+    ]
     if len(paths) != 1:
         raise WorkspaceError(
             "No canonical Tier 3 result. Check dataset, provider/agent compatibility and sandbox readiness."

@@ -8,10 +8,20 @@ from .grader_job import GRADER
 from .live_job import LIVE
 from .live_routes import router as live_router
 from .providers import router as provider_router
+from .review import router as review_router
 from .runs import router as runs_router
 from .static_job import STATIC
 
-ROUTERS = (editor_router, provider_router, runs_router, ci_router, assets_router, dataset_router, live_router)
+ROUTERS = (
+    editor_router,
+    provider_router,
+    runs_router,
+    ci_router,
+    assets_router,
+    dataset_router,
+    live_router,
+    review_router,
+)
 PROJECT_LINKS = (
     ("Edit skill", "skill_editor"),
     ("Datasets", "datasets"),
@@ -20,5 +30,6 @@ PROJECT_LINKS = (
     ("Live Tier 3", "live_index"),
     ("Evaluation assets", "assets"),
     ("Repository CI", "repository_ci"),
+    ("Results dashboard", "results_dashboard"),
 )
 JOB_DEFINITIONS = (STATIC, GRADER, LIVE)
