@@ -9,6 +9,25 @@ from test_workspace import connect, playwright, running
 pytest_plugins = ("test_workspace", "test_providers")
 
 
+def test_experiment_api_rejects_unscoped_inputs(page, private_remote, tmp_path):
+    with running(tmp_path / "volume") as base:
+        remote, token = private_remote
+        project = page.request.post(
+            base + "/api/v1/projects",
+            data={
+                "remote": remote,
+                "username": "author",
+                "token": token,
+                "folder": "skills/triage",
+            },
+        ).json()
+        url = base + f"/api/v1/projects/{project['id']}/experiments"
+        response = page.request.get(url)
+        assert response.ok and response.json()["folder"] == "skills/triage"
+        invalid = page.request.post(url + "/metrics", data={"sha": project["revision"], "source": "../secret.json"})
+        assert invalid.status == 422 and invalid.json()["detail"]["message"]
+
+
 def publish(tmp_path):
     seed = tmp_path / "seed"
     repo = tmp_path / "server/handbook.git"
@@ -137,10 +156,10 @@ def test_select_decoys_retains_ranked_manifest_from_project_catalog(page, privat
                 page.get_by_label("Decoy count").fill("1")
                 page.get_by_label("Exclude paths").fill('old/embedding-"secret')
                 page.get_by_role("button", name="Select decoys").click()
-                playwright.expect(page.get_by_role("alert")).to_contain_text("keep credentials out")
-                page.get_by_label("Catalog JSON").fill("catalog.json")
-                page.get_by_label("Catalog root").fill("skills")
-                page.get_by_label("Decoy count").fill("1")
+                playwright.expect(page.get_by_role("main").get_by_role("alert")).to_contain_text("keep credentials out")
+                playwright.expect(page.get_by_label("Catalog JSON")).to_have_value("catalog.json")
+                playwright.expect(page.get_by_label("Catalog root")).to_have_value("skills")
+                playwright.expect(page.get_by_label("Decoy count")).to_have_value("1")
                 page.get_by_label("Exclude paths").fill("release\ntriage")
                 page.get_by_label("Embedding model override").fill("catalog-model")
                 page.get_by_role("button", name="Select decoys").click()
