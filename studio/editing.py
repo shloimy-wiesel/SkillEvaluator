@@ -137,7 +137,7 @@ def read_file(ws, p, name, *, repo_root=False):
         return ws.git(p, ["cat-file", "blob", oid], raw=True) if oid else None
 
 
-def commit_changes(ws, p, changes, message, *, repo_root=False):
+def commit_changes(ws, p, changes, message, *, repo_root=False, executable=None):
     """Publish one direct child of the expected revision, leaving no dirty state on rejection."""
     with project_lock(ws, p.id), TemporaryDirectory(dir=ws.data_dir) as temp:
         _check(ws, p)
@@ -151,7 +151,20 @@ def commit_changes(ws, p, changes, message, *, repo_root=False):
                 ws.git(p, ["update-index", "--force-remove", "--", rel], index=index)
             else:
                 blob = ws.git(p, ["hash-object", "-w", "--stdin"], stdin=data)
-                ws.git(p, ["update-index", "--add", "--cacheinfo", mode or "100644", blob, rel], index=index)
+                ws.git(
+                    p,
+                    [
+                        "update-index",
+                        "--add",
+                        "--cacheinfo",
+                        ("100755" if executable[name] else "100644")
+                        if executable is not None and name in executable
+                        else mode or "100644",
+                        blob,
+                        rel,
+                    ],
+                    index=index,
+                )
         tree = ws.git(p, ["write-tree"], index=index)
         if tree == ws.git(p, ["rev-parse", "HEAD^{tree}"]):
             raise WorkspaceError("There are no changes to save.")
