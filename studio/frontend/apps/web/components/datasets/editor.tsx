@@ -170,7 +170,7 @@ export const DatasetEditor = ({ path }: { path: string }) => {
       {(problem || view.detail) && (
         <p role="alert">{problem || view.detail?.message}</p>
       )}
-      {view.pushed === true && (
+      {!busy && view.pushed === true && (
         <output>Pushed dataset changes to {view.project.branch}.</output>
       )}
       {busy && <output>Applying dataset action…</output>}
@@ -187,7 +187,9 @@ export const DatasetEditor = ({ path }: { path: string }) => {
         {view.draft ? (
           <>
             <Cases view={view} retry={retry} />
-            {view.notice !== undefined && <output>{view.notice}</output>}
+            {!busy && view.notice !== undefined && (
+              <output>{view.notice}</output>
+            )}
             <Workbench view={view} />
             <Traces view={view} />
             <Publish view={view} />
